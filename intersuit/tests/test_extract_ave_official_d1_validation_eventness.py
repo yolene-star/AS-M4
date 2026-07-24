@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 
@@ -97,3 +98,116 @@ def test_saved_feature_rejects_media_sha_change(tmp_path, monkeypatch):
             media_sha256="0" * 64,
             checkpoint_sha256="b" * 64,
         )
+
+
+def test_resume_only_requires_original_extraction_summary(tmp_path):
+    manifest_text = '{"youtube_id":"sample"}\n'
+    (tmp_path / "validation_eventness_feature_manifest.jsonl").write_text(
+        manifest_text,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="原始 extraction summary"):
+        module.validate_resume_only_source(
+            tmp_path,
+            manifest_text=manifest_text,
+        )
+
+
+def test_resume_only_rejects_summary_that_itself_extracted_nothing(tmp_path):
+    manifest_text = '{"youtube_id":"sample"}\n'
+    (tmp_path / "validation_eventness_feature_manifest.jsonl").write_text(
+        manifest_text,
+        encoding="utf-8",
+    )
+    (tmp_path / "summary.json").write_text(
+        json.dumps(
+            {
+                "execution_mode": "resume_only",
+                "newly_extracted_count": 0,
+                "outputs": {
+                    "manifest": {
+                        "sha256": module.sha256_text(manifest_text),
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="不能证明特征生成环境"):
+        module.validate_resume_only_source(
+            tmp_path,
+            manifest_text=manifest_text,
+        )
+
+
+def test_resume_only_preserves_original_summary_and_writes_separate_audit(tmp_path):
+    manifest_text = '{"youtube_id":"sample"}\n'
+    manifest_path = tmp_path / "validation_eventness_feature_manifest.jsonl"
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+    original_summary = {
+        "execution_mode": "extraction",
+        "newly_extracted_count": 1,
+        "resumed_count": 0,
+        "outputs": {
+            "manifest": {
+                "sha256": module.sha256_text(manifest_text),
+            }
+        },
+    }
+    summary_path = tmp_path / "summary.json"
+    original_bytes = (json.dumps(original_summary) + "\n").encode()
+    summary_path.write_bytes(original_bytes)
+
+    source = module.validate_resume_only_source(
+        tmp_path,
+        manifest_text=manifest_text,
+    )
+    module.write_resume_validation_summary(
+        tmp_path,
+        source_summary=source,
+        current_process={
+            "requested_device": "cuda:0",
+            "visible_cuda_device_count": 0,
+        },
+        sample_count=1,
+    )
+
+    assert summary_path.read_bytes() == original_bytes
+    audit = json.loads(
+        (tmp_path / "resume_validation_summary.json").read_text(encoding="utf-8")
+    )
+    assert audit["execution_mode"] == "resume_only"
+    assert audit["asset_generation_environment_source"] == "preserved_summary"
+    assert audit["current_process"]["visible_cuda_device_count"] == 0
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        {
+            "requested_device": "cuda:0",
+            "cuda_visible_devices": None,
+            "visible_cuda_device_count": 1,
+        },
+        {
+            "requested_device": "cuda:0",
+            "cuda_visible_devices": "0,2",
+            "visible_cuda_device_count": 2,
+        },
+    ],
+)
+def test_fresh_cuda_extraction_requires_explicit_single_gpu(environment):
+    with pytest.raises(ValueError, match="CUDA_VISIBLE_DEVICES|只可见一张 GPU"):
+        module.assert_fresh_extraction_environment(environment)
+
+
+def test_fresh_cuda_extraction_accepts_explicit_single_gpu():
+    module.assert_fresh_extraction_environment(
+        {
+            "requested_device": "cuda:0",
+            "cuda_visible_devices": "1",
+            "visible_cuda_device_count": 1,
+        }
+    )

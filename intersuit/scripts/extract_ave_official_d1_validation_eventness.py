@@ -9,6 +9,7 @@ from datetime import datetime
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Iterable
@@ -126,6 +127,37 @@ def file_sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def current_process_environment(requested_device: str) -> dict:
+    visible_count = torch.cuda.device_count()
+    return {
+        "requested_device": requested_device,
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "visible_cuda_device_count": visible_count,
+        "visible_cuda_device_names": [
+            torch.cuda.get_device_name(index) for index in range(visible_count)
+        ],
+        "torch_version": torch.__version__,
+        "torch_cuda_version": torch.version.cuda,
+        "python_executable": sys.executable,
+        "conda_default_env": os.environ.get("CONDA_DEFAULT_ENV"),
+    }
+
+
+def assert_fresh_extraction_environment(environment: dict) -> None:
+    requested_device = str(environment["requested_device"])
+    if not requested_device.startswith("cuda"):
+        return
+    visible_devices = environment.get("cuda_visible_devices")
+    if not visible_devices:
+        raise ValueError("CUDA extraction 必须显式设置 CUDA_VISIBLE_DEVICES")
+    if "," in visible_devices or int(environment["visible_cuda_device_count"]) != 1:
+        raise ValueError("D1 Eventness extraction 必须显式映射且只可见一张 GPU")
 
 
 def normalize_waveform(waveform: torch.Tensor) -> tuple[torch.Tensor, dict]:
@@ -332,11 +364,77 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def write_jsonl(path: Path, rows: Iterable[EventnessFeatureRecord]) -> None:
-    path.write_text(
-        "".join(json.dumps(asdict(row), ensure_ascii=False, sort_keys=True) + "\n" for row in rows),
-        encoding="utf-8",
+def serialize_jsonl(rows: Iterable[EventnessFeatureRecord]) -> str:
+    return "".join(
+        json.dumps(asdict(row), ensure_ascii=False, sort_keys=True) + "\n"
+        for row in rows
     )
+
+
+def write_jsonl(path: Path, rows: Iterable[EventnessFeatureRecord]) -> None:
+    path.write_text(serialize_jsonl(rows), encoding="utf-8")
+
+
+def validate_resume_only_source(
+    output_dir: Path,
+    *,
+    manifest_text: str,
+) -> dict:
+    """确认 resume-only 只验证一个可追溯的完整 extraction 产物。"""
+
+    summary_path = output_dir / "summary.json"
+    manifest_path = output_dir / "validation_eventness_feature_manifest.jsonl"
+    if not summary_path.is_file():
+        raise ValueError("resume-only 缺少原始 extraction summary")
+    if not manifest_path.is_file():
+        raise ValueError("resume-only 缺少原始 extraction manifest")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if (
+        summary.get("execution_mode") != "extraction"
+        or int(summary.get("newly_extracted_count", 0)) <= 0
+    ):
+        raise ValueError("现有 summary 不能证明特征生成环境")
+    expected_sha = sha256_text(manifest_text)
+    recorded_sha = (
+        summary.get("outputs", {})
+        .get("manifest", {})
+        .get("sha256")
+    )
+    if file_sha256(manifest_path) != expected_sha or recorded_sha != expected_sha:
+        raise ValueError("resume-only 重建 manifest 与原始 extraction 不一致")
+    return summary
+
+
+def write_resume_validation_summary(
+    output_dir: Path,
+    *,
+    source_summary: dict,
+    current_process: dict,
+    sample_count: int,
+) -> dict:
+    """追加 resume 校验记录，绝不覆盖原始 extraction summary。"""
+
+    summary_path = output_dir / "summary.json"
+    manifest_path = output_dir / "validation_eventness_feature_manifest.jsonl"
+    audit = {
+        "stage": "D1-AVE-validation-eventness-features-resume-audit",
+        "status": "pass",
+        "execution_mode": "resume_only",
+        "finished_at": datetime.now().astimezone().isoformat(),
+        "sample_count": sample_count,
+        "newly_extracted_count": 0,
+        "resumed_count": sample_count,
+        "asset_generation_environment_source": "preserved_summary",
+        "source_extraction_summary_sha256": file_sha256(summary_path),
+        "source_manifest_sha256": file_sha256(manifest_path),
+        "source_extraction_environment": source_summary.get(
+            "asset_generation_environment"
+        ),
+        "current_process": current_process,
+        "test_accessed": False,
+    }
+    write_json(output_dir / "resume_validation_summary.json", audit)
+    return audit
 
 
 def build_report(summary: dict) -> str:
@@ -370,6 +468,7 @@ def run(args: argparse.Namespace) -> dict:
     code_root = args.beats_code_root.resolve()
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    process_environment = current_process_environment(args.device)
     rows = baseline.load_validation_inputs(
         candidate_manifest,
         media_inventory,
@@ -399,8 +498,14 @@ def run(args: argparse.Namespace) -> dict:
             pending.append(row)
         else:
             records.append(existing)
+    if records and pending:
+        raise ValueError(
+            "partial resume 无法证明所有特征来自同一生成环境；"
+            "请使用全新输出目录重新 extraction"
+        )
     encoder = None
     if pending:
+        assert_fresh_extraction_environment(process_environment)
         encoder = beats_tools.BEATsWindowEncoder(
             checkpoint_path=checkpoint_path,
             beats_code_root=code_root,
@@ -419,10 +524,37 @@ def run(args: argparse.Namespace) -> dict:
     if len(records) != target_count:
         raise ValueError("eventness validation feature 数量不完整")
     manifest_path = output_dir / "validation_eventness_feature_manifest.jsonl"
-    write_jsonl(manifest_path, records)
+    manifest_text = serialize_jsonl(records)
+    if args.resume and not pending:
+        source_summary = validate_resume_only_source(
+            output_dir,
+            manifest_text=manifest_text,
+        )
+        audit = write_resume_validation_summary(
+            output_dir,
+            source_summary=source_summary,
+            current_process=process_environment,
+            sample_count=len(records),
+        )
+        print(
+            json.dumps(
+                {
+                    "status": audit["status"],
+                    "execution_mode": audit["execution_mode"],
+                    "sample_count": len(records),
+                    "newly_extracted_count": 0,
+                    "resumed_count": len(records),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return audit
+
+    manifest_path.write_text(manifest_text, encoding="utf-8")
     summary = {
         "stage": "D1-AVE-validation-eventness-features",
         "status": "pass",
+        "execution_mode": "extraction",
         "started_at": started_at.isoformat(),
         "finished_at": datetime.now().astimezone().isoformat(),
         "python_environment": "M4",
@@ -435,6 +567,7 @@ def run(args: argparse.Namespace) -> dict:
             if torch.cuda.is_available() and torch.cuda.device_count() == 1
             else None
         ),
+        "asset_generation_environment": process_environment,
         "sample_count": len(records),
         "newly_extracted_count": len(pending),
         "resumed_count": len(records) - len(pending),
