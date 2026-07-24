@@ -17,6 +17,14 @@
 
 每一层只回答一个问题；上一层未通过，下一层不得启动。
 
+整条链路采用“核心门禁 + 条件资产”结构：
+
+- 核心门禁只依赖在当前阶段已经具备完整数据、schema、权重和验收结论的必跑策略；
+- 历史 scorer、可选视觉特征或其他条件资产必须先通过统一资格门禁，才允许加入当前阶段矩阵；
+- 条件资产不合格时必须 fail-closed，记录为 `omitted_ineligible_asset`，不得伪装运行、不得临时改定义，也不得阻断不依赖它的核心门禁；
+- 条件资产的修复使用独立分支、独立数据和独立提交；修复完成后只能进入尚未解封的 validation/pilot，不能补跑已经解封的 test；
+- 每个阶段结束前必须执行一次 contract、数据边界、统计口径、产物和 Git 范围 review；review 未通过不得进入下一阶段。
+
 本计划禁止：
 
 - 把 AVE、AVUT、MUSIC-AVQA 等样本拼成一个训练、验证或测试集合；
@@ -90,6 +98,10 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 8. Oracle 时间边界若参与普通策略打分，会造成目标泄漏。
 9. 当前 dynamic 实现会把 1/2/4 秒多尺度区间池化成候选，再做 NMS；它与“直接选择 K 个原始 1 秒窗口”不是同一个实验单位，不能混在同一排行榜。
 10. LongVALE、UnAV-100、AVQA 和历史 M4 训练清单都可能共享 YouTube 物理视频；只看数据集名称不能证明测试独立。
+11. 历史 Temporal scorer 三 seed 的正式 decision 均为 `temporal_offset_scorer_not_passed`；现有 runtime bundle 只标记为 `diagnostic_only`，不能进入正式策略矩阵。
+12. 历史 Temporal scorer 使用 20 个长度 1 秒、hop 0.5 秒的重叠窗口，尾窗达到 `[9.5, 10.5]`；它与正式 harness 的 10 个非重叠 1 秒 micro-window 不兼容。
+13. 历史 Temporal scorer 同时依赖 BEATs 768 维、CLIP 1024 维、RGB 768 维和 37 维 scalar；只有 BEATs 缓存时不得静默降级或用零张量补输入。
+14. 现有 runtime bundle 构建器只检查 seed 与配置，没有检查训练 summary 的 acceptance decision；“文件可加载”不等于“资产已验收”。
 
 ### 4.2 必须先通过的单元测试
 
@@ -110,14 +122,14 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 
 现阶段只承诺保留 `source_index + absolute_timestamp`。如果后续要研究 gap-aware position encoding，必须作为独立研究变量另开阶段，不能偷偷并入 selector。
 
-正式 harness 的原子选择单位固定为 scene-audio 的原始 micro-window，默认 1 秒。Energy、Onset、cached Eventness、Temporal scorer、Random 和 Oracle 都只能对同一组 micro-window 排名。现有多尺度 pooled interval 实现改名为 `legacy_multiscale_dynamic`，只做历史回归，不进入 D1–D4 主门禁。
+正式 harness 的原子选择单位固定为 scene-audio 的原始 micro-window，默认 1 秒。Energy、Onset、cached Eventness、Random、Oracle，以及资格通过后才可加入的条件 scorer，都只能对同一组 micro-window 排名。现有多尺度 pooled interval 实现改名为 `legacy_multiscale_dynamic`，只做历史回归，不进入 D1–D4 主门禁。
 
 ### 4.3 因果协议
 
 因果模式不能隐含在实现细节中，必须进入配置、命名和门禁：
 
 - D1、D2 和 S1 的 Oracle 只属于 `noncausal_upper_bound`，允许查看完整 clip，固定记录 `lookahead=full_clip`，不得解释为可部署结果；
-- D1/D2/S1 的 Energy、Onset、cached Eventness 和 Temporal scorer 同时报告 non-causal 排名结果，只用于与 Oracle 和 Random 做上界归因；
+- D1/D2/S1 的 Energy、Onset 和 cached Eventness 报告 non-causal 排名结果；条件 scorer 只有资格通过后才可同口径报告，所有结果都只用于与 Oracle 和 Random 做上界归因；
 - D3、D4 的正式主结果必须使用 `strict_causal`：在时间 `t` 打分时只能读取问题和 `timestamp.end <= t` 的音视频窗口；
 - `strict_causal` harness 必须按 micro-window 或固定 chunk 逐步调用并传递 state；禁止把完整 clip 一次传入后仅凭内部 causal convolution/EMA 声称因果，因为全局 Top-K 仍会读取未来分数；
 - D3 的缓存特征必须逐 micro-window 独立提取，禁止使用双向时序编码、全视频均值方差、未来窗口归一化或未来感知 NMS；
@@ -126,7 +138,49 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 - LongVALE 定位指标在目标事件结束时结算一次，同时补充视频结束时结果；两者不得混成一个指标；
 - 任何 lookahead 对照必须使用独立配置和实验名，报告 lookahead 秒数、端到端延迟及其与 strict-causal 的差值。
 
-### 4.4 D0 退出条件
+### 4.4 条件资产统一资格门禁
+
+任何 checkpoint、runtime bundle、外部特征流或历史 scorer 在进入 D1–D4/S1–S3 前，必须先生成只读 `asset_qualification.json`。状态只能是：
+
+| 状态 | 含义 | 是否允许进入正式矩阵 |
+| --- | --- | --- |
+| `qualified` | 验收结论、schema、数据来源、输入和 SHA 全部匹配当前阶段 | 是 |
+| `diagnostic_failed` | 原始训练/验证 decision 未通过，或仅允许诊断 | 否 |
+| `schema_incompatible` | 窗口长度、hop、数量、timestamp、特征维度或候选定义不一致 | 否 |
+| `missing_inputs` | 当前阶段缺少模型要求的一个或多个输入流 | 否 |
+| `data_ineligible` | 训练污染、split 重叠、来源不允许或 test 反馈污染 | 否 |
+| `corrupt_or_unverifiable` | 文件损坏、SHA/metadata/来源无法验证 | 否 |
+
+资格检查必须按以下顺序 fail-fast：
+
+1. **来源与 decision**：读取原始训练 summary；正式资产必须显式 `passed`。缺字段、`not_passed`、`diagnostic_only=true` 均不得解释为通过。
+2. **数据边界**：记录训练、开发、验证和 test 的物理 ID；检查与当前阶段 split、M4-IT 和历史 AS-M4 的交叉。
+3. **窗口 schema**：逐项比较 `window_length_sec`、`hop_sec`、`window_count_policy`、尾窗裁剪、padding、source index 和 timestamp 语义；任一不一致不得靠插值或下采样静默适配。
+4. **输入 schema**：逐项比较输入流名称、维度、模型/checkpoint、预处理、归一化统计和缺失值策略；禁止零填充缺失模态来让模型“能跑”。
+5. **任务语义**：确认 scorer 输出确实对应当前策略所需的排名含义。offset 分类 margin 只能叫同步/偏移置信度，不能自动解释为事件相关性或问题相关性。
+6. **数值与状态**：检查有限值、参数 SHA、`eval()`、无 optimizer、推理前后权重不变。
+7. **可复现性**：同一输入重复两次产生完全相同的逐窗口分数、排名、source index 和 manifest SHA。
+
+实现层必须提供统一的 `assert_formal_asset_eligible(...)` 或等价门禁；正式入口不能只判断 bundle 文件存在。runtime bundle 构建器必须拆分为：
+
+- `build_diagnostic_bundle`：允许封装失败资产，但 metadata 必须保留原 decision，并固定 `formal_eligible=false`；
+- `build_formal_bundle`：只有原 decision 为 `passed` 且 schema manifest 完整时才允许生成，否则在写文件前失败。
+
+当前历史 Temporal bundle 的冻结判定为：
+
+```text
+decision: temporal_offset_scorer_not_passed
+diagnostic_only: true
+formal_eligible: false
+qualification:
+  - diagnostic_failed
+  - schema_incompatible
+  - missing_inputs
+```
+
+它只允许用于旧 AVE_HF 代码回归和离线错误分析，禁止进入 D1、D2、S1 的正式或候选策略矩阵。
+
+### 4.5 D0 退出条件
 
 所有单元测试与 8 条单卡 smoke 全部通过，并增加“未来窗口扰动不改变当前输出”的严格因果单元测试。任何失败只修 harness，不下载新数据、不运行效果实验。
 
@@ -144,38 +198,73 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 
 ### 5.2 策略矩阵
 
+核心必跑矩阵：
+
 | 策略 | 定义 | 能否节省 BEATs 计算 |
 | --- | --- | --- |
 | `all` | 全部有效窗口 | 否 |
 | `uniform_topk` | 时间均匀选择 | 是 |
 | `energy_topk` | waveform RMS 排序 | 是 |
 | `onset_topk` | waveform onset 排序 | 是 |
-| `eventness_cached_topk` | encoded feature change + energy + onset | 否 |
-| `temporal_conf_cached_topk` | 冻结 Temporal scorer margin 排序 | 否 |
+| `eventness_cached_topk` | 同一组已编码 micro-window 上的 feature change + energy + onset | 否 |
 | `oracle_topk` | 与官方事件边界重叠时长排序 | 仅上界 |
 | `random_topk` | 五个固定 seed | 对照 |
 
-不得再把 `eventness_cached_topk` 写成“前置压缩”或“端到端效率方案”。
+条件矩阵：
 
-### 5.3 评测协议
+| 策略 | 加入条件 | 当前状态 |
+| --- | --- | --- |
+| `sync_margin_cached_topk` | scorer 必须通过第 4.4 节资格门禁；输出语义固定为“音视频同步/偏移置信度”，并使用与其他策略相同的 10 个非重叠 1 秒窗口 | `omitted_ineligible_asset` |
+
+`sync_margin_cached_topk` 是原 `temporal_conf_cached_topk` 的消歧命名。它只回答“高同步置信窗口是否更常覆盖官方事件”，不能称为事件相关性 scorer。当前历史 bundle 不满足加入条件，因此 D1 validation/test 都不得运行该策略。
+
+不得把 `eventness_cached_topk` 或 `sync_margin_cached_topk` 写成“前置压缩”或“端到端效率方案”。
+
+### 5.3 D1 bug 排查与恢复顺序
+
+D1 每发现一个问题，都必须按同一故障单流程推进，禁止边修边扩矩阵：
+
+1. **复现**：保存最小失败输入、命令、M4 环境、GPU 映射、stdout/stderr 和开始时间。
+2. **分类**：只允许归入 `contract`、`data`、`schema`、`asset`、`metric`、`runtime` 六类之一；不确定时先标 `unknown`，不得猜测修复。
+3. **缩小**：先 CPU 单元测试，再固定单卡 1 条、8 条 smoke，最后才扩到完整 validation。
+4. **修复**：只修改当前故障所属层；禁止同时改 scorer 权重、K、数据子集和指标。
+5. **回归**：重跑本层测试、D0 contract 和 All=Fixed；参数 SHA、source index、timestamp、cache SHA 任一变化都要解释。
+6. **双次复现**：正式 validation 重跑或 resume 后，逐样本记录与 manifest SHA 必须不变。
+7. **review**：检查 test 未访问、阈值未因 validation 结果改变、运行资产未加入 Git，再关闭故障单。
+
+Temporal 资产恢复使用独立 `T0` 支线，不阻断 D1 核心矩阵：
+
+1. 先给 runtime bundle 构建器补 acceptance decision 单元测试，证明 `not_passed` 无法生成 formal bundle。
+2. 固化历史 bundle 为 `diagnostic_failed + schema_incompatible + missing_inputs` 回归样本。
+3. 若仍需要同步置信策略，必须另建与 10 个非重叠 1 秒窗口一致的新 scorer；禁止把 20 个 hop 0.5 秒分数插值、平均或奇偶抽样成 10 个分数。
+4. 新 scorer 只能使用 AVE 官方 train 中通过污染审计的物理视频训练，并从 train 内另划开发集；D1 validation 只能一次性验收，test 继续封存。
+5. BEATs、CLIP、RGB 的模型、checkpoint、预处理、帧采样、归一化、窗口 timestamp 和 cache SHA 必须在训练前冻结。
+6. offset/sync 标签、候选定义和 margin 阈值必须在 train/dev 冻结；不得使用 D1 validation 的官方事件边界选择同步阈值。
+7. 新 scorer 必须先通过独立同步任务的预注册门槛，再评估其 margin 与事件覆盖的关系；同步任务不通过时仍记为失败资产。
+8. T0 成功只使 `sync_margin_cached_topk` 有资格进入尚未解封的数据阶段，不重开已完成的 D1 test，也不改变 D1 是否通过。
+
+### 5.4 评测协议
 
 - validation 可用于修 harness 和冻结确定性阈值；
 - test 只运行一次；
 - 主预算 `K=4`，补充 `K=2/8`；
-- 所有固定 K 策略统一选择 `min(K, N_valid)`；
+- 核心固定 K 策略统一选择 `min(K, N_valid)`；
+- 条件策略必须在 validation 运行前预注册“固定 K”或“阈值后最多 K”之一；若允许少于 K，必须报告实际窗口数并增加 matched-count Random，不能混入固定 K 公平比较；
 - localization 只在局部边界样本计算；
 - 报告 Window Hit@K、正窗口 Recall@K、首个命中排名、选中窗口与目标段的最大 tIoU；
 - Random 报告五个 seed 的逐 seed、均值和标准差；
 - Oracle 与 Random 的差使用 paired bootstrap 95% 置信区间；
 - All 只作为完整上下文和成本参考，不参与固定 K 的 Recall 公平比较。
 
-### 5.4 D1 退出条件
+### 5.5 D1 退出条件
 
 1. `all` 精确复现 Fixed；
 2. Oracle 的 Window Hit@K 为 100%；
 3. Oracle 至少高于五个 Random seed 均值 10 个百分点，paired bootstrap 95% 置信区间下界大于 0；
-4. 所有策略 timestamps、source index、窗口数和压缩率审计正确；
+4. 所有核心策略 timestamps、source index、窗口数和压缩率审计正确；
 5. test 没有因下载失败而改变预注册阈值或样本定义。
+6. 每个条件策略必须是 `qualified_and_run` 或带完整资格报告的 `omitted_ineligible_asset`；禁止 `pending` 状态进入 test。
+7. D1 阶段 review 清单全部通过，没有 test 访问、schema 漂移、未解释的 SHA 变化或运行资产误提交。
 
 D1 只证明 harness 正确，不证明动态窗口适合长视频，也不证明最终 QA 会提升。
 
@@ -197,11 +286,13 @@ D1 只证明 harness 正确，不证明动态窗口适合长视频，也不证�
 
 评测单元固定为 `(video_id, target_event_id)`：
 
-- Energy、Onset、cached Eventness、Temporal scorer 和 Random 对同一视频只生成一份与 target event 无关的排名；
+- Energy、Onset、cached Eventness、Random，以及通过第 4.4 节资格门禁时的 `sync_margin_cached_topk`，对同一视频只生成一份与 target event 无关的排名；
 - 每个 target event 分别计算是否被该排名的预算窗口覆盖；
 - Oracle 可以使用当前 target event 的官方边界，但只能作为上界；
 - 不把事件类别文本输入确定性 selector；
 - 不生成模板问题，不把 UnAV-100 伪装成 QA 数据集。
+
+AVE D1 或历史 AVE_HF 上通过的条件资产不能自动迁移到 S1。UnAV-100 的窗口 schema、特征提取和数据来源必须重新生成资格报告；不合格时省略该条件策略，S1 核心诊断继续。
 
 ### 6.3 窗口预算与指标
 
@@ -261,11 +352,12 @@ D2 是整个低成本诊断的唯一 Oracle 晋级门禁：
 ### 7.2 冻结对照
 
 - M4/Qwen2、视觉塔、BEATs、projector、fusion 和 gate 全部固定；
-- pilot 比较 text-only、All、Uniform Top-K、Energy Top-K、Onset Top-K、cached Eventness Top-K、Temporal high-confidence Top-K、Random 五个 seed、Oracle 10%、Oracle 25% 和 Oracle-mismatch 五个映射；
+- pilot 核心矩阵比较 text-only、All、Uniform Top-K、Energy Top-K、Onset Top-K、cached Eventness Top-K、Random 五个 seed、Oracle 10%、Oracle 25% 和 Oracle-mismatch 五个映射；
+- `sync_margin_cached_topk` 只有在 LongVALE 目标窗口 schema 上单独通过第 4.4 节资格门禁后才加入 pilot 条件矩阵；当前历史 AVE_HF bundle 明确禁止复用；
 - pilot 同时报告固定 `K=4/8`，并按预注册规则锁定最多一个非 Oracle 确定性策略；
 - 只有候选确定性策略的 METEOR 高于五个 Random seed 均值时才允许锁定；否则明确记录“无可锁定确定性策略”；
 - confirm 只运行 text-only、All、可用时的 pilot 锁定策略、Random 五个 seed、Oracle 25% 和 Oracle-mismatch 五个映射，不再重跑全部候选策略；
-- Temporal high-confidence 最多选择 K 个超过冻结 margin 的窗口，不足 K 时不补齐；必须增加相同实际窗口数的 matched-count Random；
+- 条件同步策略若采用阈值后最多 K，不足 K 时不补齐，并增加相同实际窗口数的 matched-count Random；
 - LongVALE 主晋级指标使用 25% 预算，固定 K 只作补充，避免长短视频偏差；
 - 官方 timestamp 必须按完全相同的格式写入所有模型 prompt；Oracle 的额外权限仅限使用它选择 scene-audio 窗口；
 - 使用五个固定错配音频映射验证 Oracle 时间段不是仅靠视觉或文本产生收益；
@@ -285,7 +377,7 @@ pilot 必须同时满足：
 
 pilot 任一条件失败时立即停止 selector 路线，不解封 `oracle_confirm`，也不通过更换 K、阈值或样本继续尝试。
 
-pilot 的非 Oracle 策略锁定顺序固定为：先满足高于 Random 均值，再按 METEOR 最高、harm 最少、实际窗口更少排序，最后按 Uniform、Energy、Onset、Eventness、Temporal 的顺序打破平局。没有候选满足首项时，confirm 省略确定性策略；这不阻断 Oracle 门禁。
+pilot 的非 Oracle 策略锁定顺序固定为：先满足高于 Random 均值，再按 METEOR 最高、harm 最少、实际窗口更少排序，最后按 Uniform、Energy、Onset、Eventness、Sync-Margin（仅资格通过时）的顺序打破平局。没有候选满足首项时，confirm 省略确定性策略；这不阻断 Oracle 门禁。
 
 ### 7.4 Confirm 正式通过条件
 
@@ -416,7 +508,7 @@ AVQA 没有可靠的窗口级 Oracle 边界，因此禁止在 AVQA 上伪造 Ora
 2. View 子集相对 All 的下降不超过 1 个百分点；
 3. 对每个样本先计算五个错配映射的平均正确率，再与正确音频的 0/1 正确性做按物理视频 cluster paired bootstrap；点估计至少高 3 个百分点且 95% 置信区间下界大于 0；
 4. `gate=0` 必须与 Video-only 逐样本输出完全一致；silence 的 Overall 和 View Accuracy 相对 Video-only 均不得下降超过 1 个百分点；
-5. 本轮 BEATs 计算效率结论只来自 `energy_topk` 和 `onset_topk`；D3 cached learned selector、cached Eventness 与 Temporal scorer 均不宣称节省 BEATs。
+5. 本轮 BEATs 计算效率结论只来自 `energy_topk` 和 `onset_topk`；D3 cached learned selector、cached Eventness 与任何条件同步 scorer 均不宣称节省 BEATs。
 6. 必须完整报告 text-only；若 selector 的新增正确样本大多已被 text-only 答对，不得解释为音频选窗收益。
 
 D4 全部 paired bootstrap 固定 10000 次和 seed `20260724`；同一物理视频的多个 QA 必须作为一个 cluster 重采样。
@@ -473,6 +565,8 @@ D0–D2 上界诊断阶段固定：
 - Offset、learned Gate 和 Event Aligner 关闭；
 - 确定性解码。
 
+条件同步 scorer 若资格通过，也只能在独立 harness 中读取冻结缓存生成排名；不得通过开启 Offset、Event Aligner 或 Gate 改变正式 M4 forward。
+
 D0–D2 统一执行：
 
 1. 全部参数 `requires_grad=False`；
@@ -491,6 +585,11 @@ D0–D2 统一执行：
 14. 在任何预测前运行 token-budget preflight：视觉 token、问题 token 和非音频 token 在所有策略间必须逐样本完全一致；`all` 的有效音频窗口不得被 `MODEL_MAX_LENGTH` 静默截断。
 15. 会触发全局截断、OOM 或策略相关非音频截断的样本必须在查看预测前排除并冻结清单；不得把 All 被截断、Top-K 未被截断造成的差异解释为选窗收益。
 16. mismatch 必须是一一映射且禁止同源视频；优先匹配有效窗口数差不超过 10% 的样本，否则按目标绝对时间除以目标时长映射到错配时长并裁剪，保存映射前后 timestamp。
+17. 每个模型/特征/脚本条件资产都要进入统一 `asset_registry.json`，记录 `asset_id`、用途、来源 commit、训练 decision、数据 ID SHA、schema SHA、checkpoint SHA、资格状态和允许进入的阶段。
+18. 任何资产从 `diagnostic_failed`、`schema_incompatible` 或 `missing_inputs` 变为 `qualified`，都必须产生新的 `asset_id`；禁止覆盖旧 bundle 或只改 metadata。
+19. 所有 Python、测试、特征提取和训练命令固定使用已有 Conda `M4` 环境，并在日志中记录 `sys.executable`；禁止使用系统 Python或临时新建环境。
+20. 默认不安装依赖。只有当前故障无法用 `M4` 已有依赖复现或修复时，才允许在记录缺失模块、版本约束和影响范围后请求安装；不得为了绕过 schema、资产或数据问题升级依赖。
+21. 所有 GPU 命令必须显式设置 `CUDA_VISIBLE_DEVICES`，按仓库稳定映射选择单卡或稳定多卡，不得默认使用全部可见 GPU。
 
 D3 训练阶段以 selector 参数白名单替代“全部参数冻结”，其余 SHA、数据、因果、随机种子和测试集冻结规则继续适用。
 
@@ -511,6 +610,11 @@ D0 失败
 D1 失败
 └─ 修窗口、mask、索引、cache 或回退；禁止进入 D2–D4
 
+D1 条件资产不合格
+└─ 标记 omitted_ineligible_asset
+   ├─ D1 核心矩阵继续
+   └─ 可进入独立 T0 修复支线，但不得访问已封存 test
+
 D2 下游 Oracle 失败
 └─ 终止 selector 训练
    └─ 转向音频语义目标、答案表示和融合位置
@@ -530,6 +634,9 @@ D3 与 D4 均通过
 
 S1、S2、S3 任意失败
 └─ 只影响对应支线结论，不改变主链状态
+
+T0 Temporal 资产恢复失败
+└─ 保留失败诊断结论；不阻断 D1–D4 核心主链
 ```
 
 ## 13. 产物与提交
@@ -545,6 +652,7 @@ intersuit/harness/artifacts/dynamic_selector_d4_avqa/
 intersuit/harness/artifacts/dynamic_selector_s1_unav100/
 intersuit/harness/artifacts/dynamic_selector_s2_visual_condition/
 intersuit/harness/artifacts/dynamic_selector_s3_sparse_sync/
+intersuit/harness/artifacts/dynamic_selector_t0_temporal_asset_recovery/
 ```
 
 每个目录保存：
@@ -563,6 +671,8 @@ intersuit/harness/artifacts/dynamic_selector_s3_sparse_sync/
 - 中文报告；
 - 失败样例；
 - checkpoint SHA。
+- `asset_registry.json` 与每个条件资产的 `asset_qualification.json`；
+- 阶段结束 `review.md`，逐项给出 pass/fail、证据路径和未解决项。
 
 代码提交边界：
 
@@ -572,21 +682,70 @@ intersuit/harness/artifacts/dynamic_selector_s3_sparse_sync/
 4. D3 Audio+Question selector 专用训练入口；
 5. D4 AVQA 一次性正式结论；
 6. S1、S2、S3 各自独立提交，不得与主链实现混在同一 commit。
+7. T0 资产门禁、历史失败 bundle 回归和可选新 scorer 各自独立提交；T0 不得与 D1 test 结果混在同一 commit。
 
 checkpoint、权重、数据集、缓存、预测和训练日志不得加入 Git。
 
-## 14. 立即执行顺序
+## 14. 阶段结束 review
+
+每个阶段在提交和进入下一阶段前，由未参与本轮结果选择的 review 步骤逐项检查；review 读取全部 summary、manifest、资格报告、Git diff 和日志，但不得修改结果。检查项固定为：
+
+### 14.1 Contract review
+
+- 所有策略是否使用同一原子 micro-window、source index 和 timestamp 语义；
+- 是否存在从浮点 timestamp、相似度或排序结果反推 source index；
+- All=Fixed、行为回退、参数 SHA 和双次复现是否通过；
+- 条件资产是否先通过第 4.4 节门禁，正式入口是否 fail-closed；
+- 策略名称是否准确表达分数语义，特别是 sync margin 不得写成 event relevance。
+
+### 14.2 数据与 test review
+
+- 官方 split、物理视频去重、历史污染排除和媒体缺失清单是否冻结；
+- validation/pilot 是否承担了计划允许的开发职责；
+- test 是否在全部策略、阈值、schema 和资产资格冻结前保持未访问；
+- 任何失败是否导致样本、阈值或 test 定义被事后改变；
+- 条件资产训练/开发数据是否与当前正式 test 物理隔离。
+
+### 14.3 指标与公平性 review
+
+- 固定 K、比例预算和阈值后最多 K 是否分开统计；
+- 少于 K 的策略是否配有 matched-count Random；
+- localization 是否只统计具有局部边界的样本；
+- bootstrap 是否按物理视频 cluster、固定 seed 和固定次数执行；
+- All 的 token 截断、有效音频窗口和非音频 token 是否与 Top-K 公平。
+
+### 14.4 运行与产物 review
+
+- Python 是否始终使用固定 Conda 环境，GPU 是否显式映射；
+- stdout、stderr、开始时间、功率、GPU、配置和内核异常检查是否齐全；
+- cache、checkpoint、数据、媒体、日志和预测是否均未加入 Git；
+- staged diff 是否只包含当前阶段代码、测试和说明文档；
+- `asset_registry.json`、资格报告、summary、中文报告和失败样例是否完整。
+
+review 结论只能是：
+
+- `review_passed`：全部核心项通过，可进入下一阶段；
+- `review_passed_with_omissions`：核心项通过，条件资产已按规则省略，可进入下一阶段；
+- `review_failed`：存在核心 contract、数据、test、指标或产物问题，禁止晋级。
+
+review 发现的问题必须重新进入第 5.3 节故障单流程；禁止只改报告文字掩盖运行结果。
+
+## 15. 立即执行顺序
 
 1. 实现 D0 独立 harness，并修正 eventness 命名、source index/timestamp 审计和五 seed 对照。
 2. 将正式选择单位冻结为原始 1 秒 micro-window，把现有多尺度实现降级为独立历史基线。
 3. 生成 AVE 官方物理视频级 train/validation/test 候选清单，并在 M4 训练污染审计后冻结最终 validation/test 数量。
-4. 完成 D1 validation 后冻结全部策略与阈值，再一次性运行 D1 官方 test。
-5. D1 通过后获取 LongVALE，按物理视频冻结互斥的 `oracle_pilot` 和 `oracle_confirm`，先只在 pilot 运行完整策略矩阵。
-6. D2 pilot 通过后才解封 confirm，并只运行缩减后的确认矩阵；pilot 或 confirm 失败都立即停止 selector 路线。
-7. D2 confirm 通过后完成跨数据集物理视频去重，再实现 strict-causal D3 selector-only 训练。
-8. D3 validation 通过后冻结全部候选，一次性运行 LongVALE official evaluation。
-9. D3 official evaluation 通过且 AVQA 官方下载完整后，完成训练污染审计，再运行纯 AVQA D4。
-10. D4 通过后才单独设计 Semantic Contrast；D4 失败则停止 selector，回到语义目标、答案表示和融合位置。
-11. S1 可在 D1 通过后利用空闲资源并行，但不得延迟 D2；S2、S3 只在 D4 已作出结论后另行排期。
+4. 为历史 Temporal bundle 生成资格报告和 registry 记录，固定结论为 `diagnostic_failed + schema_incompatible + missing_inputs`；D1 核心矩阵不等待 T0。
+5. 修复 runtime bundle acceptance gate：先加失败单元测试，再区分 diagnostic/formal builder；只做代码回归，不训练新 scorer。
+6. 汇总已经完成的 D1 validation 核心矩阵，确认所有条件策略均为 `qualified_and_run` 或 `omitted_ineligible_asset`。
+7. 按第 14 节完成 D1 validation review；只有 `review_passed` 或 `review_passed_with_omissions` 才冻结核心策略、阈值和 test 运行清单。
+8. 一次性运行 D1 官方 test；T0 后续成功也不得重开 D1 test。
+9. D1 通过后获取 LongVALE，按物理视频冻结互斥的 `oracle_pilot` 和 `oracle_confirm`，先只在 pilot 运行核心矩阵；条件资产只在 LongVALE 资格通过时加入。
+10. D2 pilot 通过后才解封 confirm，并只运行缩减后的确认矩阵；pilot 或 confirm 失败都立即停止 selector 路线。
+11. D2 confirm 通过后完成跨数据集物理视频去重，再实现 strict-causal D3 selector-only 训练。
+12. D3 validation 通过并完成 review 后冻结全部候选，一次性运行 LongVALE official evaluation。
+13. D3 official evaluation 通过且 AVQA 官方下载完整后，完成训练污染审计和阶段 review，再运行纯 AVQA D4。
+14. D4 通过后才单独设计 Semantic Contrast；D4 失败则停止 selector，回到语义目标、答案表示和融合位置。
+15. T0 可与 D2 数据准备并行但不得延迟主链；S1 可在 D1 通过后利用空闲资源并行，但不得延迟 D2；S2、S3 只在 D4 已作出结论后另行排期。
 
 这条链路的核心不是“尽量把 selector 做成功”，而是尽早、明确地判断它究竟卡在接口、定位、条件选择，还是下游语义转化。
