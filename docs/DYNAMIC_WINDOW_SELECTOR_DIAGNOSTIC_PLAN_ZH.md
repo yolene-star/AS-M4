@@ -16,13 +16,7 @@
 
 ## 2. 评测数据集设计
 
-本计划不把所有公开数据集拼成一个“完整系列”后同时运行。不同数据集回答不同问题，必须分层使用：
-
-1. 本地 Stage2 回答“选窗能否改善当前 M4 的最终问答结果”。
-2. 强时间边界数据集回答“selector 是否选中了正确事件窗口”。
-3. 长视频查询数据集回答“问题条件是否改变窗口排序”。
-4. 同步专项数据集回答“模型学到的是时间同步还是仅有语义匹配”。
-5. 没有窗口级标注的数据集只能作为下游问答或融合评测，不能单独支撑 selector 结论。
+本节的外部数据集候选严格限定为调研结论中的八个集合：LongVALE、UnAV-100、OV-AVEBench、QVHighlights、VGGSound-Sparse、AV-SyncBench、AVE 和 LLP。不同数据集回答不同问题，不把它们一次性全部下载或拼成同一主指标。
 
 ### 2.1 当前本地必跑集合
 
@@ -40,64 +34,78 @@
 本地数据的职责固定如下：
 
 - `AS_M4_STAGE2`：报告最终 QA、audio/audio_visual/visual 分项、静音、错配音频和行为回退。
-- [AVE 官方仓库](https://github.com/YapengTian/AVE-ECCV18)：利用秒级 dense 标注构建低成本 Oracle 和窗口召回 smoke。
-- [AVVP/LLP 官方仓库](https://github.com/YapengTian/AVVP-ECCV20)：检查 audio、visual 与 audio-visual 事件的模态职责，可用于伪标签质量诊断；不作为当前 Oracle 主门禁。
-- [AVUT 官方仓库（ACVUBench）](https://github.com/lark-png/ACVUBench)：当前 Stage2 只使用其本地整理子集；完整官方集保留为通过门禁后的音频中心问答评测。
-- [MUSIC-AVQA 官方仓库](https://github.com/GeWu-Lab/MUSIC-AVQA)：当前 Stage2 只使用其本地整理子集；完整官方集用于后续乐器场景的时空推理复核。
+- [AVE 仓库](https://github.com/YapengTian/AVE-ECCV18)：利用 1 秒级窗口标注构建低成本 Oracle、Top-K、mask 和损失 smoke。
+- [AVUT 仓库](https://github.com/lark-png/ACVUBench)：作为 selector 是否改善音频中心问答的现有下游复核。
+- [MUSIC-AVQA 仓库](https://github.com/GeWu-Lab/MUSIC-AVQA)：作为乐器场景下细粒度时空问答的现有下游复核。
 
-### 2.2 第一优先级外部上界集
+### 2.2 外部候选优先级与仓库
 
-[UnAV-100 官方项目页](https://unav100.github.io/)及其[官方 Hugging Face 数据仓库](https://huggingface.co/datasets/ttgeng233/UnAV-100)是第一优先级的外部 selector 上界集。它包含未裁剪、多事件视频，并提供事件类别和精确时间边界，适合检验：
+| 优先级 | 数据集 | 主要监督 | 最适合检验 | 仓库或官方入口 |
+| --- | --- | --- | --- | --- |
+| S | LongVALE | 长视频事件起止时间和事件描述 | 问题条件动态选窗、长视频压缩 | [GitHub](https://github.com/ttgeng233/LongVALE) · [Hugging Face](https://huggingface.co/datasets/ttgeng233/LongVALE) |
+| S | UnAV-100 | 多事件精确时间边界和事件类别 | Oracle Top-K、事件窗口召回 | [项目与下载](https://unav100.github.io/) · [Hugging Face](https://huggingface.co/datasets/ttgeng233/UnAV-100) |
+| A | OV-AVEBench | 人工段级标注和开放词汇划分 | 未见事件上的 selector 泛化 | [GitHub](https://github.com/jasongief/ov-avel) |
+| A | QVHighlights | 查询相关时间段和窗口显著性 | Question-conditioned selector | [GitHub](https://github.com/jayleicn/moment_detr) |
+| A | VGGSound-Sparse | 稀疏同步线索和人工时间偏移 | 稀疏事件发现、音视频同步 | [GitHub](https://github.com/v-iashin/SparseSync) |
+| A- | AV-SyncBench | 时间一致性与语义一致性解耦标注 | 错位修正、同步置信度 | [项目、代码与数据](https://fgt7t6g.github.io/AV-SyncBench) |
+| B | AVE | 1 秒级音视频事件标签 | 代码、损失、Top-K 和 Oracle smoke | [GitHub](https://github.com/YapengTian/AVE-ECCV18) |
+| B | LLP | 弱视频级标签和验证/测试 dense 标注 | 伪标签 selector、模态区分 | [GitHub](https://github.com/YapengTian/AVVP-ECCV20) |
 
-- All、Random Top-K、Energy Top-K、Eventness Top-K 与 Oracle Top-K；
-- Window Recall@K、首个命中排名、Temporal IoU 和事件级 mAP；
-- 不同事件长度、同视频多事件和重叠事件条件下的窗口预算敏感性。
+### 2.3 第一轮：低成本可证伪实验
 
-UnAV-100 不提供自然语言问答，因此它只回答“是否选中正确事件窗口”，不能替代 Stage2 的最终问答门禁。接入顺序固定为：
+第一轮只使用本地 AVE 和外部 UnAV-100：
 
-1. 先下载并审计 annotation、split 和官方特征清单，不直接下载全部原始视频。
+- AVE 验证 selector forward、Top-K 索引、mask、Oracle overlap 和监督损失实现正确。
+- UnAV-100 验证未裁剪多事件视频中的 Oracle 上界与真实窗口召回。
+- 两个数据集统一比较 All、Random Top-K、Energy Top-K、Eventness Top-K 和 Oracle Top-K。
+- 统一报告 Window Recall@K、首个命中排名、Temporal IoU、事件级 mAP 和保留窗口比例。
+
+UnAV-100 的接入顺序固定为：
+
+1. 只获取 annotation、split 和官方特征清单，不直接下载全部原始视频。
 2. 构建 100 个视频的分层 pilot，覆盖短事件、长事件、多事件和重叠事件。
 3. 核对媒体可用率、时间戳合法性、窗口映射和官方 split。
 4. pilot 通过后才扩展完整评测，并记录数据版本或 commit SHA。
 
-若 Stage2 Oracle 问答无收益、但 UnAV-100 的 Oracle/确定性 selector 窗口召回明显有效，结论应是“选窗本身可定位，但当前音频语义表示或融合无法把定位转化为答案收益”；仍然停止在 M4 中训练 selector，转向语义目标、答案表示和融合位置诊断。
+UnAV-100 没有自然语言问题，只能回答“是否选到正确事件窗口”，不能替代 Stage2 的最终问答门禁。
 
-### 2.3 Oracle 通过后的问题条件评测
+### 2.4 第二轮：问题条件动态选窗
 
-只有本地 Stage2 Oracle 门禁通过后，才引入 question-conditioned selector 数据：
+只有 Stage2 和第一轮 Oracle 上界均明确通过，才引入 LongVALE：
 
-| 数据集 | 关键监督 | 在本计划中的职责 | 限制 | 官方入口 |
-| --- | --- | --- | --- | --- |
-| LongVALE | 长视频事件起止时间、多模态事件描述 | 长视频 question-conditioned Top-K、压缩率与窗口召回 | 描述可直接暴露事件语义，构造查询时必须防止答案泄漏 | [GitHub](https://github.com/ttgeng233/LongVALE) · [Hugging Face](https://huggingface.co/datasets/ttgeng233/LongVALE) |
-| AVUT | 音频内容、事件定位、计数、片段匹配等八类任务 | 检查选窗是否改善音频中心问答与音视频对齐 | 主要是评测集，不用于大规模训练 selector | [GitHub](https://github.com/lark-png/ACVUBench) · [论文](https://arxiv.org/abs/2503.19951) |
-| MUSIC-AVQA | 音频、视觉和音视频时空问答 | 检查乐器事件、先后顺序和空间关系 | 场景集中于音乐，不能代表通用声音 | [GitHub](https://github.com/GeWu-Lab/MUSIC-AVQA) · [项目页](https://gewu-lab.github.io/MUSIC-AVQA/) |
-| QVHighlights | 自然语言查询、相关时间段、窗口显著性 | 验证问题条件窗口评分的架构能力 | 不是音频中心数据，不能证明音频贡献 | [GitHub](https://github.com/jayleicn/moment_detr) |
+- 训练并比较 Question-conditioned、Audio-conditioned、Video-conditioned 和 Audio+Video+Question Top-K。
+- 以精确事件边界和描述监督长视频 selector。
+- 报告 Window Recall@K、mAP@tIoU、保留窗口比例和单位视频推理耗时。
+- 优先在人工检查的 evaluation split 上报告主要结果。
+- 事件描述构造查询时必须防止直接泄露答案或类别标签。
 
-LongVALE 是问题条件长视频 selector 的主要扩展集；QVHighlights 只作为“问题是否真正改变窗口排序”的架构控制。二者都不能绕过 Stage2 的音频必要性、错配音频和最终 QA 门禁。
+QVHighlights 只作为问题条件架构控制：它用于确认同一视频在不同查询下会得到不同窗口排序，但不能单独证明音频贡献。
 
-### 2.4 同步、稀疏事件与开放词汇专项集
+### 2.5 第三轮：错位与鲁棒性
 
-以下集合不进入第一轮低成本主矩阵，只在对应研究假设被单独提出时使用：
+在 selector 上界和问题条件选择均通过后，使用 VGGSound-Sparse 或 AV-SyncBench 进行独立专项实验：
 
-| 数据集 | 最适合验证 | 计划位置 | 官方入口 |
-| --- | --- | --- | --- |
-| VGGSound-Sparse | 稀疏同步线索、人工音频 offset、同步窗口 Recall@K | selector 通过后，独立验证时间偏移与稀疏事件 | [GitHub](https://github.com/v-iashin/SparseSync) · [项目页](https://v-iashin.github.io/SparseSync) |
-| AV-SyncBench | 时间一致性与语义一致性的解耦 | 新数据集复现和可用性审计通过后的补充同步诊断 | [项目与代码](https://fgt7t6g.github.io/AV-SyncBench) · [论文](https://arxiv.org/abs/2607.00726) |
-| OV-AVEBench | 已见/未见开放词汇事件的时间定位 | 论文级 selector 泛化实验 | [GitHub](https://github.com/jasongief/ov-avel) |
-| AVQA | Sound、View、Both 下游问答与音频必要性 | 融合和 Gate 的补充评测，不作为 selector 主真值集 | [官方项目页](https://mn.cs.tsinghua.edu.cn/avqa/) |
+- 人工加入音频提前/延后、窗口打乱、音频缺失、随机错配和局部噪声。
+- 报告 Offset Classification Accuracy、Offset MAE、同步窗口 Recall@K 和扰动前后性能变化。
+- 明确区分 Selector、Alignment 和 Gate：分别负责找窗口、修正偏移和抑制不可靠音频。
+- AV-SyncBench 发布较新，必须先审计许可、数据可获得性、评测脚本和基线复现，再决定是否进入正式报告。
 
-AVQA 视频较短且没有答案对应的窗口级时间边界，因此只能报告 All/Random/确定性 Top-K 的下游差异，不能把其结果解释为 selector 已学会时间定位。AV-SyncBench 发布较新，必须先审计许可、数据可获得性、评测脚本和基线复现，再决定是否进入正式报告。
+### 2.6 第四轮：论文级泛化与伪标签
 
-### 2.5 数据集与结论的联合判定
+- OV-AVEBench 报告 seen/unseen Window Recall@K、segment-level F1、event-level F1 和调和平均，检查 selector 是否只记住封闭事件类别。
+- LLP 用于教师模型、跨模态相似度和时序一致性伪标签路线；其弱标签训练集不作为 Oracle 真值，人工 dense 验证/测试标注只用于质量评估。
+- AVUT 检查选窗是否改善音频中心问答，MUSIC-AVQA 检查乐器场景时空推理；二者仍属于下游结果，不替代窗口级定位指标。
+
+### 2.7 联合判定与停止规则
 
 | Stage2 Oracle QA | UnAV-100 窗口定位 | 结论与行动 |
 | --- | --- | --- |
-| 通过 | 通过 | 推进 LongVALE 上的 question-conditioned selector，并在 AVUT/MUSIC-AVQA 做下游复核 |
+| 通过 | 通过 | 推进 LongVALE question-conditioned selector，再做同步与泛化专项 |
 | 通过 | 未通过 | 暂停推进；优先排查 Stage2 小样本、Oracle 泄漏或窗口定义偏差 |
 | 未通过 | 通过 | 停止 M4 selector 训练；重构音频语义目标、答案表示与融合位置 |
 | 未通过 | 未通过 | 终止 selector 路线，不增加 scorer 复杂度 |
 
-外部数据集不得用于反复调参后再回头报告同一测试集。每个数据集必须保存官方 split、下载来源、版本 SHA、媒体缺失清单和最终纳入样本清单。
+每个外部数据集必须锁定官方 split、下载来源、版本或 commit SHA、媒体缺失清单和最终纳入样本清单。不得在测试集上反复调参后回头报告同一结果。
 
 ## 3. 第一阶段：建立独立上界 Harness
 
