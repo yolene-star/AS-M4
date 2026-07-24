@@ -9,7 +9,8 @@
 ```text
 接口与索引正确性
 → 短视频 dense 标注正确性
-→ 未裁剪多事件视频的 Oracle 上界
+→ 未裁剪多事件视频的定位 Oracle 上界
+→ 纯官方下游任务的 Oracle-vs-All 收益
 → question-conditioned selector 单模块训练
 → 纯官方音视频问答的下游收益
 → 专项同步鲁棒性
@@ -65,8 +66,9 @@ AVE 官方标注共有 4143 条，官方划分为：
 | --- | --- | --- | --- |
 | D0 | 合成张量与固定本地样本 | 查接口、mask、索引、缓存和回退 bug | 不涉及数据集 |
 | D1 | AVE 官方原始划分 | 查 1 秒窗口映射和确定性策略实现 bug | [AVE 官方仓库](https://github.com/YapengTian/AVE-ECCV18) |
-| D2 | UnAV-100 官方原始划分 | 判定未裁剪多事件视频是否存在可利用的选窗上界 | [UnAV-100 官方项目](https://unav100.github.io/) |
-| D3 | LongVALE 官方原始划分 | 训练并检验 question-conditioned selector | [LongVALE 官方仓库](https://github.com/ttgeng233/LongVALE) · [官方数据](https://huggingface.co/datasets/ttgeng233/LongVALE) |
+| D2A | UnAV-100 官方原始划分 | 判定未裁剪多事件视频是否存在定位压缩上界 | [UnAV-100 官方项目](https://unav100.github.io/) |
+| D2B | LongVALE 官方 training 内独立 holdout | 判定 Oracle 选窗能否改善冻结 M4 的 segment captioning | [LongVALE 官方仓库](https://github.com/ttgeng233/LongVALE) · [官方数据](https://huggingface.co/datasets/ttgeng233/LongVALE) |
+| D3 | LongVALE 官方 training 剩余部分和 evaluation | 训练并检验 question-conditioned selector | [LongVALE 官方仓库](https://github.com/ttgeng233/LongVALE) · [官方数据](https://huggingface.co/datasets/ttgeng233/LongVALE) |
 | D4 | AVQA 官方原始划分 | 检验选窗能否转化为纯官方下游问答收益 | [AVQA 官方项目与下载](https://mn.cs.tsinghua.edu.cn/avqa/) |
 | D5 | VGGSound-Sparse 官方集合 | 独立检验稀疏同步和人工 offset 鲁棒性 | [SparseSync 官方仓库](https://github.com/v-iashin/SparseSync) |
 
@@ -92,10 +94,11 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 ### 4.2 必须先通过的单元测试
 
 - 有效窗口、padding、全 padding 和 silence；
-- `K=0`、`K=1`、`K>N`；
+- `K=0` 必须显式拒绝，`K=1` 与 `K>N` 行为固定；
 - tie-break 固定选择更早窗口；
 - 选中集合按原始时间重新排序；
 - source index 与绝对 timestamps 全程不变；
+- `DynamicWindowSelectorOutput` 必须新增显式 `selected_source_indices`；正式 harness 禁止从浮点 timestamp 或 `source_weights.argmax()` 反推索引；
 - Oracle overlap 与边界邻近补齐；
 - Random 五个固定 seed 可复现；
 - mismatch 五个固定一一映射可复现，禁止同视频和同音频；
@@ -109,9 +112,23 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 
 正式 harness 的原子选择单位固定为 scene-audio 的原始 micro-window，默认 1 秒。Energy、Onset、cached Eventness、Temporal scorer、Random 和 Oracle 都只能对同一组 micro-window 排名。现有多尺度 pooled interval 实现改名为 `legacy_multiscale_dynamic`，只做历史回归，不进入 D1–D4 主门禁。
 
-### 4.3 D0 退出条件
+### 4.3 因果协议
 
-所有单元测试与 8 条单卡 smoke 全部通过。任何失败只修 harness，不下载新数据、不运行效果实验。
+因果模式不能隐含在实现细节中，必须进入配置、命名和门禁：
+
+- D1、D2A 和 D2B 的 Oracle 只属于 `noncausal_upper_bound`，允许查看完整 clip，固定记录 `lookahead=full_clip`，不得解释为可部署结果；
+- D1/D2A 的 Energy、Onset、cached Eventness 和 Temporal scorer 同时报告 non-causal 排名结果，只用于与 Oracle 和 Random 做上界归因；
+- D3、D4 的正式主结果必须使用 `strict_causal`：在时间 `t` 打分时只能读取问题和 `timestamp.end <= t` 的音视频窗口；
+- `strict_causal` harness 必须按 micro-window 或固定 chunk 逐步调用并传递 state；禁止把完整 clip 一次传入后仅凭内部 causal convolution/EMA 声称因果，因为全局 Top-K 仍会读取未来分数；
+- D3 的缓存特征必须逐 micro-window 独立提取，禁止使用双向时序编码、全视频均值方差、未来窗口归一化或未来感知 NMS；
+- causal selector 使用固定容量 memory：当前窗口到达后可以写入或替换历史保留项，但不能访问尚未到达的窗口；
+- 25% memory cap 可以在离线 causal replay 中使用官方容器 duration 预先计算，但必须额外报告不知道总时长时的固定 `K=16`；只有固定 K 结果可以解释为未知时长流式能力；
+- LongVALE 定位指标在目标事件结束时结算一次，同时补充视频结束时结果；两者不得混成一个指标；
+- 任何 lookahead 对照必须使用独立配置和实验名，报告 lookahead 秒数、端到端延迟及其与 strict-causal 的差值。
+
+### 4.4 D0 退出条件
+
+所有单元测试与 8 条单卡 smoke 全部通过，并增加“未来窗口扰动不改变当前输出”的严格因果单元测试。任何失败只修 harness，不下载新数据、不运行效果实验。
 
 ## 5. D1：AVE 官方纯数据实现门禁
 
@@ -156,15 +173,15 @@ AVQA 官方入口是项目页而非 GitHub 仓库。正式数据只能来自该�
 
 1. `all` 精确复现 Fixed；
 2. Oracle 的 Window Hit@K 为 100%；
-3. Oracle 明显高于五个 Random seed，paired bootstrap 95% 置信区间下界大于 0；
+3. Oracle 至少高于五个 Random seed 均值 10 个百分点，paired bootstrap 95% 置信区间下界大于 0；
 4. 所有策略 timestamps、source index、窗口数和压缩率审计正确；
 5. test 没有因下载失败而改变预注册阈值或样本定义。
 
 D1 只证明 harness 正确，不证明动态窗口适合长视频，也不证明最终 QA 会提升。
 
-## 6. D2：UnAV-100 纯官方上界门禁
+## 6. D2A：UnAV-100 纯官方定位上界
 
-这是决定 selector 路线是否值得继续的核心阶段。
+本阶段只判断未裁剪多事件视频是否具有可压缩的定位上界，不能单独决定是否训练 selector。
 
 ### 6.1 数据顺序
 
@@ -204,80 +221,148 @@ D1 只证明 harness 正确，不证明动态窗口适合长视频，也不证�
 
 `event-level mAP` 只有在候选段合并、类别预测、置信度和 tIoU 匹配协议与官方脚本完全对齐后才报告。
 
-### 6.4 D2 通过条件
+### 6.4 D2A 通过条件
 
 Oracle 主门禁必须同时满足：
 
 1. 25% 预算下 Oracle Event Coverage 比五个 Random seed 均值至少高 15 个百分点；
 2. Oracle 与 Random 的 paired bootstrap 95% 置信区间下界大于 0；
 3. 短、长、多事件和重叠事件四组中至少三组方向一致；
-4. 媒体缺失率和排除原因不造成类别或事件时长的明显选择偏差。
+4. 官方 test 物理视频总体可用率至少为 80%，每个事件时长四分位组可用率至少为 70%；任一条件不满足即阻断正式结论。
 
 确定性策略另设诊断门禁：
 
 1. 至少一个不使用 Oracle 的确定性策略比 Random 均值高 5 个百分点；
-2. 该策略胜过至少 4/5 个 Random seed。
+2. 该策略胜过至少 4/5 个 Random seed；
+3. 该策略与 Random 均值的按物理视频 cluster paired bootstrap 95% 置信区间下界大于 0。
 
-如果 Oracle 都没有足够 headroom，立即停止 selector 路线，不进入 LongVALE，不增加 scorer 复杂度。
+如果 Oracle 都没有足够 headroom，立即停止 selector 路线，不进入 D2B，不增加 scorer 复杂度。
 
-如果 Oracle 通过但确定性策略失败，说明“压缩上界存在，但当前规则 selector 无效”，允许进入 D3，只训练 question-conditioned selector。
+如果 Oracle 通过但确定性策略失败，说明“定位压缩上界存在，但当前规则 selector 无效”；仍可进入 D2B，但不能跳过 D2B 直接训练。
+
+### 6.5 D2B：LongVALE 纯官方下游 Oracle 门禁
+
+D2B 才回答原始决策问题：
+
+> 在冻结 M4、相同目标时间段和相同解码条件下，已知正确事件边界的 Oracle audio Top-K 是否比 All audio windows 更有利于官方 segment captioning？
+
+#### 数据构造
+
+1. 只使用 LongVALE 官方 training split 的 `video_id`、`timestamp` 和 `sentence`，不使用 SFT 对话或外部指令数据。
+2. 按物理视频预先划出独立 `oracle_utility_holdout`；该 holdout 不进入 D3 selector train/validation。
+3. 只保留至少含两个官方事件、目标事件时长不超过视频时长 25%、且目标边界合法的物理视频。
+4. 所有策略使用完全相同的 prompt：`Describe the audio-visual event between <start> and <end> seconds.`；timestamp 对 All、Random、Oracle 和 text-only 同时可见。
+5. 官方 `sentence` 是唯一参考答案；不生成问题、不生成选项、不使用人工答案或模糊事件映射。
+6. Oracle 只选择与该官方 timestamp 重叠的 scene-audio micro-window；视觉输入始终保持 All windows，避免同时改变音频和视觉两条路径。
+7. 在查看任何预测前冻结 holdout、排除原因、manifest SHA 和数据审计报告。
+8. 有效规模少于 500 个事件或 200 个物理视频时，不运行效果门禁，先报告数据不足并重新协商。
+
+#### 冻结对照
+
+- M4/Qwen2、视觉塔、BEATs、projector、fusion 和 gate 全部固定；
+- 比较 text-only、All audio、Uniform、Random 五个 seed、D2A 锁定确定性策略、Oracle 10% 和 Oracle 25%；
+- 官方 timestamp 必须按完全相同的格式写入所有模型 prompt；Oracle 的额外权限仅限使用它选择 scene-audio 窗口；
+- 使用五个固定错配音频映射验证 Oracle 时间段不是仅靠视觉或文本产生收益；
+- 全部属于 `noncausal_upper_bound`，记录完整 clip lookahead。
+
+正式报告使用 LongVALE 官方 segment captioning 指标 BLEU-4、ROUGE-L、METEOR 和 CIDEr，预注册主指标为逐事件 METEOR。
+指标必须调用冻结版本的 LongVALE 官方 evaluation script；在预测前记录脚本 commit、依赖版本、tokenizer 配置和脚本 SHA，不得为本模型修改分词或归一化规则。
+
+#### D2B 通过条件
+
+必须同时满足：
+
+1. Oracle 25% 相对 All 的逐事件 METEOR 至少提高 0.02；
+2. Oracle 25% 与 All 的按物理视频 cluster paired bootstrap 95% 置信区间下界大于 0；
+3. Oracle 25% 的 METEOR 至少高于五个 Random seed 均值 0.02，且胜过至少 4/5 个 seed；
+4. 正确音频 Oracle 相对五个错配映射均值至少高 0.02，cluster paired bootstrap 95% 置信区间下界大于 0；
+5. Oracle 10% 或 25% 至少一个预算不新增空输出、首 token EOS、重复文本或非有限输出；
+6. Oracle 25% 至少高于 text-only 0.03，cluster paired bootstrap 95% 置信区间下界大于 0；
+7. BLEU-4、ROUGE-L 和 CIDEr 至少两个指标与 METEOR 方向一致。
+
+D2B 未通过时立即停止 selector 训练。此时即使 D2A 定位 Oracle 很高，也只能得出“定位可压缩，但当前 M4 下游任务不受益”，后续转向音频语义目标、答案表示和融合位置。
 
 ## 7. D3：LongVALE 单模块训练
 
-只有 D2 Oracle 通过才启动。
+只有 D2A 和 D2B 均通过才启动。
 
 ### 7.1 数据与 split
 
 - 只使用 LongVALE 官方数据；
-- 官方 training split 内部按物理视频划分 train/validation；
+- 从官方 training split 排除 D2B `oracle_utility_holdout` 后，再按物理视频划分 selector train/validation；
 - 官方 evaluation split 保持封存，只运行一次；
 - 不加入 AVE、UnAV-100、AVQA、AVUT 或 M4-IT 样本；
 - 不使用 LongVALE 与其他数据拼接的 SFT 文件；
 - 训练前冻结 split manifest、媒体缺失清单和 SHA。
 - 与 UnAV-100 test、AVQA test、M4-IT 和历史 AS-M4 清单做 YouTube ID 交叉审计；任何跨阶段重叠必须在训练前排除或在报告中单列，不得进入去重主指标。
+- D3 query 固定为官方事件 `sentence`，正窗口固定为其官方 `timestamp`；shuffled query 优先取同一视频的另一事件 sentence，不存在时才从同 split 其他视频采样，并保存映射。
 
-### 7.2 最小实现
+### 7.2 D3A：Audio+Question 最小实现
 
 1. 新增 selector 专用训练入口；
 2. 参数白名单只允许 `dynamic_window_selector.*`；
 3. 冻结 M4/Qwen2、`lm_head`、视觉塔、BEATs、全部 projector、fusion、Gate 和 Event Aligner；
-4. selector 输入为冻结的问题 embedding、冻结音频/视觉窗口表示、source index 和 timestamps；
+4. selector 输入只允许冻结的问题 embedding、逐 micro-window 独立提取的冻结音频表示、source index 和 timestamps；
 5. 第一轮只优化窗口 ranking loss，不使用 LM loss；
 6. checkpoint 选择和 early stopping 只看内部 validation；
-7. 正确 query、shuffled query 和 empty query 使用相同音视频与窗口预算。
+7. 正确 query、shuffled query 和 empty query 使用相同音频与窗口预算；
+8. strict-causal forward 必须接收并返回 causal state，且当前输出不得受未来窗口内容影响；
+9. 训练启动时打印全部可训练参数名，非 `dynamic_window_selector.*` 参数出现一个即失败。
 
 第一版 D3 使用冻结的缓存窗口特征，只验证 question-conditioned ranking，不宣称节省 BEATs。它可以减少后续 projector、fusion 和语言模型 token，但 BEATs 计算量仍按 All windows 记录。若未来要把 learned selector 前移到 BEATs 之前，必须另立“轻量前置 scorer/蒸馏”阶段重新做 D1–D4，不得直接沿用缓存模式的效率结论。
 
 ### 7.3 比较对象
 
 - Audio-only selector；
-- Video-only selector；
 - Question-only selector；
-- Audio+Video selector；
-- Audio+Video+Question selector；
-- D2 锁定的最佳确定性策略；
+- Audio+Question selector；
+- D2A 锁定的最佳确定性策略；
 - Random 五个 seed；
 - Oracle。
 
-所有方法必须在 LongVALE 上重新运行，不能拿 D2 或 Stage2 的数值直接横向比较。
+所有方法必须在 LongVALE 上重新运行，不能拿 D2A 或 Stage2 的数值直接横向比较。
 
-### 7.4 D3 通过条件
+### 7.4 D3A 通过条件
 
-官方 evaluation 的 25% 预算下：
+先在内部 validation 的 25% 预算下执行以下开发门禁：
 
-1. Audio+Video+Question 的 Event Coverage 至少高于 Random 均值 10 个百分点；
+1. Audio+Question 的 Event Coverage 至少高于 Random 均值 10 个百分点；
 2. 至少高于最佳确定性策略 5 个百分点；
 3. Oracle headroom recovery 至少为 0.30；
-4. 正确 query 至少高于 shuffled query 5 个百分点，并高于 empty query；
-5. Question-only 明显低于 Audio+Video+Question，排除文本捷径；
-6. 平均保留率不超过 25%；
-7. 全部非 selector 参数训练前后 SHA 不变。
+4. 正确 query 至少高于 shuffled query 5 个百分点，按物理视频 cluster paired bootstrap 95% 置信区间下界大于 0；
+5. Audio+Question 至少高于 Question-only 5 个百分点，cluster paired bootstrap 95% 置信区间下界大于 0；
+6. 正确 query 高于 empty query，且 Question-only 不得达到 Audio+Question 的 90% 以上，排除文本捷径；
+7. 目标事件结束时的 strict-causal Event Coverage 必须满足以上第 1、2、4、5 条；视频结束时结果只作补充；
+8. 平均保留率不超过 25%；
+9. 全部非 selector 参数训练前后 SHA 不变。
 
-D3 失败时停止 learned selector，不进入联合训练，也不通过解冻 projector 或 fusion 补救。
+第 1、2 条同样要求按物理视频 cluster paired bootstrap 95% 置信区间下界大于 0；所有 bootstrap 固定 10000 次和 seed `20260724`。
+
+D3A 内部 validation 失败时停止 learned selector，不进入视觉条件或联合训练，也不通过解冻 projector 或 fusion 补救。
+
+### 7.5 D3B：视觉条件独立增量
+
+只有 D3A 内部 validation 通过后才允许增加视觉条件，且 D3B 是新的单变量阶段：
+
+1. 新增 `visual_window_features`、`visual_window_mask` 和 `visual_window_timestamps` 显式接口；
+2. 视觉特征必须逐窗口冻结提取，并通过 timestamp overlap 映射到同一组 audio micro-window；
+3. 增加缺帧、不同帧率、首尾不齐、窗口数量不一致和 padding 的 CPU 测试；
+4. D3A checkpoint 冻结，只新增并训练视觉条件适配参数；参数白名单独立记录；
+5. 比较 Audio+Question 与 Audio+Visual+Question，其他配置完全相同；
+6. Audio+Visual+Question 在内部 validation 至少高于 D3A 3 个百分点，cluster paired bootstrap 95% 置信区间下界大于 0，才进入官方 evaluation 矩阵；
+7. D3B validation 失败时丢弃视觉分支，但不推翻已通过的 D3A。
+
+### 7.6 官方 evaluation 一次性确认
+
+1. D3A validation 通过、D3B 去留确定后，冻结结构、checkpoint、预算、阈值和全部对照。
+2. 官方 evaluation 只运行一次预注册矩阵，不先看 D3A 再追加 D3B。
+3. D3A 必须在官方 evaluation 再次满足第 7.4 节全部条件，才允许进入 D4。
+4. 若 D3B 进入矩阵，它必须在官方 evaluation 仍高于 D3A 3 个百分点且 cluster paired bootstrap 95% 置信区间下界大于 0 才保留；否则 D4 使用 D3A。
+5. 不得根据 official evaluation 修改模型、重选 checkpoint 或追加新对照。
 
 ## 8. D4：AVQA 纯官方下游门禁
 
-只有 D3 通过且 AVQA 官方分片全部下载、解压、校验完成后启动。
+只有 D3A 通过且 AVQA 官方分片全部下载、解压、校验完成后启动。D3B 若通过则作为独立补充；D3B 失败时仍使用冻结的 D3A。
 
 ### 8.1 数据规则
 
@@ -288,14 +373,16 @@ D3 失败时停止 learned selector，不进入联合训练，也不通过解冻
 - test 在 selector、K、checkpoint 和解码配置全部冻结后只运行一次；
 - 不根据 AVQA test 结果继续训练 LongVALE selector。
 - 在解封 test 前，将 AVQA video ID 与 LongVALE selector train/validation、M4-IT 和全部历史 AS-M4 训练清单交叉比对；去重 test 是主结果，官方完整 test 只作可比性补充。
+- 所有正式 selector 使用 strict-causal 顺序处理；完整视频一次性排序只能进入独立 non-causal 补充结果。
 
 ### 8.2 对照
 
 - Video-only；
 - Question+choices text-only；
 - All audio windows；
-- D2 锁定确定性 selector；
-- D3 锁定 question-conditioned selector；
+- D2A 锁定确定性 selector；
+- D3A 锁定 Audio+Question selector；
+- D3B 仅在其独立门禁通过时作为补充；
 - Random 五个 seed；
 - Silence；
 - 五个固定错配音频映射。
@@ -320,10 +407,12 @@ AVQA 没有可靠的窗口级 Oracle 边界，因此禁止在 AVQA 上伪造 Ora
 
 1. Sound+Both 合并子集相对 All 的准确率差 95% paired bootstrap 置信区间下界大于 0；
 2. View 子集相对 All 的下降不超过 1 个百分点；
-3. 正确音频显著高于五个错配映射均值；
+3. 对每个样本先计算五个错配映射的平均正确率，再与正确音频的 0/1 正确性做按物理视频 cluster paired bootstrap；点估计至少高 3 个百分点且 95% 置信区间下界大于 0；
 4. silence 与 `gate=0` 回退不退化；
 5. 本轮 BEATs 计算效率结论只来自 `energy_topk` 和 `onset_topk`；D3 cached learned selector、cached Eventness 与 Temporal scorer 均不宣称节省 BEATs。
 6. 必须完整报告 text-only；若 selector 的新增正确样本大多已被 text-only 答对，不得解释为音频选窗收益。
+
+D4 全部 paired bootstrap 固定 10000 次和 seed `20260724`；同一物理视频的多个 QA 必须作为一个 cluster 重采样。
 
 如果 LongVALE 定位通过但 AVQA 问答不提升，结论是“定位能力没有转化为当前 M4 的答案收益”。此时停止 selector 接入，优先检查音频语义目标、答案表示和融合位置。
 
@@ -331,6 +420,7 @@ AVQA 没有可靠的窗口级 Oracle 边界，因此禁止在 AVQA 上伪造 Ora
 
 D5 不参与 D1–D4 的总分，只回答“选中的稀疏窗口是否包含同步线索”。
 
+- D5 只能在 D4 已作出通过或停止决定后启动，不能用于挽救 D2B、D3A 或 D4 的失败门禁；
 - 使用官方 VGGSound-Sparse annotation；
 - 使用官方支持的正负 offset 协议；
 - 报告 Offset Classification Accuracy、Offset MAE 和同步窗口 Recall@Budget；
@@ -340,7 +430,7 @@ D5 不参与 D1–D4 的总分，只回答“选中的稀疏窗口是否包含�
 
 ## 10. 统一冻结和公平性规则
 
-上界诊断阶段固定：
+D0–D2B 上界诊断阶段固定：
 
 - M4/Qwen2；
 - `lm_head`；
@@ -352,7 +442,7 @@ D5 不参与 D1–D4 的总分，只回答“选中的稀疏窗口是否包含�
 - Offset、learned Gate 和 Event Aligner 关闭；
 - 确定性解码。
 
-统一执行：
+D0–D2B 统一执行：
 
 1. 全部参数 `requires_grad=False`；
 2. `eval()` 与 inference mode；
@@ -365,6 +455,13 @@ D5 不参与 D1–D4 的总分，只回答“选中的稀疏窗口是否包含�
 9. 不在 test 上调 K、阈值、窗口长度或 scorer 权重；
 10. 不用缺失媒体率较低的另一个数据集替换当前数据集。
 11. 每个阶段同时保存“官方原始 split”和“物理视频去重 split”；前者用于对照官方数字，后者用于本项目主结论。
+12. Random 和 mismatch 的五个 seed 固定为 `20260720`、`20260721`、`20260722`、`20260723`、`20260724`。
+13. 所有 bootstrap 固定 10000 次和 seed `20260724`，默认按物理视频 cluster 重采样；若一个物理视频只有一个事件或 QA，该 cluster 自然退化为单样本。
+14. 在任何预测前运行 token-budget preflight：视觉 token、问题 token 和非音频 token 在所有策略间必须逐样本完全一致；`all` 的有效音频窗口不得被 `MODEL_MAX_LENGTH` 静默截断。
+15. 会触发全局截断、OOM 或策略相关非音频截断的样本必须在查看预测前排除并冻结清单；不得把 All 被截断、Top-K 未被截断造成的差异解释为选窗收益。
+16. mismatch 必须是一一映射且禁止同源视频；优先匹配有效窗口数差不超过 10% 的样本，否则按目标绝对时间除以目标时长映射到错配时长并裁剪，保存映射前后 timestamp。
+
+D3A/D3B 训练阶段以各自参数白名单替代“全部参数冻结”，其余 SHA、数据、因果、随机种子和测试集冻结规则继续适用。
 
 指标定义固定为：
 
@@ -383,21 +480,31 @@ D0 失败
 D1 失败
 └─ 修窗口、mask、索引、cache 或回退；禁止 UnAV-100
 
-D2 Oracle 失败
+D2A 定位 Oracle 失败
 └─ 终止 selector 路线
    └─ 转向音频语义目标、答案表示和融合位置
 
-D2 Oracle 通过，规则策略失败
-└─ 允许 D3，只训练 question-conditioned selector
+D2A 定位 Oracle 通过
+└─ 必须进入 D2B；规则策略是否通过只作为诊断标签
 
-D3 失败
+D2B 下游 Oracle 失败
+└─ 终止 selector 训练
+   └─ 结论为定位可压缩，但冻结 M4 下游任务不受益
+
+D2A 与 D2B 均通过
+└─ 允许 D3A，只训练 Audio+Question selector
+
+D3A validation 或官方 evaluation 失败
 └─ 停止 learned selector；禁止联合训练
 
-D3 通过，D4 失败
+D3A 通过，D3B 失败
+└─ 丢弃视觉分支，D4 固定使用 D3A
+
+D3A 通过，D4 失败
 └─ 定位可行但不能改善 M4 答案
    └─ 停止 selector 接入，重构语义与融合
 
-D3 与 D4 均通过
+D3A 与 D4 均通过
 └─ 才允许设计下一阶段 Semantic Contrast
 ```
 
@@ -408,7 +515,8 @@ D3 与 D4 均通过
 ```text
 intersuit/harness/artifacts/dynamic_selector_d0_contract/
 intersuit/harness/artifacts/dynamic_selector_d1_ave_official/
-intersuit/harness/artifacts/dynamic_selector_d2_unav100/
+intersuit/harness/artifacts/dynamic_selector_d2a_unav100/
+intersuit/harness/artifacts/dynamic_selector_d2b_longvale_oracle_utility/
 intersuit/harness/artifacts/dynamic_selector_d3_longvale/
 intersuit/harness/artifacts/dynamic_selector_d4_avqa/
 intersuit/harness/artifacts/dynamic_selector_d5_sparse_sync/
@@ -435,10 +543,12 @@ intersuit/harness/artifacts/dynamic_selector_d5_sparse_sync/
 
 1. D0 harness 与单元测试；
 2. D1 AVE 官方数据适配与门禁；
-3. D2 UnAV-100 适配与上界结论；
-4. D3 selector 专用训练入口；
-5. D4 AVQA 一次性正式结论；
-6. D5 同步专项结果。
+3. D2A UnAV-100 适配与定位上界结论；
+4. D2B LongVALE segment captioning Oracle 下游结论；
+5. D3A Audio+Question selector 专用训练入口；
+6. D3B 视觉条件接口，仅在 D3A validation 通过后；
+7. D4 AVQA 一次性正式结论；
+8. D5 同步专项结果。
 
 checkpoint、权重、数据集、缓存、预测和训练日志不得加入 Git。
 
@@ -451,8 +561,10 @@ checkpoint、权重、数据集、缓存、预测和训练日志不得加入 Git
 5. 完成 D1 validation 后冻结所有策略与阈值。
 6. 一次性运行 D1 官方 test。
 7. D1 通过后，只下载 UnAV-100 annotation、split、官方脚本和 100 视频 train/validation pilot。
-8. D2 Oracle 通过后才获取 LongVALE，并先完成跨数据集物理视频去重，再实现 selector-only 训练。
-9. D3 通过且 AVQA 官方下载完整后，完成训练污染审计，再运行纯 AVQA 下游门禁。
-10. D4 通过后，才讨论 Semantic Contrast；D4 失败则回到语义目标、答案表示和融合位置。
+8. D2A 通过后获取 LongVALE，先冻结 `oracle_utility_holdout`，运行 D2B segment captioning Oracle-vs-All。
+9. D2B 通过后完成跨数据集物理视频去重，再实现 strict-causal D3A selector-only 训练。
+10. D3A validation 通过后再决定是否实现 D3B；冻结全部候选后一次性运行 LongVALE official evaluation。
+11. D3A official evaluation 通过且 AVQA 官方下载完整后，完成训练污染审计，再运行纯 AVQA 下游门禁。
+12. D4 通过后，才讨论 Semantic Contrast；D4 失败则回到语义目标、答案表示和融合位置。
 
 这条链路的核心不是“尽量把 selector 做成功”，而是尽早、明确地判断它究竟卡在接口、定位、条件选择，还是下游语义转化。
