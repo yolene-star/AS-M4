@@ -8,6 +8,8 @@ controls required before any official-data experiment is allowed.
 from __future__ import annotations
 
 import hashlib
+import json
+from pathlib import Path
 from typing import Iterable
 
 import torch
@@ -25,6 +27,79 @@ FIXED_CONTROL_SEEDS: tuple[int, ...] = (
 )
 EVENTNESS_POLICY_NAME = "eventness_cached_topk"
 LEGACY_MULTISCALE_POLICY_NAME = "legacy_multiscale_dynamic"
+
+
+class ValidatedTensorCache:
+    """Small SHA-bound tensor cache used by D0–D2 diagnostic harnesses."""
+
+    def __init__(self, root: str | Path) -> None:
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.manifest_path = self.root / "manifest.json"
+        if self.manifest_path.exists():
+            try:
+                payload = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError("cache manifest is corrupt") from exc
+            entries = payload.get("entries")
+            if not isinstance(entries, dict):
+                raise ValueError("cache manifest is corrupt")
+            self.entries = entries
+        else:
+            self.entries: dict[str, dict[str, str]] = {}
+
+    def put(self, key: str, tensor: torch.Tensor, *, input_sha256: str) -> None:
+        key = str(key)
+        _validate_sha256(input_sha256, "input_sha256")
+        if key in self.entries:
+            raise ValueError(f"duplicate cache key: {key}")
+        value = tensor.detach().cpu().contiguous()
+        tensor_sha = tensor_sha256(value)
+        filename = hashlib.sha256(key.encode("utf-8")).hexdigest() + ".pt"
+        torch.save(value, self.root / filename)
+        self.entries[key] = {
+            "path": filename,
+            "input_sha256": input_sha256,
+            "tensor_sha256": tensor_sha,
+        }
+        self._write_manifest()
+
+    def get(self, key: str, *, input_sha256: str) -> torch.Tensor:
+        key = str(key)
+        _validate_sha256(input_sha256, "input_sha256")
+        if key not in self.entries:
+            raise KeyError(f"cache miss: {key}")
+        entry = self.entries[key]
+        if entry.get("input_sha256") != input_sha256:
+            raise ValueError(f"input SHA changed for cache key: {key}")
+        path = self.root / str(entry.get("path", ""))
+        try:
+            value = torch.load(path, map_location="cpu", weights_only=True)
+        except Exception as exc:
+            raise ValueError(f"cache entry is corrupt: {key}") from exc
+        if not torch.is_tensor(value) or tensor_sha256(value) != entry.get("tensor_sha256"):
+            raise ValueError(f"cache entry is corrupt: {key}")
+        return value
+
+    def _write_manifest(self) -> None:
+        payload = {"format_version": 1, "entries": self.entries}
+        temporary_path = self.manifest_path.with_suffix(".json.tmp")
+        temporary_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temporary_path.replace(self.manifest_path)
+
+
+def tensor_sha256(tensor: torch.Tensor) -> str:
+    """Hash tensor dtype, shape, and exact bytes."""
+
+    value = tensor.detach().cpu().contiguous()
+    digest = hashlib.sha256()
+    digest.update(str(value.dtype).encode("ascii"))
+    digest.update(str(tuple(value.shape)).encode("ascii"))
+    digest.update(value.view(torch.uint8).numpy().tobytes())
+    return digest.hexdigest()
 
 
 def stable_topk_indices(
@@ -333,6 +408,15 @@ def module_state_sha256(module: nn.Module) -> str:
         digest.update(str(tuple(tensor.shape)).encode("ascii"))
         digest.update(tensor.view(torch.uint8).numpy().tobytes())
     return digest.hexdigest()
+
+
+def _validate_sha256(value: str, name: str) -> None:
+    if len(value) != 64:
+        raise ValueError(f"{name} must be a 64-character hex digest")
+    try:
+        int(value, 16)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a 64-character hex digest") from exc
 
 
 def _validate_mismatch_mapping(mapping: dict[str, str], sample_ids: list[str]) -> None:

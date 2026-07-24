@@ -97,11 +97,19 @@ class LegacyMultiscaleDynamicWindowSelector(nn.Module):
         audio_mask: torch.Tensor | None = None,
         audio_windows: torch.Tensor | None = None,
         state: SelectorState | None = None,
+        audio_source_indices: torch.Tensor | None = None,
     ) -> DynamicWindowSelectorOutput:
         features = _ensure_features(audio_features, self.input_dim)
         batch, steps, _ = features.shape
         timestamps = _ensure_timestamps(audio_timestamps, batch, steps, features.device)
         mask = _ensure_mask(audio_mask, batch, steps, features.device)
+        source_indices = _ensure_source_indices(
+            audio_source_indices,
+            batch,
+            steps,
+            features.device,
+            mask,
+        )
         finite_features = torch.nan_to_num(features.float(), nan=0.0, posinf=0.0, neginf=0.0)
         rms, non_silent = _waveform_statistics(audio_windows, batch, steps, features.device, self.silence_threshold)
         if rms is None:
@@ -127,6 +135,7 @@ class LegacyMultiscaleDynamicWindowSelector(nn.Module):
             thresholds,
             active,
             next_state,
+            source_indices,
         )
 
     def _causal_threshold(self, scores, rms, features, mask, state):
@@ -168,7 +177,7 @@ class LegacyMultiscaleDynamicWindowSelector(nn.Module):
         next_state = SelectorState(mean.detach(), var.detach(), previous_feature.detach(), previous_rms.detach(), event_active.detach())
         return thresholds, active_values, next_state
 
-    def _select_candidates(self, features, timestamps, mask, scores, thresholds, active, state):
+    def _select_candidates(self, features, timestamps, mask, scores, thresholds, active, state, source_indices):
         batch, steps, dim = features.shape
         candidates = []
         for batch_index in range(batch):
@@ -199,7 +208,16 @@ class LegacyMultiscaleDynamicWindowSelector(nn.Module):
                     candidate_score = (0.55 * mean_score + 0.30 * max_score + 0.15 * coverage).clamp(0.0, 1.0)
                     if candidate_score.item() < self.min_score:
                         continue
-                    rows.append((candidate_score, interval_start, interval_end, pooled, end_index, weights / weight_sum))
+                    rows.append(
+                        (
+                            candidate_score,
+                            interval_start,
+                            interval_end,
+                            pooled,
+                            int(source_indices[batch_index, end_index].item()),
+                            weights / weight_sum,
+                        )
+                    )
             rows.sort(
                 key=lambda row: (
                     -float(row[0].item()),
@@ -300,6 +318,7 @@ class DynamicWindowSelector(LegacyMultiscaleDynamicWindowSelector):
         audio_mask: torch.Tensor | None = None,
         audio_windows: torch.Tensor | None = None,
         state: SelectorState | None = None,
+        audio_source_indices: torch.Tensor | None = None,
     ) -> DynamicWindowSelectorOutput:
         features = _ensure_features(audio_features, self.input_dim)
         batch, steps, _ = features.shape
@@ -321,9 +340,10 @@ class DynamicWindowSelector(LegacyMultiscaleDynamicWindowSelector):
             audio_mask=mask,
             audio_windows=audio_windows,
             state=state,
+            audio_source_indices=audio_source_indices,
         )
 
-    def _select_candidates(self, features, timestamps, mask, scores, thresholds, active, state):
+    def _select_candidates(self, features, timestamps, mask, scores, thresholds, active, state, source_indices):
         del active
         batch, steps, dim = features.shape
         selected = features.new_zeros(batch, self.top_k, dim)
@@ -344,20 +364,25 @@ class DynamicWindowSelector(LegacyMultiscaleDynamicWindowSelector):
                     -float(scores[batch_index, source_index].item()),
                     float(timestamps[batch_index, source_index, 0].item()),
                     float(timestamps[batch_index, source_index, 1].item()),
+                    int(source_indices[batch_index, source_index].item()),
                     source_index,
                 )
                 for source_index in torch.nonzero(mask[batch_index], as_tuple=False).flatten().tolist()
             ]
             ranked.sort()
-            chosen = sorted(ranked[: min(self.top_k, len(ranked))], key=lambda row: (row[1], row[2], row[3]))
+            chosen = sorted(
+                ranked[: min(self.top_k, len(ranked))],
+                key=lambda row: (row[1], row[2], row[3]),
+            )
             for slot, row in enumerate(chosen):
-                source_index = row[3]
-                selected[batch_index, slot] = features[batch_index, source_index]
-                selected_times[batch_index, slot] = timestamps[batch_index, source_index]
-                selected_source_indices[batch_index, slot] = source_index
-                selected_scores[batch_index, slot] = scores[batch_index, source_index]
+                absolute_source_index = row[3]
+                local_source_index = row[4]
+                selected[batch_index, slot] = features[batch_index, local_source_index]
+                selected_times[batch_index, slot] = timestamps[batch_index, local_source_index]
+                selected_source_indices[batch_index, slot] = absolute_source_index
+                selected_scores[batch_index, slot] = scores[batch_index, local_source_index]
                 selected_mask[batch_index, slot] = True
-                source_weights[batch_index, slot, source_index] = 1.0
+                source_weights[batch_index, slot, local_source_index] = 1.0
 
         return DynamicWindowSelectorOutput(
             selected_features=selected,
@@ -430,4 +455,23 @@ def _ensure_mask(mask, batch, steps, device):
     values = mask.to(device=device, dtype=torch.bool)
     if values.shape != (batch, steps):
         raise ValueError(f"audio_mask shape {tuple(values.shape)} does not match {(batch, steps)}")
+    return values
+
+
+def _ensure_source_indices(source_indices, batch, steps, device, mask):
+    if source_indices is None:
+        return torch.arange(steps, dtype=torch.long, device=device).unsqueeze(0).expand(batch, -1)
+    values = source_indices.to(device=device, dtype=torch.long)
+    if values.ndim == 1:
+        values = values.unsqueeze(0).expand(batch, -1)
+    if values.shape != (batch, steps):
+        raise ValueError(
+            f"audio_source_indices shape {tuple(values.shape)} does not match {(batch, steps)}"
+        )
+    if (values[mask] < 0).any():
+        raise ValueError("valid audio_source_indices must be non-negative")
+    for batch_index in range(batch):
+        valid_values = values[batch_index, mask[batch_index]]
+        if torch.unique(valid_values).numel() != valid_values.numel():
+            raise ValueError("valid audio_source_indices must be unique within each sample")
     return values

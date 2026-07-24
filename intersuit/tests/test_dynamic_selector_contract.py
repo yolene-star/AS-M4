@@ -7,12 +7,14 @@ import torch
 
 from intersuit.harness.dynamic_selector_contract import (
     FIXED_CONTROL_SEEDS,
+    ValidatedTensorCache,
     audit_legacy_multiscale_output,
     audit_micro_window_output,
     build_five_seed_mismatch_controls,
     build_five_seed_random_controls,
     oracle_topk_indices,
     stable_topk_indices,
+    tensor_sha256,
 )
 from intersuit.model.streaming_av.dynamic_window_selector import (
     DynamicWindowSelector,
@@ -91,3 +93,35 @@ def test_formal_micro_window_audit_rejects_no_pooling_or_timestamp_changes():
 
     assert audit["status"] == "pass"
     assert audit["selection_unit"] == "original_micro_window"
+
+
+def test_validated_cache_rejects_miss_duplicate_corruption_and_input_sha_change(tmp_path):
+    input_tensor = torch.arange(8, dtype=torch.float32)
+    input_sha = tensor_sha256(input_tensor)
+    changed_input_sha = tensor_sha256(input_tensor + 1)
+    cache = ValidatedTensorCache(tmp_path / "cache")
+
+    with pytest.raises(KeyError, match="cache miss"):
+        cache.get("sample", input_sha256=input_sha)
+
+    cached = input_tensor.square()
+    cache.put("sample", cached, input_sha256=input_sha)
+    assert torch.equal(cache.get("sample", input_sha256=input_sha), cached)
+    with pytest.raises(ValueError, match="duplicate"):
+        cache.put("sample", cached, input_sha256=input_sha)
+    with pytest.raises(ValueError, match="input SHA changed"):
+        cache.get("sample", input_sha256=changed_input_sha)
+
+    cache_path = cache.root / cache.entries["sample"]["path"]
+    cache_path.write_bytes(b"not-a-valid-torch-cache")
+    with pytest.raises(ValueError, match="corrupt"):
+        cache.get("sample", input_sha256=input_sha)
+
+
+def test_validated_cache_rejects_corrupt_manifest(tmp_path):
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    (cache_root / "manifest.json").write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="manifest is corrupt"):
+        ValidatedTensorCache(cache_root)
