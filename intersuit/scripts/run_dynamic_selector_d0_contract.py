@@ -17,13 +17,17 @@ from intersuit.harness.dynamic_selector_contract import (
     FIXED_CONTROL_SEEDS,
     LEGACY_MULTISCALE_POLICY_NAME,
     audit_legacy_multiscale_output,
+    audit_micro_window_output,
     build_five_seed_mismatch_controls,
     build_five_seed_random_controls,
     module_state_sha256,
     oracle_topk_indices,
     stable_topk_indices,
 )
-from intersuit.model.streaming_av.dynamic_window_selector import DynamicWindowSelector
+from intersuit.model.streaming_av.dynamic_window_selector import (
+    DynamicWindowSelector,
+    LegacyMultiscaleDynamicWindowSelector,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,12 +55,28 @@ def main() -> int:
     windows[0, 5] = 0.15
     mask = torch.tensor([[True, True, True, True, True, True, False, False]])
 
-    selector = DynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
-    state_sha_before = module_state_sha256(selector)
+    legacy_selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
+    state_sha_before = module_state_sha256(legacy_selector)
     with torch.inference_mode():
-        output = selector(features, timestamps, mask, windows)
-    state_sha_after = module_state_sha256(selector)
-    selector_audit = audit_legacy_multiscale_output(output, timestamps, mask)
+        legacy_output = legacy_selector(features, timestamps, mask, windows)
+    state_sha_after = module_state_sha256(legacy_selector)
+    selector_audit = audit_legacy_multiscale_output(legacy_output, timestamps, mask)
+
+    micro_selector = DynamicWindowSelector(input_dim=4, top_k=4, micro_window_sec=1.0)
+    with torch.inference_mode():
+        micro_output = micro_selector(features, timestamps, mask, windows)
+        all_micro_output = DynamicWindowSelector(
+            input_dim=4,
+            top_k=features.shape[1],
+            micro_window_sec=1.0,
+        )(features, timestamps, mask, windows)
+    micro_window_audit = audit_micro_window_output(
+        micro_output,
+        features,
+        timestamps,
+        mask,
+    )
+    valid_count = int(mask.sum().item())
 
     valid_indices = torch.nonzero(mask[0], as_tuple=False).flatten().tolist()
     random_controls = build_five_seed_random_controls(valid_indices, k=3)
@@ -81,6 +101,19 @@ def main() -> int:
 
     checks = {
         "selector_source_timestamp_audit": selector_audit["status"] == "pass",
+        "formal_micro_window_audit": micro_window_audit["status"] == "pass",
+        "formal_selection_is_one_source_window": all(
+            torch.count_nonzero(micro_output.source_weights[0, slot]).item() == 1
+            for slot in range(int(micro_output.selection_mask.sum().item()))
+        ),
+        "formal_k_ge_n_matches_all_features": torch.equal(
+            all_micro_output.selected_features[0, :valid_count],
+            features[0, mask[0]],
+        ),
+        "formal_k_ge_n_matches_all_timestamps": torch.equal(
+            all_micro_output.selected_timestamps[0, :valid_count],
+            timestamps[mask[0]],
+        ),
         "eventness_is_explicitly_cached": selector_audit["score_name"] == EVENTNESS_POLICY_NAME,
         "legacy_multiscale_name_is_explicit": selector_audit["policy_name"] == LEGACY_MULTISCALE_POLICY_NAME,
         "five_random_seeds_present": tuple(int(seed) for seed in random_controls) == FIXED_CONTROL_SEEDS,
@@ -100,19 +133,21 @@ def main() -> int:
     status = "pass" if all(checks.values()) else "fail"
 
     locked_config = {
-        "stage": "D0-step-1-contract",
+        "stage": "D0-step-2-micro-window-contract",
         "dataset": None,
         "device": "cpu",
         "fixed_control_seeds": list(FIXED_CONTROL_SEEDS),
         "eventness_policy_name": EVENTNESS_POLICY_NAME,
         "legacy_policy_name": LEGACY_MULTISCALE_POLICY_NAME,
         "source_index_semantics": "legacy multiscale candidate causal end-anchor micro-window",
+        "formal_selection_unit": "original 1-second micro-window",
         "started_at": started_at.isoformat(),
     }
     summary = {
         "status": status,
         "checks": checks,
         "selector_audit": selector_audit,
+        "micro_window_audit": micro_window_audit,
         "random_controls": random_controls,
         "mismatch_controls": mismatch_controls,
         "tie_selection": tie_selection,
@@ -144,19 +179,21 @@ def _build_report(config: dict, summary: dict) -> str:
         f"- [{'x' if passed else ' '}] `{name}`"
         for name, passed in summary["checks"].items()
     )
-    return f"""# Dynamic Window Selector D0 第一步 Contract 报告
+    return f"""# Dynamic Window Selector D0 前两步 Contract 报告
 
 ## 结论
 
 本步骤状态：**{summary["status"]}**。
 
-本报告只覆盖 D0 立即执行顺序的第 1 项：独立 contract harness、cached eventness 命名、显式 source index/timestamp 审计，以及五个固定 Random/mismatch seed。它不表示 D0 已退出，也不授权启动 D1。
+本报告覆盖 D0 立即执行顺序的前两项：独立 contract harness、cached eventness 命名、显式 source index/timestamp 审计、五个固定 Random/mismatch seed，以及正式 1 秒原始 micro-window 选择单位。它不表示 D0 已退出，也不授权启动 D1。
 
 ## 锁定语义
 
 - eventness 策略名：`{config["eventness_policy_name"]}`
 - 旧多尺度实现名：`{config["legacy_policy_name"]}`
 - source index：旧多尺度候选的 causal end-anchor 原始 micro-window
+- 正式选择单位：`{config["formal_selection_unit"]}`
+- 正式 selector 不池化、不运行 interval NMS，每个输出只对应一个 source index
 - 数据集：无（仅合成张量）
 - 设备：CPU
 
@@ -166,7 +203,7 @@ def _build_report(config: dict, summary: dict) -> str:
 
 ## 后续边界
 
-下一步才处理“正式选择单位固定为原始 1 秒 micro-window，并将旧多尺度实现降级为历史基线”。在该步骤和剩余 D0 单测、8 条单卡 smoke 全部通过前，不下载或运行任何官方效果数据。
+下一步先补齐 D0 第 4.2–4.4 节剩余单元测试与 8 条单卡 smoke。只有 D0 退出条件全部通过后，才允许生成 AVE 官方物理视频级候选清单；不会提前下载 validation 媒体、解封 test 或运行任何官方效果实验。
 """
 
 

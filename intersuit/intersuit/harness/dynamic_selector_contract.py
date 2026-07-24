@@ -245,6 +245,83 @@ def audit_legacy_multiscale_output(
     }
 
 
+def audit_micro_window_output(
+    output: DynamicWindowSelectorOutput,
+    source_features: torch.Tensor,
+    source_timestamps: torch.Tensor,
+    source_mask: torch.Tensor,
+) -> dict:
+    """Verify that every formal selection is one unchanged source window."""
+
+    features = source_features if source_features.ndim == 3 else source_features.unsqueeze(0)
+    timestamps = source_timestamps if source_timestamps.ndim == 3 else source_timestamps.unsqueeze(0)
+    mask = source_mask if source_mask.ndim == 2 else source_mask.unsqueeze(0)
+    batch, steps = mask.shape
+    errors: list[str] = []
+    records: list[dict] = []
+    if features.shape[:2] != (batch, steps) or timestamps.shape != (batch, steps, 2):
+        raise ValueError("source feature/timestamp/mask shapes are inconsistent")
+
+    for batch_index in range(batch):
+        previous_start = None
+        for slot in range(output.selection_mask.shape[1]):
+            selected = bool(output.selection_mask[batch_index, slot].item())
+            source_index = int(output.selected_source_indices[batch_index, slot].item())
+            if not selected:
+                if source_index != -1:
+                    errors.append(f"batch={batch_index}, slot={slot} padding 索引不是 -1")
+                continue
+            if source_index < 0 or source_index >= steps:
+                errors.append(f"batch={batch_index}, slot={slot} source index 越界")
+                continue
+            if not bool(mask[batch_index, source_index].item()):
+                errors.append(f"batch={batch_index}, slot={slot} source index 指向 padding")
+            if not torch.equal(
+                output.selected_features[batch_index, slot],
+                features[batch_index, source_index],
+            ):
+                errors.append(f"batch={batch_index}, slot={slot} feature 发生池化或改写")
+            if not torch.equal(
+                output.selected_timestamps[batch_index, slot],
+                timestamps[batch_index, source_index],
+            ):
+                errors.append(f"batch={batch_index}, slot={slot} timestamp 不是原始窗口")
+            expected_weights = torch.zeros_like(output.source_weights[batch_index, slot])
+            expected_weights[source_index] = 1.0
+            if not torch.equal(output.source_weights[batch_index, slot], expected_weights):
+                errors.append(f"batch={batch_index}, slot={slot} source weight 不是 one-hot")
+            selected_start = float(output.selected_timestamps[batch_index, slot, 0].item())
+            if previous_start is not None and selected_start < previous_start:
+                errors.append(f"batch={batch_index} 选中窗口未按原始时间排序")
+            previous_start = selected_start
+            records.append(
+                {
+                    "batch_index": batch_index,
+                    "slot": slot,
+                    "selected_source_index": source_index,
+                    "selected_timestamp": output.selected_timestamps[batch_index, slot].tolist(),
+                }
+            )
+
+    finite_values = (
+        output.selected_features,
+        output.selected_timestamps,
+        output.selection_scores,
+        output.source_weights,
+        output.eventness_cached_scores,
+        output.dynamic_thresholds,
+    )
+    if not all(torch.isfinite(value).all() for value in finite_values):
+        errors.append("正式 micro-window 输出含 NaN/Inf")
+    return {
+        "status": "pass" if not errors else "fail",
+        "selection_unit": "original_micro_window",
+        "micro_window_sec": 1.0,
+        "errors": errors,
+        "selected_records": records,
+    }
+
+
 def module_state_sha256(module: nn.Module) -> str:
     """Hash parameter and buffer bytes in a stable name order."""
 

@@ -28,6 +28,7 @@ from .event_detector import AudioEventDetector, AudioEventDetectorOutput
 from .dynamic_window_selector import (
     DynamicWindowSelector,
     DynamicWindowSelectorOutput,
+    LegacyMultiscaleDynamicWindowSelector,
     SelectorState,
 )
 from .fusion import GatedAVFusion
@@ -42,6 +43,7 @@ __all__ = [
     "AudioEventDetectorOutput",
     "DynamicWindowSelector",
     "DynamicWindowSelectorOutput",
+    "LegacyMultiscaleDynamicWindowSelector",
     "SelectorState",
     "AudioEventFeatures",
     "FrozenOffsetScorerInputs",

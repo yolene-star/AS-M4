@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from intersuit.model.streaming_av.dynamic_window_selector import DynamicWindowSelector
+from intersuit.model.streaming_av.dynamic_window_selector import LegacyMultiscaleDynamicWindowSelector
 
 
 def _inputs(steps: int = 8, dim: int = 4):
@@ -20,7 +20,7 @@ def _inputs(steps: int = 8, dim: int = 4):
 
 def test_silence_produces_no_selected_windows():
     features, timestamps, windows, mask = _inputs()
-    selector = DynamicWindowSelector(input_dim=4, top_k=4)
+    selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=4)
 
     output = selector(features, timestamps, mask, windows)
 
@@ -33,7 +33,7 @@ def test_burst_event_is_selected_and_source_weights_are_normalized():
     features, timestamps, windows, mask = _inputs()
     features[0, 3] = torch.tensor([1.0, 0.0, 0.0, 0.0])
     windows[0, 3] = 0.2
-    selector = DynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
+    selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
 
     output = selector(features, timestamps, mask, windows)
 
@@ -50,7 +50,7 @@ def test_candidates_are_causal_and_limited_to_top_k():
     features, timestamps, windows, mask = _inputs(steps=12)
     features[:, 2:8] = 0.5
     windows[:, 2:8] = 0.1
-    selector = DynamicWindowSelector(input_dim=4, top_k=3, nms_iou=0.0)
+    selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=3, nms_iou=0.0)
 
     output = selector(features, timestamps, mask, windows)
 
@@ -66,7 +66,7 @@ def test_padding_mask_is_never_selected():
     mask[:, 5:] = False
     features[0, 5:] = 10.0
     windows[0, 5:] = 1.0
-    selector = DynamicWindowSelector(input_dim=4, top_k=8, nms_iou=1.0)
+    selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=8, nms_iou=1.0)
 
     output = selector(features, timestamps, mask, windows)
 
@@ -80,7 +80,7 @@ def test_causal_state_carries_boundary_feature_and_rms():
     features, timestamps, windows, mask = _inputs(steps=4)
     features[0, 0] = torch.tensor([1.0, 0.0, 0.0, 0.0])
     windows[0, 0] = 0.2
-    selector = DynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
+    selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
 
     first = selector(features[:, :2], timestamps[:2], mask[:, :2], windows[:, :2])
     second_features = features[:, 2:]

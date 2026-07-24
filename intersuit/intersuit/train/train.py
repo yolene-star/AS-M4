@@ -123,6 +123,7 @@ class ModelArguments:
     scene_audio_window_mode: str = field(default="fixed")
     scene_audio_selector_dim: Optional[int] = field(default=None)
     dynamic_window_scales_sec: str = field(default="1.0,2.0,4.0")
+    dynamic_window_micro_window_sec: float = field(default=1.0)
     dynamic_window_top_k: int = field(default=16)
     dynamic_window_nms_iou: float = field(default=0.6)
     dynamic_window_ema_beta: float = field(default=0.9)

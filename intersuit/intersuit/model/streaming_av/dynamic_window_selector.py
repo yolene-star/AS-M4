@@ -45,7 +45,7 @@ class DynamicWindowSelectorOutput(NamedTuple):
         return self.eventness_cached_scores
 
 
-class DynamicWindowSelector(nn.Module):
+class LegacyMultiscaleDynamicWindowSelector(nn.Module):
     """Legacy selector based on cached feature change, energy and hysteresis.
 
     Candidate intervals are trailing (causal), use a small set of scales, and
@@ -249,6 +249,129 @@ class DynamicWindowSelector(nn.Module):
         )
 
 
+class DynamicWindowSelector(LegacyMultiscaleDynamicWindowSelector):
+    """Formal cached-eventness Top-K over original micro-windows.
+
+    Unlike :class:`LegacyMultiscaleDynamicWindowSelector`, this selector never
+    pools multiple source windows and never runs interval NMS.  Every selected
+    feature, timestamp, and source index refers to exactly one input
+    micro-window.  The default contract accepts full one-second windows and a
+    shorter final partial window.
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        top_k: int = 16,
+        ema_beta: float = 0.9,
+        start_scale: float = 1.0,
+        hold_scale: float = 0.25,
+        min_score: float = 0.05,
+        rms_reference: float = 0.05,
+        silence_threshold: float = 1e-4,
+        causal: bool = True,
+        micro_window_sec: float = 1.0,
+        timestamp_tolerance: float = 1e-4,
+    ) -> None:
+        if micro_window_sec <= 0:
+            raise ValueError("micro_window_sec must be positive")
+        if timestamp_tolerance < 0:
+            raise ValueError("timestamp_tolerance must be non-negative")
+        super().__init__(
+            input_dim=input_dim,
+            scales_sec=(float(micro_window_sec),),
+            top_k=top_k,
+            nms_iou=1.0,
+            ema_beta=ema_beta,
+            start_scale=start_scale,
+            hold_scale=hold_scale,
+            min_score=min_score,
+            rms_reference=rms_reference,
+            silence_threshold=silence_threshold,
+            causal=causal,
+        )
+        self.micro_window_sec = float(micro_window_sec)
+        self.timestamp_tolerance = float(timestamp_tolerance)
+
+    def forward(
+        self,
+        audio_features: torch.Tensor,
+        audio_timestamps: torch.Tensor,
+        audio_mask: torch.Tensor | None = None,
+        audio_windows: torch.Tensor | None = None,
+        state: SelectorState | None = None,
+    ) -> DynamicWindowSelectorOutput:
+        features = _ensure_features(audio_features, self.input_dim)
+        batch, steps, _ = features.shape
+        timestamps = _ensure_timestamps(audio_timestamps, batch, steps, features.device)
+        mask = _ensure_mask(audio_mask, batch, steps, features.device)
+        durations = timestamps[..., 1] - timestamps[..., 0]
+        invalid_duration = mask & (
+            (durations <= 0)
+            | (durations > self.micro_window_sec + self.timestamp_tolerance)
+        )
+        if invalid_duration.any():
+            raise ValueError(
+                "micro_window mode requires positive original windows no longer "
+                f"than {self.micro_window_sec:g} seconds"
+            )
+        return super().forward(
+            features,
+            timestamps,
+            audio_mask=mask,
+            audio_windows=audio_windows,
+            state=state,
+        )
+
+    def _select_candidates(self, features, timestamps, mask, scores, thresholds, active, state):
+        del active
+        batch, steps, dim = features.shape
+        selected = features.new_zeros(batch, self.top_k, dim)
+        selected_times = timestamps.new_zeros(batch, self.top_k, 2)
+        selected_source_indices = torch.full(
+            (batch, self.top_k),
+            -1,
+            dtype=torch.long,
+            device=features.device,
+        )
+        selected_scores = scores.new_zeros(batch, self.top_k)
+        selected_mask = torch.zeros(batch, self.top_k, dtype=torch.bool, device=features.device)
+        source_weights = features.new_zeros(batch, self.top_k, steps)
+
+        for batch_index in range(batch):
+            ranked = [
+                (
+                    -float(scores[batch_index, source_index].item()),
+                    float(timestamps[batch_index, source_index, 0].item()),
+                    float(timestamps[batch_index, source_index, 1].item()),
+                    source_index,
+                )
+                for source_index in torch.nonzero(mask[batch_index], as_tuple=False).flatten().tolist()
+            ]
+            ranked.sort()
+            chosen = sorted(ranked[: min(self.top_k, len(ranked))], key=lambda row: (row[1], row[2], row[3]))
+            for slot, row in enumerate(chosen):
+                source_index = row[3]
+                selected[batch_index, slot] = features[batch_index, source_index]
+                selected_times[batch_index, slot] = timestamps[batch_index, source_index]
+                selected_source_indices[batch_index, slot] = source_index
+                selected_scores[batch_index, slot] = scores[batch_index, source_index]
+                selected_mask[batch_index, slot] = True
+                source_weights[batch_index, slot, source_index] = 1.0
+
+        return DynamicWindowSelectorOutput(
+            selected_features=selected,
+            selected_timestamps=selected_times,
+            selected_source_indices=selected_source_indices,
+            selection_scores=selected_scores,
+            selection_mask=selected_mask,
+            source_weights=source_weights,
+            eventness_cached_scores=scores,
+            dynamic_thresholds=thresholds,
+            state=state,
+        )
+
+
 def _interval_iou(start_a, end_a, start_b, end_b):
     intersection = torch.minimum(end_a, end_b) - torch.maximum(start_a, start_b)
     intersection = intersection.clamp_min(0.0)
@@ -261,6 +384,8 @@ def _feature_change(features, mask, previous_feature=None):
     if previous_feature is not None:
         previous[:, 0] = previous_feature.to(device=features.device, dtype=features.dtype)
     change = 1.0 - F.cosine_similarity(features, previous, dim=-1, eps=1e-6)
+    both_zero = (features.norm(dim=-1) <= 1e-6) & (previous.norm(dim=-1) <= 1e-6)
+    change = change.masked_fill(both_zero, 0.0)
     if previous_feature is None:
         change[:, 0] = 0.0
     return change.clamp(0.0, 1.0).masked_fill(~mask, 0.0)

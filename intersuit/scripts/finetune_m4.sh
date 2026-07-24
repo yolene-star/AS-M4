@@ -141,6 +141,7 @@ EXTRA_TRAIN_ARGS+=(--scene_audio_contrastive_weight "${AS_M4_SCENE_AUDIO_CONTRAS
 EXTRA_TRAIN_ARGS+=(--scene_audio_contrastive_margin "${AS_M4_SCENE_AUDIO_CONTRASTIVE_MARGIN:-0.2}")
 EXTRA_TRAIN_ARGS+=(--scene_audio_window_mode "${AS_M4_SCENE_AUDIO_WINDOW_MODE:-fixed}")
 EXTRA_TRAIN_ARGS+=(--dynamic_window_scales_sec "${AS_M4_DYNAMIC_WINDOW_SCALES_SEC:-1.0,2.0,4.0}")
+EXTRA_TRAIN_ARGS+=(--dynamic_window_micro_window_sec "${AS_M4_DYNAMIC_WINDOW_MICRO_WINDOW_SEC:-1.0}")
 EXTRA_TRAIN_ARGS+=(--dynamic_window_top_k "${AS_M4_DYNAMIC_WINDOW_TOP_K:-16}")
 EXTRA_TRAIN_ARGS+=(--dynamic_window_nms_iou "${AS_M4_DYNAMIC_WINDOW_NMS_IOU:-0.6}")
 EXTRA_TRAIN_ARGS+=(--dynamic_window_ema_beta "${AS_M4_DYNAMIC_WINDOW_EMA_BETA:-0.9}")

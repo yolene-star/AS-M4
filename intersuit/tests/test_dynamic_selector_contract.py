@@ -8,12 +8,16 @@ import torch
 from intersuit.harness.dynamic_selector_contract import (
     FIXED_CONTROL_SEEDS,
     audit_legacy_multiscale_output,
+    audit_micro_window_output,
     build_five_seed_mismatch_controls,
     build_five_seed_random_controls,
     oracle_topk_indices,
     stable_topk_indices,
 )
-from intersuit.model.streaming_av.dynamic_window_selector import DynamicWindowSelector
+from intersuit.model.streaming_av.dynamic_window_selector import (
+    DynamicWindowSelector,
+    LegacyMultiscaleDynamicWindowSelector,
+)
 
 
 def test_stable_topk_rejects_zero_and_uses_earlier_tie_break():
@@ -60,7 +64,7 @@ def test_legacy_output_has_explicit_source_anchor_and_timestamp_audit():
     windows = torch.zeros(1, 6, 32)
     windows[0, 2] = 0.2
     mask = torch.tensor([[True, True, True, True, False, False]])
-    selector = DynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
+    selector = LegacyMultiscaleDynamicWindowSelector(input_dim=4, top_k=4, nms_iou=1.0)
 
     output = selector(features, timestamps, mask, windows)
     audit = audit_legacy_multiscale_output(output, timestamps, mask)
@@ -69,3 +73,21 @@ def test_legacy_output_has_explicit_source_anchor_and_timestamp_audit():
     assert output.selected_source_indices.dtype == torch.long
     assert torch.all(output.selected_source_indices[~output.selection_mask] == -1)
     assert torch.equal(output.micro_scores, output.eventness_cached_scores)
+
+
+def test_formal_micro_window_audit_rejects_no_pooling_or_timestamp_changes():
+    features = torch.arange(24, dtype=torch.float32).reshape(1, 6, 4)
+    timestamps = torch.tensor([[float(index), float(index + 1)] for index in range(6)])
+    windows = torch.zeros(1, 6, 32)
+    mask = torch.tensor([[True, True, True, True, False, False]])
+    output = DynamicWindowSelector(input_dim=4, top_k=3)(
+        features,
+        timestamps,
+        mask,
+        windows,
+    )
+
+    audit = audit_micro_window_output(output, features, timestamps, mask)
+
+    assert audit["status"] == "pass"
+    assert audit["selection_unit"] == "original_micro_window"
