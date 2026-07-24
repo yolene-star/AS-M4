@@ -1,4 +1,4 @@
-"""Causal, rule-based dynamic audio window selection for AS-M4 V1."""
+"""Legacy multiscale cached-eventness window selection for AS-M4."""
 
 from __future__ import annotations
 
@@ -20,24 +20,39 @@ class SelectorState(NamedTuple):
 
 
 class DynamicWindowSelectorOutput(NamedTuple):
-    """Selected fixed-size, padded dynamic windows and diagnostics."""
+    """Selected padded candidates and explicit source diagnostics.
+
+    ``selected_source_indices`` is the original micro-window index used as the
+    causal end anchor for each legacy multiscale candidate.  It is deliberately
+    explicit: callers must not recover an index from floating-point timestamps
+    or ``source_weights.argmax()``.
+    """
 
     selected_features: torch.Tensor
     selected_timestamps: torch.Tensor
+    selected_source_indices: torch.Tensor
     selection_scores: torch.Tensor
     selection_mask: torch.Tensor
     source_weights: torch.Tensor
-    micro_scores: torch.Tensor
+    eventness_cached_scores: torch.Tensor
     dynamic_thresholds: torch.Tensor
     state: SelectorState
 
+    @property
+    def micro_scores(self) -> torch.Tensor:
+        """Deprecated compatibility alias for pre-D0 callers."""
+
+        return self.eventness_cached_scores
+
 
 class DynamicWindowSelector(nn.Module):
-    """V1 selector based on feature change, energy and causal hysteresis.
+    """Legacy selector based on cached feature change, energy and hysteresis.
 
     Candidate intervals are trailing (causal), use a small set of scales, and
     are pooled from already encoded micro-window features. The module has no
-    trainable parameters in V1, which keeps the first ablation interpretable.
+    trainable parameters.  Because feature change requires encoded audio, this
+    implementation is an ``eventness_cached`` baseline and cannot be described
+    as a pre-encoder or BEATs-saving selector.
     """
 
     def __init__(
@@ -184,19 +199,32 @@ class DynamicWindowSelector(nn.Module):
                     candidate_score = (0.55 * mean_score + 0.30 * max_score + 0.15 * coverage).clamp(0.0, 1.0)
                     if candidate_score.item() < self.min_score:
                         continue
-                    rows.append((candidate_score, interval_start, interval_end, pooled, weights / weight_sum))
-            rows.sort(key=lambda row: float(row[0].item()), reverse=True)
+                    rows.append((candidate_score, interval_start, interval_end, pooled, end_index, weights / weight_sum))
+            rows.sort(
+                key=lambda row: (
+                    -float(row[0].item()),
+                    float(row[1].item()),
+                    float(row[2].item()),
+                    int(row[4]),
+                )
+            )
             kept = []
             for row in rows:
                 if len(kept) >= self.top_k:
                     break
                 if all(_interval_iou(row[1], row[2], other[1], other[2]) <= self.nms_iou for other in kept):
                     kept.append(row)
-            kept.sort(key=lambda row: float(row[1].item()))
+            kept.sort(key=lambda row: (float(row[1].item()), float(row[2].item()), int(row[4])))
             candidates.append(kept)
 
         selected = features.new_zeros(batch, self.top_k, dim)
         selected_times = timestamps.new_zeros(batch, self.top_k, 2)
+        selected_source_indices = torch.full(
+            (batch, self.top_k),
+            -1,
+            dtype=torch.long,
+            device=features.device,
+        )
         selected_scores = scores.new_zeros(batch, self.top_k)
         selected_mask = torch.zeros(batch, self.top_k, dtype=torch.bool, device=features.device)
         source_weights = features.new_zeros(batch, self.top_k, steps)
@@ -205,15 +233,17 @@ class DynamicWindowSelector(nn.Module):
                 selected_scores[batch_index, slot] = row[0]
                 selected_times[batch_index, slot] = torch.stack([row[1], row[2]])
                 selected[batch_index, slot] = row[3]
-                source_weights[batch_index, slot] = row[4]
+                selected_source_indices[batch_index, slot] = row[4]
+                source_weights[batch_index, slot] = row[5]
                 selected_mask[batch_index, slot] = True
         return DynamicWindowSelectorOutput(
             selected_features=selected,
             selected_timestamps=selected_times,
+            selected_source_indices=selected_source_indices,
             selection_scores=selected_scores,
             selection_mask=selected_mask,
             source_weights=source_weights,
-            micro_scores=scores,
+            eventness_cached_scores=scores,
             dynamic_thresholds=thresholds,
             state=state,
         )

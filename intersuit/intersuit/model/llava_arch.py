@@ -1419,7 +1419,8 @@ class LlavaMetaForCausalLM(ABC):
                         "dynamic_window_selection_scores": selector_output.selection_scores[idx].detach(),
                         "dynamic_window_selection_mask": selected_mask.detach(),
                         "dynamic_window_timestamps": selector_output.selected_timestamps[idx].detach(),
-                        "dynamic_window_micro_scores": selector_output.micro_scores[idx].detach(),
+                        "dynamic_window_selected_source_indices": selector_output.selected_source_indices[idx].detach(),
+                        "dynamic_window_eventness_cached_scores": selector_output.eventness_cached_scores[idx].detach(),
                         "dynamic_window_thresholds": selector_output.dynamic_thresholds[idx].detach(),
                     }
                 )

@@ -40,6 +40,8 @@ def test_burst_event_is_selected_and_source_weights_are_normalized():
     assert output.selection_mask.any()
     valid_weights = output.source_weights[output.selection_mask]
     assert torch.allclose(valid_weights.sum(dim=-1), torch.ones(valid_weights.shape[0]), atol=1e-5)
+    assert torch.all(output.selected_source_indices[output.selection_mask] >= 0)
+    assert torch.all(output.selected_source_indices[~output.selection_mask] == -1)
     selected_starts = output.selected_timestamps[0, output.selection_mask[0], 0]
     assert torch.all(selected_starts[1:] >= selected_starts[:-1])
 
@@ -93,4 +95,4 @@ def test_causal_state_carries_boundary_feature_and_rms():
 
     assert second.state.last_feature.shape == (1, 4)
     assert second.state.last_rms.shape == (1,)
-    assert torch.isfinite(second.micro_scores).all()
+    assert torch.isfinite(second.eventness_cached_scores).all()
