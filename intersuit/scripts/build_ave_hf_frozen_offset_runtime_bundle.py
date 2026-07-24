@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-"""把已验收的 AVE offset scorer 封装成只读诊断运行 bundle。
+"""把冻结的 AVE offset scorer 封装成诊断或正式运行 bundle。
 
-bundle 只补入训练集 scalar mean/std 和严格 schema；不训练、不调阈值，
-也不修改 Gate、窗口或正式推理路径。
+诊断模式允许保留未通过验收的历史 scorer，但产物会明确标记为
+``diagnostic_only``。正式模式只接受所有冻结 seed 均已通过验收、且提供了
+完整 schema manifest 的资产。两种模式都不训练、不调阈值，也不修改 Gate、
+窗口或正式推理路径。
 """
 
 from __future__ import annotations
@@ -24,6 +26,28 @@ DEFAULT_FROZEN_ROOT = INTERSUIT_ROOT / "harness/artifacts/ave_hf_temporal_offset
 DEFAULT_OUTPUT = DEFAULT_FROZEN_ROOT / "seed_20260719/temporal_offset_scorer_runtime_bundle.pt"
 FROZEN_SEED = "20260719"
 FROZEN_MARGIN = 0.15
+FROZEN_SEEDS = ["20260718", "20260719", "20260720"]
+FORMAL_PASS_DECISION = "temporal_offset_scorer_passed"
+FORMAL_SCHEMA_REQUIRED_SECTIONS = {
+    "window_schema": {
+        "window_length_sec",
+        "hop_sec",
+        "window_count_policy",
+        "tail_policy",
+        "timestamp_semantics",
+        "source_index_semantics",
+    },
+    "input_schema": {
+        "audio_dim",
+        "clip_dim",
+        "rgb_dim",
+        "scalar_dim",
+        "audio_preprocessing",
+        "clip_preprocessing",
+        "rgb_preprocessing",
+        "scalar_features",
+    },
+}
 
 
 def import_temporal_module():
@@ -55,6 +79,60 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def validate_frozen_summary(summary: dict[str, Any]) -> list[str]:
+    """校验冻结实验身份并返回每个 seed 的验收结论。"""
+
+    config = summary["config"]
+    if [str(seed) for seed in summary["seeds"]] != FROZEN_SEEDS:
+        raise ValueError("冻结 seed 集合发生变化")
+    if float(config["zero_class_weight"]) != 1.25 or not bool(config["require_center_peak"]):
+        raise ValueError("冻结配置不再是 zero_weight=1.25 + center peak")
+
+    runs = summary.get("runs")
+    if not isinstance(runs, list) or len(runs) != len(FROZEN_SEEDS):
+        raise ValueError("冻结 summary 缺少完整的三 seed 运行结论")
+    run_names = [str(run.get("name", "")) for run in runs]
+    expected_run_names = [f"seed_{seed}" for seed in FROZEN_SEEDS]
+    if run_names != expected_run_names:
+        raise ValueError("冻结 summary 的 seed 运行顺序或名称发生变化")
+    decisions = [str(run.get("decision", "")) for run in runs]
+    if any(not decision for decision in decisions):
+        raise ValueError("冻结 summary 存在空验收结论")
+    return decisions
+
+
+def assert_formal_summary_eligible(decisions: list[str]) -> None:
+    """正式构建必须 fail-closed：任一 seed 未通过就立即阻断。"""
+
+    rejected = [
+        decision for decision in decisions if decision != FORMAL_PASS_DECISION
+    ]
+    if rejected:
+        raise ValueError(
+            "formal runtime bundle not passed acceptance gate: "
+            + ", ".join(rejected)
+        )
+
+
+def load_formal_schema_manifest(path: Path | None) -> dict[str, Any]:
+    """读取并校验正式 bundle 所需的完整输入/窗口 schema。"""
+
+    if path is None or not path.is_file():
+        raise FileNotFoundError("formal schema manifest 不存在")
+    manifest = load_json(path)
+    for section, required_keys in FORMAL_SCHEMA_REQUIRED_SECTIONS.items():
+        value = manifest.get(section)
+        if not isinstance(value, dict):
+            raise ValueError(f"formal schema manifest 缺少 {section}")
+        missing = sorted(required_keys - set(value))
+        if missing:
+            raise ValueError(
+                f"formal schema manifest 的 {section} 缺少字段: "
+                + ", ".join(missing)
+            )
+    return manifest
+
+
 def build_filtered_caches(
     clip_manifest: Path,
     rgb_manifest: Path,
@@ -72,14 +150,28 @@ def build_filtered_caches(
     return {cache["youtube_id"]: cache for cache in caches}
 
 
-def build_bundle(frozen_root: Path, output_path: Path) -> dict[str, Any]:
+def _build_runtime_bundle(
+    frozen_root: Path,
+    output_path: Path,
+    *,
+    mode: str,
+    schema_manifest_path: Path | None = None,
+) -> dict[str, Any]:
+    if mode not in {"diagnostic", "formal"}:
+        raise ValueError(f"未知 bundle mode: {mode}")
+
     summary_path = frozen_root / "frozen_seed_summary.json"
     summary = load_json(summary_path)
+    decisions = validate_frozen_summary(summary)
     config = summary["config"]
-    if [str(seed) for seed in summary["seeds"]] != ["20260718", "20260719", "20260720"]:
-        raise ValueError("冻结 seed 集合发生变化")
-    if float(config["zero_class_weight"]) != 1.25 or not bool(config["require_center_peak"]):
-        raise ValueError("冻结配置不再是 zero_weight=1.25 + center peak")
+
+    schema_manifest = None
+    schema_manifest_sha256 = None
+    if mode == "formal":
+        assert_formal_summary_eligible(decisions)
+        schema_manifest = load_formal_schema_manifest(schema_manifest_path)
+        assert schema_manifest_path is not None
+        schema_manifest_sha256 = sha256_file(schema_manifest_path)
 
     seed_root = frozen_root / f"seed_{FROZEN_SEED}"
     train_manifest = seed_root / "temporal_offset_train_manifest.jsonl"
@@ -100,6 +192,16 @@ def build_bundle(frozen_root: Path, output_path: Path) -> dict[str, Any]:
     scalar_mean, scalar_std = scalar_stats
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     state = checkpoint["state_dict"]
+    selected_run = next(
+        (
+            run
+            for run in summary["runs"]
+            if str(run.get("name")) == f"seed_{FROZEN_SEED}"
+        ),
+        None,
+    )
+    if selected_run is None:
+        raise ValueError(f"冻结 summary 缺少 seed_{FROZEN_SEED} 运行结论")
     bundle = {
         "format_version": 1,
         "state_dict": state,
@@ -120,11 +222,18 @@ def build_bundle(frozen_root: Path, output_path: Path) -> dict[str, Any]:
             "checkpoint_sha256": sha256_file(checkpoint_path),
             "train_manifest_sha256": sha256_file(train_manifest),
             "frozen_summary_sha256": sha256_file(summary_path),
-            "diagnostic_only": True,
+            "training_decisions": decisions,
+            "source_decision": str(selected_run["decision"]),
+            "bundle_mode": mode,
+            "diagnostic_only": mode == "diagnostic",
+            "formal_eligible": mode == "formal",
+            "schema_manifest_sha256": schema_manifest_sha256,
             "moves_audio_window": False,
             "feeds_gate": False,
         },
     }
+    if schema_manifest is not None:
+        bundle["schema_manifest"] = schema_manifest
     output_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(bundle, output_path)
     reloaded = torch.load(output_path, map_location="cpu", weights_only=True)
@@ -139,19 +248,70 @@ def build_bundle(frozen_root: Path, output_path: Path) -> dict[str, Any]:
         "scalar_dim": int(scalars.shape[-1]),
         "pair_dim": int(state["net.0.weight"].shape[1]),
         "margin_threshold": FROZEN_MARGIN,
+        "bundle_mode": mode,
+        "training_decisions": decisions,
     }
+
+
+def build_diagnostic_bundle(frozen_root: Path, output_path: Path) -> dict[str, Any]:
+    return _build_runtime_bundle(
+        frozen_root,
+        output_path,
+        mode="diagnostic",
+    )
+
+
+def build_formal_bundle(
+    frozen_root: Path,
+    output_path: Path,
+    *,
+    schema_manifest_path: Path | None,
+) -> dict[str, Any]:
+    return _build_runtime_bundle(
+        frozen_root,
+        output_path,
+        mode="formal",
+        schema_manifest_path=schema_manifest_path,
+    )
+
+
+def build_bundle(frozen_root: Path, output_path: Path) -> dict[str, Any]:
+    """兼容旧调用；旧入口只能生成明确标记的诊断 bundle。"""
+
+    return build_diagnostic_bundle(frozen_root, output_path)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--frozen-root", default=str(DEFAULT_FROZEN_ROOT))
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
+    parser.add_argument(
+        "--mode",
+        choices=("diagnostic", "formal"),
+        default="diagnostic",
+    )
+    parser.add_argument(
+        "--schema-manifest",
+        help="formal 模式必需；声明完整窗口和输入 schema 的 JSON 文件",
+    )
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    result = build_bundle(Path(args.frozen_root).resolve(), Path(args.output).resolve())
+    frozen_root = Path(args.frozen_root).resolve()
+    output_path = Path(args.output).resolve()
+    if args.mode == "formal":
+        schema_manifest_path = (
+            Path(args.schema_manifest).resolve() if args.schema_manifest else None
+        )
+        result = build_formal_bundle(
+            frozen_root,
+            output_path,
+            schema_manifest_path=schema_manifest_path,
+        )
+    else:
+        result = build_diagnostic_bundle(frozen_root, output_path)
     print(json.dumps(result, ensure_ascii=False))
 
 
