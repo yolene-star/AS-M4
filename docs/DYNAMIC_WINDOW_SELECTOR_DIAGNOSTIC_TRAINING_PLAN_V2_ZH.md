@@ -30,7 +30,7 @@ LongVALE Oracle 下游效用”，不能否决不依赖 M4 fusion 的 V1 定位�
 
 ```text
 V0 contract/data review: PASS（媒体资格仍按数据集单独判断）
-V1 localization upper bound: ACTIVE / media-gated
+V1 localization upper bound: ACTIVE（metadata headroom PASS；32-video media pilot PASS；full validation 未运行）
 V2 M4 Oracle downstream utility: BLOCKED_BY_AUDIO_PATH
 V3 learned selector: NOT_AUTHORIZED
 audio semantic reconstruction: CONDITIONAL_BLOCKER_REMEDIATION
@@ -510,21 +510,52 @@ checkpoint、媒体、数据集、特征、缓存、预测和日志不得加入 
 
 ## 12. 当前执行授权
 
-本计划的独立 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，当前结论为 `review_completed_route_stopped`。
+本计划的独立数据/指标 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，
+主线校正见 `docs/DYNAMIC_SELECTOR_MAINLINE_ALIGNMENT_REVIEW_ZH.md`，最新 S1 实测 review 见
+`docs/DYNAMIC_SELECTOR_S1_MEDIA_PILOT_REVIEW_ZH.md`。旧的
+`review_completed_route_stopped` 只对应不合格 `checkpoint-150` 的 M4 音频下游路径，不再作为
+V1 定位上界的全局停止结论。
 
-当前只允许：
+截至 2026-07-25，已完成：
 
-1. V0 CPU contract、数据/许可/污染冻结和回归测试；
-2. 保留 selector 模块作为未来合格音频基座的诊断基础；
-3. 另立音频语义目标、答案表示和融合位置重构计划。
+1. UnAV-100 train/validation 的 metadata-only All/Uniform/Random/Oracle；
+2. validation `K=8` Oracle−Random Event Coverage 为 `+82.0843pp`，95% CI
+   `[+80.8502pp,+83.2940pp]`，Oracle 定位 headroom 通过；
+3. 官方 `download_video.csv` 与 Hugging Face parquet 逐视频交叉核验，validation manifest
+   缺失、split 错配和 duration 错配均为 0；
+4. 48-video 冻结媒体候选中 47 个可访问；下载后按 0.25 秒时长容差、音视频流和完整音频解码
+   取得 32 个严格合格物理视频；
+5. 32-video/60-event pilot 中 Energy−Random 为 `+14.0479pp`，95% CI
+   `[+6.0197pp,+22.2821pp]`；Onset−Random 为 `+21.4550pp`，95% CI
+   `[+12.6299pp,+30.4241pp]`，两者均胜过 5/5 Random seed；
+6. metadata 与 media pilot 均完成双次复现，summary SHA 完全一致。
 
-本轮不再等待 V1：checkpoint selectivity 前置门禁已经失败，停止规则已触发。只有未来产生新的、物理隔离且通过正确音频高于错配音频门禁的冻结基座，才允许重新申请媒体 pilot 与 V1/V2；不得修改本次负结果。
+该结果只授权继续 V1，不构成完整 V1 通过。原因是媒体 pilot 是按标签覆盖和时长/复杂度分层
+选择的 32 个 validation 视频，不是 335 个稀疏 validation 物理视频全量；同时
+`eventness_cached_topk` 尚未取得冻结、可复现的合格资产。
+
+当前允许：
+
+1. 按已冻结 manifest 和 `download_video.csv` 扩展 UnAV validation 媒体；
+2. 在完整稀疏 validation 上运行 All/Uniform/Random/Energy/Onset/Oracle；
+3. 独立资格审查 `eventness_cached_topk`，合格后补齐完整 V1；
+4. 继续 CPU/单机低成本、不训练的定位诊断与双次复现。
+
+当前禁止：
+
+1. learned selector 或 question-conditioned selector 训练；
+2. 将 selector 接入正式 M4 联合训练；
+3. 使用 UnAV official test；
+4. 运行 V2 LongVALE Oracle 下游效用，直到新的冻结 M4 音频路径通过独立资格门禁；
+5. 启动 Semantic Contrast。
 
 ```text
+v1_metadata_headroom: PASS
+v1_media_pilot: PASS
+v1_full_validation: NOT_RUN
 selector_training_allowed: false
-longvale_media_pilot_allowed: false
-gpu_smoke_allowed: false
+longvale_oracle_utility_allowed: false
 formal_test_allowed: false
 semantic_contrast_allowed: false
-current_route: stopped_checkpoint_ineligible
+current_route: active_v1_full_validation_expansion
 ```

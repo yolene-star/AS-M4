@@ -86,8 +86,10 @@ S6 causal replay、一次性 test 与新的 Semantic Contrast 计划
 ## 5. 当前真实状态
 
 ```text
-S0: PASS（LongVALE/UnAV 的媒体资格仍为 false）
-S1: NOT RUN；当前主线下一步
+S0: PASS（UnAV 小规模媒体资格已通过；LongVALE 媒体资格仍为 false）
+S1 metadata: PASS_ORACLE_HEADROOM
+S1 32-video media pilot: PASS_MEDIA_QUALIFICATION / PASS_PILOT_SIGNAL
+S1 full validation: NOT RUN；当前主线下一步
 S2: FAIL for checkpoint-150
 S3: BLOCKED
 S4: NOT AUTHORIZED
@@ -97,26 +99,27 @@ S6: NOT AUTHORIZED
 
 因此不能说“Oracle 已经没有收益”，也不能说“selector 已被效果实验否决”。目前只知道：
 
-- Oracle 的理论 metadata headroom 存在；
-- 实际 Energy/Eventness/Temporal/Oracle 定位矩阵尚未运行；
+- Oracle 的 validation metadata 定位 headroom 已通过并完成双次复现；
+- 32-video validation 媒体 pilot 上 Energy/Onset 已显著高于 Random，但该分层 pilot 不能替代完整 validation；
+- Eventness 与完整 validation 定位矩阵尚未运行；
 - 当前冻结 M4 音频路径不具备解释 Oracle 下游效用的资格。
 
 ## 6. 数据与执行 blocker
 
 - AVE_HF 没有可靠本地事件边界，不能承担正式 window-level Oracle 定位监督；
-- UnAV-100 有可靠区间、格式和指标，但当前 `media_verified=false`；
+- UnAV-100 有可靠区间、格式和指标，32-video pilot 的 `media_verified=true`，全量 validation 仍未准备；
 - LongVALE 格式和 caption 指标已验证，但同样 `media_verified=false`；
-- 因此 S1 的实际下一动作是媒体资格 pilot，而不是训练 selector 或音频 projector。
+- 因此 S1 的实际下一动作是扩展完整 validation 媒体并复现 Energy/Onset/Oracle，而不是训练 selector 或音频 projector。
 
-媒体资格通过前允许执行的只有 metadata/manifest 级 Oracle/Random/Uniform 理论检查和
-evaluator golden；Energy/Eventness/Temporal 需要真实媒体或已验证特征。
+完整 V1 通过前只允许继续无训练的 validation 定位实验和 Eventness 资产资格审查；
+learned selector、M4 联合训练和 test 仍禁止。
 
 ## 7. Review 决策
 
 ```text
 main_plan: docs/DYNAMIC_WINDOW_SELECTOR_DIAGNOSTIC_TRAINING_PLAN_V2_ZH.md
 current_stage: S1_LOCALIZATION_UPPER_BOUND
-immediate_action: VERIFY_UNAV_MEDIA_AND_BUILD_SMALL_PILOT
+immediate_action: EXPAND_UNAV_VALIDATION_AND_COMPLETE_V1
 audio_semantic_plan: CONDITIONAL_BLOCKER_REMEDIATION
 joint_training: FORBIDDEN
 formal_test: FORBIDDEN
