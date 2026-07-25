@@ -109,6 +109,56 @@ def test_formal_schema_manifest_accepts_complete_schema(tmp_path):
     assert builder.load_formal_schema_manifest(manifest) == payload
 
 
+def test_formal_schema_manifest_rejects_invalid_values(tmp_path):
+    manifest = tmp_path / "schema.json"
+    payload = {
+        "window_schema": {
+            "window_length_sec": 0.0,
+            "hop_sec": 1.0,
+            "window_count_policy": "ten_non_overlapping",
+            "tail_policy": "clip_at_duration",
+            "timestamp_semantics": "half_open_seconds",
+            "source_index_semantics": "zero_based_micro_window",
+        },
+        "input_schema": {
+            "audio_dim": 768,
+            "clip_dim": 1024,
+            "rgb_dim": 768,
+            "scalar_dim": 37,
+            "audio_preprocessing": "frozen",
+            "clip_preprocessing": "frozen",
+            "rgb_preprocessing": "frozen",
+            "scalar_features": ["audio_rms", "audio_non_silent"],
+        },
+    }
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="window_length_sec"):
+        builder.load_formal_schema_manifest(manifest)
+
+
+def test_formal_schema_must_match_runtime_input_dimensions():
+    manifest = {
+        "input_schema": {
+            "audio_dim": 1,
+            "clip_dim": 1024,
+            "rgb_dim": 768,
+            "scalar_dim": 37,
+        }
+    }
+
+    with pytest.raises(ValueError, match="audio_dim"):
+        builder.assert_formal_schema_matches_runtime(
+            manifest,
+            runtime_dimensions={
+                "audio_dim": 768,
+                "clip_dim": 1024,
+                "rgb_dim": 768,
+                "scalar_dim": 37,
+            },
+        )
+
+
 def test_formal_bundle_requires_schema_manifest_before_creating_output(tmp_path):
     frozen_root = tmp_path / "frozen"
     output = tmp_path / "formal.pt"

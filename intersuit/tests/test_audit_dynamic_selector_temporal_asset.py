@@ -38,6 +38,7 @@ def test_historical_failed_asset_is_rejected_for_all_three_reasons():
         decisions=["temporal_offset_scorer_not_passed"] * 3,
         diagnostic_only=True,
         source_verified=True,
+        data_eligible=True,
         input_dimensions_match=True,
         historical_schema=historical,
         target_schema=audit.D1_WINDOW_SCHEMA,
@@ -57,6 +58,7 @@ def test_only_passed_exact_complete_asset_is_qualified():
         decisions=[audit.FORMAL_PASS_DECISION],
         diagnostic_only=False,
         source_verified=True,
+        data_eligible=True,
         input_dimensions_match=True,
         historical_schema=audit.D1_WINDOW_SCHEMA,
         target_schema=audit.D1_WINDOW_SCHEMA,
@@ -72,6 +74,7 @@ def test_summary_sha_mismatch_is_separate_corruption_reason():
         decisions=[audit.FORMAL_PASS_DECISION],
         diagnostic_only=False,
         source_verified=False,
+        data_eligible=True,
         input_dimensions_match=True,
         historical_schema=audit.D1_WINDOW_SCHEMA,
         target_schema=audit.D1_WINDOW_SCHEMA,
@@ -80,6 +83,22 @@ def test_summary_sha_mismatch_is_separate_corruption_reason():
     )
 
     assert statuses == ["corrupt_or_unverifiable"]
+
+
+def test_data_overlap_is_formally_ineligible():
+    statuses = audit.classify_qualification(
+        decisions=[audit.FORMAL_PASS_DECISION],
+        diagnostic_only=False,
+        source_verified=True,
+        data_eligible=False,
+        input_dimensions_match=True,
+        historical_schema=audit.D1_WINDOW_SCHEMA,
+        target_schema=audit.D1_WINDOW_SCHEMA,
+        available_inputs=set(audit.REQUIRED_INPUTS),
+        required_inputs=set(audit.REQUIRED_INPUTS),
+    )
+
+    assert statuses == ["data_ineligible"]
 
 
 def test_window_schema_detects_overlapping_half_second_hop():

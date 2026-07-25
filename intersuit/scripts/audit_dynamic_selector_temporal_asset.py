@@ -201,6 +201,7 @@ def classify_qualification(
     decisions: Iterable[str],
     diagnostic_only: bool,
     source_verified: bool,
+    data_eligible: bool,
     input_dimensions_match: bool,
     historical_schema: dict,
     target_schema: dict,
@@ -215,6 +216,8 @@ def classify_qualification(
         or diagnostic_only
     ):
         statuses.append("diagnostic_failed")
+    if not data_eligible:
+        statuses.append("data_ineligible")
     if historical_schema != target_schema or not input_dimensions_match:
         statuses.append("schema_incompatible")
     if not required_inputs <= available_inputs:
@@ -340,6 +343,7 @@ def build_qualification(args: argparse.Namespace) -> tuple[dict, dict]:
             and bundle_structure_verified
             and historical_manifest_schema_consistent
         ),
+        data_eligible=not overlap,
         input_dimensions_match=input_dimensions_match,
         historical_schema=historical_schema,
         target_schema=D1_WINDOW_SCHEMA,

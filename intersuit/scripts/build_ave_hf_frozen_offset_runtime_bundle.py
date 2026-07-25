@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -130,7 +131,65 @@ def load_formal_schema_manifest(path: Path | None) -> dict[str, Any]:
                 f"formal schema manifest 的 {section} 缺少字段: "
                 + ", ".join(missing)
             )
+    window_schema = manifest["window_schema"]
+    for key in ("window_length_sec", "hop_sec"):
+        value = window_schema[key]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) <= 0
+        ):
+            raise ValueError(f"formal schema manifest 的 {key} 必须为有限正数")
+    for key in (
+        "window_count_policy",
+        "tail_policy",
+        "timestamp_semantics",
+        "source_index_semantics",
+    ):
+        if not isinstance(window_schema[key], str) or not window_schema[key].strip():
+            raise ValueError(f"formal schema manifest 的 {key} 必须为非空字符串")
+
+    input_schema = manifest["input_schema"]
+    for key in ("audio_dim", "clip_dim", "rgb_dim", "scalar_dim"):
+        value = input_schema[key]
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"formal schema manifest 的 {key} 必须为正整数")
+    for key in (
+        "audio_preprocessing",
+        "clip_preprocessing",
+        "rgb_preprocessing",
+    ):
+        value = input_schema[key]
+        if not isinstance(value, (str, dict)) or not value:
+            raise ValueError(f"formal schema manifest 的 {key} 必须提供完整定义")
+    scalar_features = input_schema["scalar_features"]
+    if (
+        not isinstance(scalar_features, list)
+        or not scalar_features
+        or any(not isinstance(value, str) or not value for value in scalar_features)
+        or len(scalar_features) != len(set(scalar_features))
+    ):
+        raise ValueError(
+            "formal schema manifest 的 scalar_features 必须为非空唯一字符串列表"
+        )
     return manifest
+
+
+def assert_formal_schema_matches_runtime(
+    schema_manifest: dict[str, Any],
+    *,
+    runtime_dimensions: dict[str, int],
+) -> None:
+    """阻断 schema 声明与实际缓存/checkpoint 输入维度不一致的 formal bundle。"""
+
+    declared = schema_manifest["input_schema"]
+    for key in ("audio_dim", "clip_dim", "rgb_dim", "scalar_dim"):
+        if int(declared[key]) != int(runtime_dimensions[key]):
+            raise ValueError(
+                f"formal schema manifest 的 {key}={declared[key]} "
+                f"与 runtime {key}={runtime_dimensions[key]} 不一致"
+            )
 
 
 def build_filtered_caches(
@@ -190,6 +249,17 @@ def _build_runtime_bundle(
     )
     first_cache = next(iter(cache_by_id.values()))
     scalar_mean, scalar_std = scalar_stats
+    runtime_dimensions = {
+        "audio_dim": int(first_cache["audio"].shape[-1]),
+        "clip_dim": int(first_cache["clip"].shape[-1]),
+        "rgb_dim": int(first_cache["rgb"].shape[-1]),
+        "scalar_dim": int(scalars.shape[-1]),
+    }
+    if schema_manifest is not None:
+        assert_formal_schema_matches_runtime(
+            schema_manifest,
+            runtime_dimensions=runtime_dimensions,
+        )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     state = checkpoint["state_dict"]
     selected_run = next(
@@ -214,10 +284,10 @@ def _build_runtime_bundle(
             "require_center_peak": bool(config["require_center_peak"]),
             "context_radius": int(config["context_radius"]),
             "candidate_offsets": list(temporal.OFFSETS),
-            "audio_dim": int(first_cache["audio"].shape[-1]),
-            "clip_dim": int(first_cache["clip"].shape[-1]),
-            "rgb_dim": int(first_cache["rgb"].shape[-1]),
-            "scalar_dim": int(scalars.shape[-1]),
+            "audio_dim": runtime_dimensions["audio_dim"],
+            "clip_dim": runtime_dimensions["clip_dim"],
+            "rgb_dim": runtime_dimensions["rgb_dim"],
+            "scalar_dim": runtime_dimensions["scalar_dim"],
             "hidden_dim": int(config["hidden_dim"]),
             "checkpoint_sha256": sha256_file(checkpoint_path),
             "train_manifest_sha256": sha256_file(train_manifest),
