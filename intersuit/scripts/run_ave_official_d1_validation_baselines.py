@@ -237,23 +237,28 @@ def evaluation_record(
     target_intervals: list[tuple[float, float]],
     evaluation,
     random_seed: int | None = None,
+    official_split: str = "validation",
+    test_accessed: bool = False,
 ) -> dict:
     return {
         "youtube_id": youtube_id,
-        "official_split": "validation",
+        "official_split": official_split,
         "has_local_boundary": has_local_boundary,
         "target_intervals": [list(value) for value in target_intervals],
         **asdict(evaluation),
         "random_seed": random_seed,
         "selection_unit": "original_micro_window",
         "micro_window_sec": 1.0,
-        "test_accessed": False,
+        "test_accessed": test_accessed,
     }
 
 
 def run_strategies(
     rows: list[dict],
     scores_by_id: dict[str, dict],
+    *,
+    official_split: str = "validation",
+    test_accessed: bool = False,
 ) -> tuple[list[dict], dict]:
     timestamps = build_micro_window_timestamps()
     valid_indices = list(range(WINDOW_COUNT))
@@ -288,6 +293,8 @@ def run_strategies(
                 has_local_boundary=local,
                 target_intervals=intervals,
                 evaluation=all_evaluation,
+                official_split=official_split,
+                test_accessed=test_accessed,
             )
         )
         typed_by_key[("all", WINDOW_COUNT, None)].append(all_evaluation)
@@ -313,6 +320,8 @@ def run_strategies(
                     has_local_boundary=local,
                     target_intervals=intervals,
                     evaluation=uniform_evaluation,
+                    official_split=official_split,
+                    test_accessed=test_accessed,
                 )
             )
             typed_by_key[("uniform_topk", budget, None)].append(uniform_evaluation)
@@ -335,6 +344,8 @@ def run_strategies(
                         has_local_boundary=local,
                         target_intervals=intervals,
                         evaluation=evaluation,
+                        official_split=official_split,
+                        test_accessed=test_accessed,
                     )
                 )
                 typed_by_key[(strategy, budget, None)].append(evaluation)
@@ -359,6 +370,8 @@ def run_strategies(
                         target_intervals=intervals,
                         evaluation=evaluation,
                         random_seed=seed,
+                        official_split=official_split,
+                        test_accessed=test_accessed,
                     )
                 )
                 typed_by_key[("random_topk", budget, seed)].append(evaluation)

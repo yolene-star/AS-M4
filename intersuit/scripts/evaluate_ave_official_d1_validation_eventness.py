@@ -155,6 +155,9 @@ def load_frozen_scores(
 def evaluate_eventness(
     rows: list[dict],
     scores_by_id: dict[str, torch.Tensor],
+    *,
+    official_split: str = "validation",
+    test_accessed: bool = False,
 ) -> tuple[list[dict], dict]:
     timestamps = build_micro_window_timestamps()
     records = []
@@ -179,6 +182,8 @@ def evaluate_eventness(
                     has_local_boundary=local,
                     target_intervals=intervals,
                     evaluation=evaluation,
+                    official_split=official_split,
+                    test_accessed=test_accessed,
                 )
             )
             all_values[budget].append(evaluation)

@@ -230,6 +230,8 @@ def extract_one(
     encoder,
     checkpoint_sha256: str,
     output_dir: Path,
+    official_split: str = "validation",
+    test_accessed: bool = False,
 ) -> EventnessFeatureRecord:
     youtube_id = row["youtube_id"]
     waveform = baseline.decode_audio_mono_16k(Path(row["media_path"]))
@@ -289,7 +291,7 @@ def extract_one(
             "timestamps": timestamps.cpu(),
             "eventness_cached_scores": output.eventness_cached_scores[0].cpu(),
             "metadata": {
-                "official_split": "validation",
+                "official_split": official_split,
                 "media_path": row["media_path"],
                 "media_sha256": row["media_sha256"],
                 "checkpoint_sha256": checkpoint_sha256,
@@ -302,7 +304,7 @@ def extract_one(
                 "selector_state_sha_before": selector_sha_before,
                 "selector_state_sha_after": selector_sha_after,
                 "waveform_audit": waveform_audit,
-                "test_accessed": False,
+                "test_accessed": test_accessed,
             },
         },
         feature_path,
@@ -315,7 +317,7 @@ def extract_one(
     )
     return EventnessFeatureRecord(
         youtube_id=youtube_id,
-        official_split="validation",
+        official_split=official_split,
         media_path=row["media_path"],
         media_sha256=row["media_sha256"],
         feature_path=str(feature_path.resolve()),
@@ -325,7 +327,7 @@ def extract_one(
         embedding_dim=int(payload["audio_embedding"].shape[-1]),
         all_fixed_exact=True,
         audit_status=audit["status"],
-        test_accessed=False,
+        test_accessed=test_accessed,
     )
 
 
