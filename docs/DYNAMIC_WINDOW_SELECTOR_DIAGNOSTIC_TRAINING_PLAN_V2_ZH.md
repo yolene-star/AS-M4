@@ -34,9 +34,8 @@ V2 的研究对象明确缩小为：
 | --- | ---: | ---: |
 | LongVALE training | 66.7700pp | 50.9476pp |
 | UnAV-100 train | 26.6184pp | 12.2654pp |
-| QVHighlights train | 17.1506pp | 4.6949pp |
 
-`K=8` 在三个候选集合上仍有可辨识性；`K=16` 会使 QVHighlights 接近饱和。固定 K 也对应未知总时长时的固定容量 memory，避免比例预算依赖完整视频时长。
+`K=8` 在两个已验证候选集合上均有可辨识性。固定 K 也对应未知总时长时的固定容量 memory，避免比例预算依赖完整视频时长。
 
 ### 2.2 目标域
 
@@ -56,12 +55,11 @@ V2 的研究对象明确缩小为：
 
 - LongVALE：Oracle 音频选窗能否改善冻结 M4 的 segment captioning；
 - UnAV-100：确定性定位和 event-label-conditioned selector 的主要训练/验证；
-- QVHighlights：真实自然语言 query 的辅助条件敏感性验证，不证明音频贡献；
-- MUSIC-AVQA：历史污染下的辅助 QA 回归，不作为正式 test；
-- AVQA：媒体、许可和污染审计完成后，承担最终问题条件下游门禁；
 - AVE：只保留 contract/回归，不再产生效果结论。
 
 不同数据集不混合训练样本、不加权总分，每个阶段只使用指定数据集回答一个问题。
+
+QVHighlights、MUSIC-AVQA 和 AVQA 已从本计划删除：前者不能证明音频 selector，MUSIC-AVQA 的物理视频 split 严重重叠且已有历史污染，AVQA 当前媒体与官方指标链未完成可执行验证。它们不得作为辅助结果、正式门禁或失败后的替代数据。
 
 ## 3. 总体决策树
 
@@ -78,21 +76,16 @@ V2 冻结 M4 的 LongVALE Oracle 下游效用
   ├─ Oracle 无下游收益：停止 selector，转向语义/表示/融合
   └─ Oracle 有明确收益
        ↓
-V3 最小 question-conditioned selector-only 训练
+V3 最小 event-label-conditioned selector-only 训练
   ├─ query 条件性或音频增量失败：停止 learned selector
   └─ pass
        ↓
 V4 strict-causal replay 与一次性定位确认
   ├─ fail：不接入 M4
-  └─ pass
-       ↓
-V5 AVQA 正式下游确认
-  ├─ 数据未就绪：保持 blocked
-  ├─ QA 无收益：停止接入，重构语义/融合
-  └─ pass：才允许设计 Semantic Contrast
+  └─ pass：仅确认受限的 event-label-conditioned selector 路线
 ```
 
-MUSIC-AVQA 和 QVHighlights 是辅助支线，不能放行或挽救主链。
+V4 通过不等于已经证明开放域 QA 收益。问题条件下游和 Semantic Contrast 必须另立新计划，并重新审查一套完整、干净、可运行的 QA 数据；不属于当前 V2。
 
 ## 4. V0：Contract、数据与资产资格
 
@@ -118,6 +111,12 @@ LongVALE：
 - `oracle_pilot` 不少于 100 视频/500 事件；
 - `oracle_confirm` 不少于 200 视频/1,000 事件；
 - official eval 在 V3/V4 结构、checkpoint 和全部阈值冻结前不运行预测。
+- 官方 training JSON schema 固定映射为 `video_id -> duration + segments{"start_end": caption}`；
+- 官方 eval JSON schema 固定映射为 `video_id -> duration + timestamps[[start,end]] + sentences[]`；
+- 逐条审计结果为 training 7,240 视频/91,863 事件、eval 1,171 视频/13,867 事件，非法记录均为 0；
+- 官方 `seg_captioning` 预测记录必须包含 `video_id`、`task="seg_captioning"`、`answer` 和 `info.sentence_id`；
+- 官方 golden fixture 已实际跑通 BLEU-4、METEOR、ROUGE-L、CIDEr；源码输出键 `Rouge` 在报告层规范化为 `ROUGE-L`，只允许改字段名，不得改实现或分数；
+- M4 环境当前缺少 `pycocoevalcap`，正式运行前必须经批准固定该依赖或固定隔离评测环境；依赖门禁未解除时不得运行 V2。
 
 UnAV-100：
 
@@ -125,18 +124,14 @@ UnAV-100：
 - 排除已在历史 AVE/Stage2 清单中出现的 410 个物理视频；
 - 排除后重新报告各 split 的视频数、事件数、类别和事件占比分布；
 - test 在 V3 validation 与 review 通过前不运行预测。
-
-QVHighlights：
-
-- 保留官方 train/val 的物理视频隔离；
-- official test GT 已公开且本轮元数据 review 已读取，因此不得再称为未见 test；
-- 运行前审计原始 mp4 的音轨存在率、采样率、可解码率和静音率；
-- 音轨有效率低于 80% 时取消该支线。
-
-AVQA：
-
-- 只有官方媒体全部下载、分片 SHA、解压完整性、物理 ID 和历史污染审计通过后才可进入 V5；
-- 当前状态固定为 `blocked_incomplete_media`。
+- 官方仓库 JSON schema 固定映射为 `database -> video_id -> subset/duration/annotations[]`，annotation 包含 `segment[start,end]`、`label`、`label_id`；
+- 官方 Hugging Face parquet 字段固定为 `video_id`、`duration`、`timestamp[start,end]`、`event_label`；
+- parquet 逐条审计结果为 train 18,123、validation 6,036、test 5,900 条，非法记录均为 0；
+- parquet 不含 `label_id`，manifest 冻结时必须按排序后的唯一 `event_label` 建立稳定映射，并对 GT/pred 共用同一映射；
+- selector 主指标 Event Coverage@K、Positive-window Recall@K、mean best tIoU 直接从 timestamp 计算，不依赖类别 ID；
+- 官方 class-aware temporal detection mAP 只作辅助指标，tIoU 阈值固定为 0.1–0.9；
+- 官方 evaluator 在当前 NumPy 原样运行会因已删除的 `np.float` 失败；经等价兼容替换 `np.float -> float` 后，完美预测 golden fixture 在全部九个 tIoU 阈值均得到 mAP=1.0；
+- 正式适配必须把这一兼容补丁纳入测试并锁定 SHA，禁止改变 AP/tIoU 公式。兼容测试未通过时不得运行 V1/V3/V4。
 
 ### 4.3 条件资产门禁
 
@@ -149,7 +144,7 @@ missing_inputs
 formal_eligible=false
 ```
 
-因此 V1–V5 默认省略 `temporal_high_conf_topk`，记录为 `omitted_ineligible_asset`。不得复用历史 20 个 hop=0.5 秒窗口分数，也不得插值为 10 个或其他窗口。
+因此 V1–V4 默认省略 `temporal_high_conf_topk`，记录为 `omitted_ineligible_asset`。不得复用历史 20 个 hop=0.5 秒窗口分数，也不得插值为 10 个或其他窗口。
 
 如确需 Temporal scorer，必须单立 T0-V2 支线：
 
@@ -276,7 +271,7 @@ Oracle 未通过时停止 selector。确定性策略失败但 Oracle 通过时�
 
 Confirm 失败时，结论固定为“正确选窗不能改善当前 M4 下游语义”，转向音频语义目标、答案表示和融合位置。
 
-## 7. V3：最小 question-conditioned selector-only 训练
+## 7. V3：最小 event-label-conditioned selector-only 训练
 
 只有 V2 confirm 通过才启动。
 
@@ -392,31 +387,7 @@ training_seeds: 20260720, 20260721, 20260722
 
 任一失败停止 learned selector，不通过解冻 projector、fusion 或语言模型补救。
 
-## 8. QVHighlights 自然查询辅助支线
-
-QVHighlights 只回答：
-
-> 在真实自然语言 moment query 下，selector 接口是否表现出条件敏感性？
-
-它不能单独证明音频语义有效，因为其标注主要面向视觉 moment retrieval。
-
-运行条件：
-
-- 官方音轨有效率至少 80%；
-- 使用官方 train/val，物理 YouTube ID 互斥；
-- 主预算 K=8；K=16 不运行正式门禁；
-- 不访问已公开 test GT 形成新的“未见 test”说法；
-- 独立训练或零样本迁移必须使用不同实验名，不与 UnAV 数值合并。
-
-辅助通过条件：
-
-- correct query 高于 shuffled/empty query；
-- Audio+Question 高于 Question-only；
-- 方向在 saliency 和 moment recall 两类指标一致。
-
-失败只说明当前音频 selector 不能迁移到视觉主导的自然查询，不改变 V3 的 UnAV 结论。
-
-## 9. V4：strict-causal replay 与一次性定位确认
+## 8. V4：strict-causal replay 与一次性定位确认
 
 V3 validation 通过后冻结 checkpoint、K、阈值和全部对照。
 
@@ -430,57 +401,9 @@ V3 validation 通过后冻结 checkpoint、K、阈值和全部对照。
 
 strict-causal validation 必须再次满足 V3 第 1–6 条，才允许一次性运行 UnAV official test。test 必须满足同样门禁，且不得根据 test 重选 checkpoint 或模板。
 
-## 10. V5：问题条件下游收益
+## 9. 后续问题条件下游与 Semantic Contrast
 
-### 10.1 正式数据
-
-首选 AVQA 官方原始数据。只有当前 `blocked_incomplete_media` 解除后启动：
-
-- 完整下载与 SHA；
-- 官方 split；
-- 与 M4-IT、Stage2、UnAV selector train/validation 和历史 harness 的物理 ID 交叉；
-- selector、K、checkpoint、prompt 和解码全部冻结；
-- validation 只接入，test 只运行一次。
-
-### 10.2 对照
-
-- Video-only；
-- question/choices text-only；
-- All audio windows；
-- V1 锁定确定性 K=8；
-- V3 Audio+Question K=8；
-- Random 五 seed；
-- Silence；
-- gate=0；
-- mismatch audio 五映射。
-
-### 10.3 正式门禁
-
-必须同时满足：
-
-1. Sound+Both 子集相对 All 提高至少 2pp，paired bootstrap 95% CI 下界大于 0；
-2. View 子集下降不超过 1pp；
-3. 正确音频相对 mismatch 均值提高至少 3pp，CI 下界大于 0；
-4. gate=0 与 Video-only 逐样本输出一致；
-5. 无新增输出异常；
-6. text-only 完整报告，新增正确样本不能主要由 text-only 已答对样本构成；
-7. 实际窗口数、BEATs 计算量、延迟和峰值显存完整报告。
-
-失败时停止 selector 接入，优先重构音频语义目标、答案表示和融合位置。
-
-### 10.4 MUSIC-AVQA 辅助诊断
-
-MUSIC-AVQA 只作辅助回归：
-
-- updated annotation 共 train 31,927、val 4,568、test 9,129 个 QA；
-- 官方 QA split 存在严重物理视频重叠：train-test 6,389、train-val 3,808、val-test 2,296；
-- 项目历史 Stage2 已触及 MUSIC-AVQA；
-- 因此不得用于 selector 训练后的正式未见结论，也不得放行 V5；
-- 只允许冻结 selector 的外部诊断，必须报告历史污染和 split 重叠。
-
-## 11. Semantic Contrast 重新设计
-
-只有 V3、V4 和 V5 全部通过才启动独立计划：
+当前 V2 不包含开放域 QA 正式门禁，也不包含 Semantic Contrast 实现。只有 V3 和 V4 全部通过，且未来另有一套官方仓库、媒体、schema、指标、许可、物理 split 与历史污染均完成可执行 review 的 QA 数据，才允许启动独立计划：
 
 - selector checkpoint 完全冻结；
 - 正样本为选中窗口与 question-answer 联合表示；
@@ -488,9 +411,11 @@ MUSIC-AVQA 只作辅助回归：
 - silence 只作鲁棒性对照，不作主要语义负样本；
 - 第一轮只训练 Semantic Contrast 新参数；
 - 不同时解冻 selector、fusion、projector 或语言模型；
-- 使用新的 train/validation/test 边界，禁止复用 V5 test 调参。
+- 使用新的 train/validation/test 边界，禁止复用任何已访问 test 调参。
 
-## 12. 运行与算力顺序
+如果没有满足上述要求的数据集，则停在 V4 的受限结论，不得用 QVHighlights、MUSIC-AVQA、AVQA 或 AVE 补位。
+
+## 10. 运行与算力顺序
 
 所有 Python 命令使用 `conda run -n M4`。GPU 命令显式映射：
 
@@ -504,7 +429,7 @@ MUSIC-AVQA 只作辅助回归：
 
 第一轮训练使用冻结缓存，禁止为了“省计算”宣称减少 BEATs；只有 Energy/Onset 等前置策略可以报告 BEATs 编码窗口减少。
 
-## 13. 产物、提交与停止规则
+## 11. 产物、提交与停止规则
 
 独立目录：
 
@@ -514,8 +439,6 @@ intersuit/harness/artifacts/dynamic_selector_v2_v1/
 intersuit/harness/artifacts/dynamic_selector_v2_v2/
 intersuit/harness/artifacts/dynamic_selector_v2_v3/
 intersuit/harness/artifacts/dynamic_selector_v2_v4/
-intersuit/harness/artifacts/dynamic_selector_v2_v5/
-intersuit/harness/artifacts/dynamic_selector_v2_qvhighlights/
 ```
 
 每阶段保存来源、commit、license、manifest SHA、污染报告、锁定配置、逐样本结果、summary、中文报告和 review。
@@ -526,8 +449,7 @@ intersuit/harness/artifacts/dynamic_selector_v2_qvhighlights/
 2. V2 LongVALE Oracle utility；
 3. V3 selector-only 训练入口；
 4. V4 causal replay；
-5. V5 AVQA 正式结论；
-6. QVHighlights 和 Temporal scorer 各自独立提交。
+5. Temporal scorer 如未来重新获得资格，单独提交。
 
 checkpoint、媒体、数据集、特征、缓存、预测和日志不得加入 Git。
 
@@ -541,7 +463,7 @@ checkpoint、媒体、数据集、特征、缓存、预测和日志不得加入 
 - test、媒体、split 或门槛在结果查看后被修改；
 - 通过解冻其他模块来挽救 selector。
 
-## 14. 当前执行授权
+## 12. 当前执行授权
 
 本计划的独立 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，当前结论为 `review_passed_with_conditions`。
 
