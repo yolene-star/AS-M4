@@ -32,6 +32,11 @@ from .dynamic_window_selector import (
     SelectorState,
 )
 from .fusion import GatedAVFusion
+from .question_conditioned_window_selector import (
+    QuestionConditionedSelectorOutput,
+    QuestionConditionedSelectorState,
+    QuestionConditionedWindowSelector,
+)
 from .temporal_aligner import CausalTemporalAligner, TemporalAlignerOutput
 
 __all__ = [
@@ -45,6 +50,9 @@ __all__ = [
     "DynamicWindowSelectorOutput",
     "LegacyMultiscaleDynamicWindowSelector",
     "SelectorState",
+    "QuestionConditionedSelectorOutput",
+    "QuestionConditionedSelectorState",
+    "QuestionConditionedWindowSelector",
     "AudioEventFeatures",
     "FrozenOffsetScorerInputs",
     "FrozenOffsetScorerOutput",

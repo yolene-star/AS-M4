@@ -9,6 +9,7 @@ from .confidence_gate import AudioConfidenceGate
 from .dynamic_window_selector import DynamicWindowSelector, LegacyMultiscaleDynamicWindowSelector
 from .event_detector import AudioEventDetector
 from .fusion import GatedAVFusion
+from .question_conditioned_window_selector import QuestionConditionedWindowSelector
 from .temporal_aligner import CausalTemporalAligner
 
 
@@ -54,6 +55,12 @@ class StreamingAVModule(nn.Module):
             rms_reference=float(getattr(config, "audio_gate_rms_reference", 0.05)),
             silence_threshold=float(getattr(config, "audio_gate_silence_threshold", 1e-4)),
             causal=bool(getattr(config, "dynamic_window_causal", True)),
+        )
+        self.question_conditioned_window_selector = QuestionConditionedWindowSelector(
+            audio_dim=selector_dim,
+            question_dim=hidden_size,
+            projection_dim=int(getattr(config, "question_conditioned_selector_projection_dim", 256)),
+            top_k=int(getattr(config, "dynamic_window_top_k", 8)),
         )
 
         self.event_detector = AudioEventDetector(hidden_size, num_events)

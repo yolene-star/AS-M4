@@ -1,0 +1,39 @@
+{
+  "format_version": 1,
+  "locked_at": "2026-07-25",
+  "checkpoint_locked": true,
+  "oracle_eligible": false,
+  "blocked_pending_audio_path_selectivity_gate": true,
+  "qualification_note_zh": "该 checkpoint 仅作为不可漂移的 V2 候选基座；在音频路径 selectivity 门禁通过前，不得宣称具备 Oracle utility 资格。",
+  "checkpoint": {
+    "path": "intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150",
+    "config_sha256": "5c985e23ea3af4e5d2bb66e1d2fa85c8df06ef0344707c6d9abcb69ad5496b53",
+    "model_index_sha256": "a46d17d638101a8715582078d4b4577dceb12dbc9be9a88e4a593513088c6a02",
+    "model_shards": {
+      "model-00001-of-00004.safetensors": "6e3b641bde340437ea54f6db8b351d45001a486ed22afcd48909d2cb5c0116d5",
+      "model-00002-of-00004.safetensors": "d72a5036317f46d99e479aa1273baace23cbf318e93566b10388922817267361",
+      "model-00003-of-00004.safetensors": "e13a3d7df069c2e7566915d8de2cfa3cf433882f8fb49e44398360af61972e51",
+      "model-00004-of-00004.safetensors": "fca770e275ece19def7a386fbb9137b4f98d9178c5e0a6c95f9f6935a5360f57"
+    }
+  },
+  "beats": {
+    "path": "intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+    "sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34"
+  },
+  "required_weight_prefixes": [
+    "model.scene_audio_encoder.audio_projector.",
+    "model.streaming_av_module.fusion.audio_projector."
+  ],
+  "runtime_contract": {
+    "scene_audio_window_mode": "micro_window",
+    "window_sec": 1.0,
+    "hop_sec": 1.0,
+    "pad_short": true,
+    "tail_end_sec_clamped_to_media_duration": true,
+    "dynamic_window_top_k": 8,
+    "as_m4_fusion_mode": "beats_simple_residual",
+    "as_m4_inference_simple_audio_gate": 0.005,
+    "debug_audio_residual_scale": 1.0,
+    "audio_delta_ratio_cap": 0.0
+  }
+}

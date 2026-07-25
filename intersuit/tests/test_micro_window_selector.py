@@ -16,6 +16,9 @@ from intersuit.model.streaming_av.dynamic_window_selector import (
     DynamicWindowSelector,
     LegacyMultiscaleDynamicWindowSelector,
 )
+from intersuit.model.streaming_av.question_conditioned_window_selector import (
+    QuestionConditionedWindowSelector,
+)
 
 
 def _inputs(steps: int = 6, dim: int = 4):
@@ -89,6 +92,7 @@ def test_micro_window_rejects_zero_k_long_windows_and_excludes_padding():
 def test_window_modes_are_explicit_and_builder_keeps_legacy_path_separate():
     assert normalize_scene_audio_window_mode("micro_window") == "micro_window"
     assert normalize_scene_audio_window_mode("legacy_multiscale_dynamic") == "legacy_multiscale_dynamic"
+    assert normalize_scene_audio_window_mode("question_conditioned") == "question_conditioned"
     assert normalize_scene_audio_window_mode("fixed") == "fixed"
     with pytest.raises(ValueError, match="ambiguous"):
         normalize_scene_audio_window_mode("dynamic")
@@ -103,6 +107,8 @@ def test_window_modes_are_explicit_and_builder_keeps_legacy_path_separate():
     assert type(module.dynamic_window_selector) is not type(
         module.legacy_multiscale_dynamic_window_selector
     )
+    assert isinstance(module.question_conditioned_window_selector, QuestionConditionedWindowSelector)
+    assert sum(parameter.numel() for parameter in module.question_conditioned_window_selector.parameters()) > 0
 
 
 def test_all_padding_returns_empty_finite_output():
@@ -236,3 +242,25 @@ def test_all_micro_windows_exactly_match_production_fixed_encoder_path_and_param
     assert torch.equal(selected_all.mask, fixed.mask)
     assert torch.equal(selected_all.timestamps, fixed.timestamps)
     assert module_state_sha256(tracked_modules) == sha_before
+
+
+def test_question_conditioned_mode_requires_query_and_reaches_trainable_selector():
+    model = _SceneAudioEncodingModel()
+    model.config.scene_audio_window_mode = "question_conditioned"
+    windows = torch.arange(4 * 32, dtype=torch.float32).reshape(1, 4, 32) / 100.0
+    mask = torch.ones(1, 4, dtype=torch.bool)
+    timestamps = torch.tensor([[float(index), float(index + 1)] for index in range(4)])
+
+    with pytest.raises(ValueError, match="requires question_features"):
+        model.encode_scene_audio(windows, mask, timestamps)
+
+    output = model.encode_scene_audio(
+        windows,
+        mask,
+        timestamps,
+        question_features=torch.ones(1, 4),
+    )
+
+    assert output.feature_kind == "question_conditioned_selected"
+    assert output.mask.sum().item() == 4
+    assert model._last_dynamic_window_selector_mode == "question_conditioned"

@@ -1,0 +1,7 @@
+{
+  "video-id": ["video-a", "video-b"],
+  "t-start": [1.0, 10.0],
+  "t-end": [4.0, 14.0],
+  "label": [0, 1],
+  "score": [1.0, 1.0]
+}

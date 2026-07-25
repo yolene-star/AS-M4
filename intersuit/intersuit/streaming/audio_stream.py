@@ -24,6 +24,7 @@ class AudioWindow:
     start_sec: float
     end_sec: float
     index: int
+    valid_sample_count: int
 
 
 def _as_mono(waveform: torch.Tensor) -> torch.Tensor:
@@ -137,6 +138,7 @@ def split_audio_windows(
     num_samples = int(mono.numel())
     if num_samples == 0:
         return []
+    original_num_samples = num_samples
 
     window_samples = max(1, int(round(window_sec * sample_rate)))
     hop_samples = max(1, int(round(hop_sec * sample_rate)))
@@ -160,11 +162,35 @@ def split_audio_windows(
             AudioWindow(
                 samples=mono[start_sample:end_sample].contiguous(),
                 start_sec=start_sample / sample_rate,
-                end_sec=end_sample / sample_rate,
+                end_sec=min(end_sample, original_num_samples) / sample_rate,
                 index=idx,
+                valid_sample_count=max(
+                    0,
+                    min(end_sample, original_num_samples) - start_sample,
+                ),
             )
         )
     return windows
+
+
+def split_audio_micro_windows(
+    waveform: torch.Tensor,
+    sample_rate: int,
+) -> list[AudioWindow]:
+    """Split audio using the frozen V2 selector contract.
+
+    V2 micro-windows are non-overlapping one-second source units.  The final
+    tensor remains padded to one second for encoder batching, while its
+    timestamp and ``valid_sample_count`` preserve the true media boundary.
+    """
+
+    return split_audio_windows(
+        waveform,
+        sample_rate,
+        window_sec=1.0,
+        hop_sec=1.0,
+        pad_short=True,
+    )
 
 
 def stack_audio_windows(windows: list[AudioWindow]) -> tuple[torch.Tensor, torch.Tensor]:

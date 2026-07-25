@@ -45,16 +45,16 @@ V2 的研究对象明确缩小为：
 | --- | ---: | ---: |
 | LongVALE training | 75,900 | 6,468 |
 | LongVALE eval | 11,217 | 1,041 |
-| UnAV-100 train | 7,408 | 2,530 |
-| UnAV-100 validation | 2,448 | 814 |
-| UnAV-100 test | 2,294 | 814 |
+| UnAV-100 train（去除 410 个历史暴露视频，按 `(video_id,event_label)` 合并 occurrence） | 1,380 | 1,039 |
+| UnAV-100 validation（同上） | 443 | 335 |
+| UnAV-100 test（同上） | 455 | 336 |
 
 所有运行必须同时报告完整分布结果，避免把稀疏域结论外推到长事件。完整分布只作外部有效性报告，不阻断稀疏域主门禁。
 
 ### 2.3 数据职责
 
 - LongVALE：Oracle 音频选窗能否改善冻结 M4 的 segment captioning；
-- UnAV-100：确定性定位和 event-label-conditioned selector 的主要训练/验证；
+- UnAV-100：确定性定位和受限 event-label query 的 question-conditioned selector 主要训练/验证；
 - AVE：只保留 contract/回归，不再产生效果结论。
 
 不同数据集不混合训练样本、不加权总分，每个阶段只使用指定数据集回答一个问题。
@@ -76,13 +76,13 @@ V2 冻结 M4 的 LongVALE Oracle 下游效用
   ├─ Oracle 无下游收益：停止 selector，转向语义/表示/融合
   └─ Oracle 有明确收益
        ↓
-V3 最小 event-label-conditioned selector-only 训练
+V3 最小 question-conditioned selector-only 训练
   ├─ query 条件性或音频增量失败：停止 learned selector
   └─ pass
        ↓
 V4 strict-causal replay 与一次性定位确认
   ├─ fail：不接入 M4
-  └─ pass：仅确认受限的 event-label-conditioned selector 路线
+  └─ pass：仅确认受限的 event-label query-conditioned selector 路线
 ```
 
 V4 通过不等于已经证明开放域 QA 收益。问题条件下游和 Semantic Contrast 必须另立新计划，并重新审查一套完整、干净、可运行的 QA 数据；不属于当前 V2。
@@ -97,6 +97,7 @@ V4 通过不等于已经证明开放域 QA 收益。问题条件下游和 Semant
 - `K=0` 拒绝，`K>N` 固定为 `min(K, N_valid)`；
 - tie-break 固定选择更早窗口；
 - silence、全 padding、尾窗和非整数 duration 行为固定；
+- V2 专用切窗固定 `window_sec=1.0`、`hop_sec=1.0`、`pad_short=true`；partial tail tensor 补齐到 1 秒，但 `end_sec` 截断到真实媒体时长，并保存 `valid_sample_count`；
 - All 与原 Fixed 路径逐元素一致；
 - `enable_scene_audio=0` 和强制 `gate=0` 行为回退不变；
 - 全部输出有限，推理前后非训练参数 SHA 不变；
@@ -122,7 +123,10 @@ UnAV-100：
 
 - 使用官方 train/validation/test；
 - 排除已在历史 AVE/Stage2 清单中出现的 410 个物理视频；
-- 排除后重新报告各 split 的视频数、事件数、类别和事件占比分布；
+- sample unit 固定为 `(video_id,event_label)`；同视频同标签全部 occurrence 合并成 `target_intervals` union，positive 与任意 occurrence 重叠，negative 与全部 occurrence 均不重叠；
+- 去污染后冻结规模：train 9,948 samples/6,229 videos/17,477 annotations，validation 3,337/2,052/5,830，test 3,352/2,099/5,730；类别数为 100；
+- 去污染后的稀疏 union-ratio `<=10%` 样本为 train/validation/test = 1,380/443/455；旧的 7,408/2,448/2,294 是 annotation-level 口径，已作废；
+- 排除 ID、label mapping 与三份 manifest 必须逐个校验 SHA；当前冻结值记录于 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`；
 - test 在 V3 validation 与 review 通过前不运行预测。
 - 官方仓库 JSON schema 固定映射为 `database -> video_id -> subset/duration/annotations[]`，annotation 包含 `segment[start,end]`、`label`、`label_id`；
 - 官方 Hugging Face parquet 字段固定为 `video_id`、`duration`、`timestamp[start,end]`、`event_label`；
@@ -221,6 +225,18 @@ Oracle 未通过时停止 selector。确定性策略失败但 Oracle 通过时�
 
 ### 6.2 冻结模块
 
+候选基座锁定为：
+
+```text
+intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150
+lock: intersuit/configs/dynamic_selector_v2_checkpoint_lock.json
+checkpoint_locked: true
+oracle_eligible: false
+blocked_pending_audio_path_selectivity_gate: true
+```
+
+lock 已固定 config、model index、4 个 safetensors shard 和 BEATs SHA。它只防止资产漂移，不代表下游 Oracle 资格已通过；音频路径 selectivity gate 未解除前禁止运行 V2 Oracle utility。
+
 全部冻结且 `eval()`：
 
 - M4/Qwen2 与 `lm_head`；
@@ -271,7 +287,7 @@ Oracle 未通过时停止 selector。确定性策略失败但 Oracle 通过时�
 
 Confirm 失败时，结论固定为“正确选窗不能改善当前 M4 下游语义”，转向音频语义目标、答案表示和融合位置。
 
-## 7. V3：最小 event-label-conditioned selector-only 训练
+## 7. V3：最小 question-conditioned selector-only 训练
 
 只有 V2 confirm 通过才启动。
 
@@ -287,14 +303,14 @@ Which audio window contains <event_label>?
 Locate the moment containing <event_label>.
 ```
 
-模板只用于形成 query，不生成答案、不修改正窗口。每个物理视频的模板选择由固定 hash 决定。该任务只能称为 `event-label-conditioned ranking`，不能伪装成开放域 QA。
+模板只用于形成 query，不生成答案、不修改正窗口。每个物理视频的模板选择由固定 hash 决定。实现模块是通用 `QuestionConditionedWindowSelector`，但本阶段 query 只来自 event label，因此结论只能称为 `event-label query-conditioned ranking`，不能伪装成开放域 QA。
 
 ### 7.2 参数白名单
 
 只允许：
 
 ```text
-dynamic_window_selector.*
+model.streaming_av_module.question_conditioned_window_selector.*
 ```
 
 冻结：
@@ -306,7 +322,7 @@ dynamic_window_selector.*
 - Event Aligner/Offset；
 - 其他 `streaming_av_module` 参数。
 
-第一轮读取冻结的逐窗口音频缓存，只优化 ranking loss，不使用 LM loss。启动时打印全部可训练参数，出现白名单外参数立即失败。
+第一轮读取冻结的逐窗口音频缓存，只优化 ranking loss，不使用 LM loss。启动时打印全部可训练参数；白名单按完整参数名后缀匹配 `streaming_av_module.question_conditioned_window_selector.*`，出现白名单外参数或可训练参数量为 0 立即失败。旧 `dynamic_window_selector` 是无参数 cached-eventness baseline，严禁作为 learned selector 训练。
 
 最小 scorer 结构固定为：
 
@@ -334,9 +350,10 @@ L_{\text{rank}} = \max(0, m - s_{\text{positive}} + s_{\text{negative}})
 optimizer: AdamW
 learning_rate: 1e-4
 weight_decay: 0.01
-effective_batch_size: 128 events
+global_effective_batch_size: 128 events
 micro_batch_size: 32 events
 gradient_accumulation_steps: 4
+world_size: 1
 max_epochs: 20
 early_stopping_metric: validation Event Coverage@8
 early_stopping_patience: 3
@@ -345,7 +362,7 @@ precision: bf16（硬件不支持时 fp32，必须在首轮前冻结）
 training_seeds: 20260720, 20260721, 20260722
 ```
 
-单卡物理 GPU 1 为默认训练设备；只有实测显存或吞吐不足并完成 review 后才允许使用物理 GPU 2、3、4 的普通 DDP。不得为了改变结果切换 seed、loss 或 checkpoint 选择。
+全局有效 batch 固定按 `micro_batch_size × gradient_accumulation_steps × world_size = 128` 计算。单卡物理 GPU 1 为默认训练设备；只有实测显存或吞吐不足并完成 review 后才允许使用物理 GPU 2、3、4 的普通 DDP，切换 world size 时必须同步调整 micro batch 或 accumulation，不能把全局 batch 静默放大。不得为了改变结果切换 seed、loss 或 checkpoint 选择。
 
 每个 seed 独立训练并保留其 validation-best checkpoint。正式门禁报告三 seed 的逐 seed 与均值；至少 2/3 seed 必须通过方向性条件，不能只挑最高 seed。official test 一次性运行三个预注册 checkpoint，不在 test 后选主 seed。
 
@@ -395,6 +412,7 @@ V3 validation 通过后冻结 checkpoint、K、阈值和全部对照。
 
 - 当前时刻只能读取 `timestamp.end <= t` 的窗口；
 - 固定容量 K=8 memory；
+- causal state 必须保存 retained features、scores、timestamps、source indices、mask 和独立 `next_source_index`；不得从已裁剪的 Top-K 最大索引反推下一窗口编号；
 - 禁止完整 clip 排序后伪装成 causal；
 - 在目标事件结束时结算主指标，视频结束时结果仅补充；
 - 未来窗口扰动不得改变当前输出。
@@ -465,7 +483,7 @@ checkpoint、媒体、数据集、特征、缓存、预测和日志不得加入 
 
 ## 12. 当前执行授权
 
-本计划的独立 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，当前结论为 `review_passed_with_conditions`。
+本计划的独立 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，当前结论为 `review_passed_with_blockers`。
 
 当前只允许：
 

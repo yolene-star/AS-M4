@@ -4,9 +4,9 @@
 
 ## 1. 最终结论
 
-计划结论：`review_passed_with_conditions`。
+计划结论：`review_passed_with_blockers`。
 
-数据集组合结论：`review_passed_with_conditions`。
+数据集组合结论：`review_passed_with_blockers`。
 
 V2 只保留两个效果数据集：
 
@@ -24,7 +24,7 @@ MUSIC-AVQA: removed_from_v2
 AVQA: removed_from_v2
 ```
 
-保留不是基于 README 推测。LongVALE 与 UnAV-100 均已审查官方仓库固定 commit、逐条验证官方 annotation schema，并实际运行官方指标的最小完美预测夹具。两者仍有明确依赖门禁；门禁未解除时不得进入对应效果阶段。
+保留不是基于 README 推测。LongVALE 与 UnAV-100 均已审查官方仓库固定 commit、逐条验证官方 annotation schema，并实际运行官方指标的最小完美预测夹具。UnAV 的 410 个历史暴露视频已从三个 split 排除并按 `(video_id,event_label)` 重新冻结。两者仍有媒体和依赖门禁；候选 M4 checkpoint 也仍受音频路径 selectivity blocker 限制，门禁未解除时不得进入对应效果阶段。
 
 当前只允许 V0 数据冻结、contract 和小规模媒体可用率 pilot；不允许直接运行 V2 Oracle confirm、selector 训练或任何正式 test。
 
@@ -32,7 +32,7 @@ AVQA: removed_from_v2
 
 ### 2.1 已通过项
 
-- `pass`：V1/V2 完全不训练，V3 只允许 `dynamic_window_selector.*`。
+- `pass`：V1/V2 完全不训练，V3 只允许 `streaming_av_module.question_conditioned_window_selector.*`，且启动时要求可训练参数量大于 0。
 - `pass`：Oracle 是唯一训练授权门禁；Oracle 不改善冻结 M4 时立即停止 selector。
 - `pass`：All、Uniform、Energy、Onset、cached Eventness、Oracle 和 Random 均有同预算对照。
 - `pass`：Temporal scorer 继续 fail-closed，不复用 schema 不兼容的历史资产。
@@ -40,15 +40,19 @@ AVQA: removed_from_v2
 - `pass`：V3 包含 Audio-only、Question-only、shuffled-query 和 empty-query，可诊断文本捷径。
 - `pass`：ranking loss、优化器、batch、early stopping、seed 和 checkpoint 选择均在 validation 前冻结。
 - `pass`：未把任何未验证数据集保留为辅助支线、正式 QA 门禁或失败后的替代数据。
+- `pass`：1 秒窗口已固定为 `window=1.0/hop=1.0`，partial tail 的 timestamp 截断到媒体真实时长并保存有效采样数。
+- `pass`：causal memory 已显式保存 Top-K feature/score/timestamp/source-index/mask 与 `next_source_index`，逐窗和不同 chunk-size 回放测试一致。
+- `pass`：候选 checkpoint 的 config、index、4 个 shard 与 BEATs SHA 已锁定；lock 明确记录 `oracle_eligible=false`。
 
 ### 2.2 保留风险
 
 - `risk_scope`：主结论只适用于 `event_duration / video_duration <= 10%` 的稀疏事件和固定 `K=8`。
-- `risk_query`：UnAV 的问题来自 event label 模板，V3 只能证明 `event-label-conditioned ranking`，不是开放域 QA。
+- `risk_query`：UnAV 的问题来自 event label 模板，V3 只能证明 `event-label query-conditioned ranking`，不是开放域 QA。
 - `risk_bridge`：LongVALE 只检验 Oracle 音频效用。参考 caption 不得同时作为 selector query 和生成评价答案。
 - `risk_media`：当前只验证了官方仓库、annotation 和指标链；媒体有效率仍须由小规模 pilot 确认。
 - `risk_dependency`：LongVALE 缺少固定的 `pycocoevalcap` 运行依赖；UnAV 官方代码需要 NumPy 弃用别名兼容补丁。
 - `risk_causality`：V1–V3 是离线实验，只有 V4 strict-causal replay 通过后才能讨论在线接入。
+- `blocker_checkpoint`：锁定 checkpoint 尚未通过音频路径 selectivity gate，不能运行 V2 Oracle utility。
 
 ### 2.3 执行授权
 
@@ -192,6 +196,28 @@ event_label
 | validation | 6,036 | 2,134 | 0 |
 | test | 5,900 | 2,167 | 0 |
 
+410 个历史暴露视频位于 N0 审计产物 `historical_overlap_by_dataset.unav100`，不是当前 LongVALE–UnAV 直接交集；后者为 0。使用错误的空字段 `longvale_unav100_overlap_ids` 会导致污染排除失效，正式构建脚本必须读取前者。
+
+去污染并按 `(video_id,event_label)` 合并同标签多 occurrence 后冻结为：
+
+| split | samples | 视频 | 原 annotation | 多 occurrence samples | union ratio `<=10%` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| train | 9,948 | 6,229 | 17,477 | 3,921 | 1,380 |
+| validation | 3,337 | 2,052 | 5,830 | 1,301 | 443 |
+| test | 3,352 | 2,099 | 5,730 | 1,273 | 455 |
+
+同一 sample 的 `target_intervals` 是全部同标签 occurrence 的区间 union。positive 与任一区间正重叠；negative 必须与全部区间都无重叠。旧稀疏计数 7,408/2,448/2,294 是 annotation-level 口径，已删除资格。
+
+本次冻结哈希：
+
+```text
+excluded_video_ids_sha256: 3028f5262b42a4550e12df8e8c3601487477d51e27e9b4aef41007c80b3e03c1
+label_mapping_sha256: 7d5e3c6f2912d6431509680ed229d2686ade58f2341e787a7e54f9788a52e525
+train_manifest_sha256: dfacca2a17e83afad954b20926d5f77d8e4636ba05eb6e1e3c1156e302798b5c
+validation_manifest_sha256: 34dc790cd07962d8f34a1c8797942915e8b65875f73a8cc0fb9e33b769eddd84
+test_manifest_sha256: 61aaf8e40e5536f68f3dc8efc1387f5df9a50c04c0eae641470f8ba9e42ae9f4
+```
+
 parquet 没有 `label_id`。V0 manifest 必须对排序后的唯一 `event_label` 建立稳定 ID 映射，记录映射 SHA，并在 GT 与 prediction 中使用同一映射。
 
 selector 主指标可无歧义地从 timestamp 计算：
@@ -222,7 +248,7 @@ average_mAP: 1.0
 
 ### 4.4 污染与判定
 
-UnAV 与本项目历史 AVE/Stage2 显式清单重叠 410 个物理视频。所有正式 split 必须先排除这些视频，再重新冻结视频数、事件数、类别覆盖和 manifest SHA。official test 在 V3/V4 结构、checkpoint、阈值和 review 完全冻结前不得运行。
+UnAV 与本项目历史 AVE/Stage2 显式清单重叠 410 个物理视频，三个 split 已完成排除和规模重算。正式产物仍须把排除清单来源、源 parquet SHA 与 manifest SHA 一并冻结；official test 在 V3/V4 结构、checkpoint、阈值和 review 完全冻结前不得运行。
 
 判定：
 
@@ -233,7 +259,7 @@ media_verified: false
 status: format_verified_metric_verified_after_compatibility_patch
 ```
 
-用途仅限 V1 定位上界、V3 event-label-conditioned selector 训练和 V4 causal replay。官方 mAP 为辅助指标，不能替代 selector 主指标。
+用途仅限 V1 定位上界、V3 event-label query-conditioned selector 训练和 V4 causal replay。官方 mAP 为辅助指标，不能替代 selector 主指标。
 
 ## 5. 删除项审查
 
@@ -292,9 +318,9 @@ LongVALE 与 UnAV-100 当前可解析的官方物理 ID 交集为 0。该结果�
 
 | 研究问题 | 唯一数据集 | 当前资格 |
 | --- | --- | --- |
-| Oracle/确定性定位上界 | UnAV-100 | schema 与指标已验证；待去污染和媒体 pilot |
-| 冻结 M4 Oracle 下游效用 | LongVALE | schema 与指标已验证；待依赖冻结和媒体 pilot |
-| event-label-conditioned selector 训练 | UnAV-100 | 待 V2 Oracle 门禁 |
+| Oracle/确定性定位上界 | UnAV-100 | schema、官方指标和去污染 manifest 已验证；待媒体 pilot |
+| 冻结 M4 Oracle 下游效用 | LongVALE | schema 与官方指标已验证；待依赖冻结、媒体 pilot 和 checkpoint selectivity gate |
+| event-label query-conditioned selector 训练 | UnAV-100 | 代码 contract 已建立；待 V2 Oracle 门禁 |
 | strict-causal replay 与一次性 test | UnAV-100 | 待 V3 validation 与 review |
 
 这套组合能回答“正确音频选窗是否有用”和“受限 event label 条件下能否学会定位”，不能回答开放域自然问题、正式音视频 QA 转化或 Semantic Contrast 的收益。
@@ -305,14 +331,21 @@ LongVALE 与 UnAV-100 当前可解析的官方物理 ID 交集为 0。该结果�
 
 严格按以下顺序执行：
 
-1. 为 LongVALE/UnAV 生成 `candidate_sources.json`、仓库 commit、license SHA 和物理 ID registry；
-2. 固定 LongVALE 的 `pycocoevalcap` 运行方式，并把四指标 golden fixture 纳入测试；
-3. 将 UnAV 的 `np.float -> float` 兼容修复和九阈值 mAP golden fixture 纳入测试；
-4. 从 UnAV 所有 split 排除 410 个历史视频并重新冻结规模；
-5. 只下载 LongVALE training 与 UnAV train/validation 的小规模媒体 pilot，审计缺失、音轨、解码和静音率；
-6. 完成 V0 contract、1 条和 8 条单卡 smoke；
-7. 完成 V1 validation 与独立 review；
-8. 只有 V1 review 通过，才申请 V2 Oracle pilot。
+已完成基础项：
+
+1. LongVALE/UnAV 官方 commit、annotation SHA、物理 ID 审计已固定；
+2. LongVALE 四指标与 UnAV 九阈值 mAP golden fixture 已进入代码并用官方实现实际通过；
+3. UnAV 410 个历史视频已排除，sample unit、多 occurrence union 与新规模已冻结；
+4. 1 秒 tail/hop contract、可训练 question-conditioned scorer、K=8 causal memory 和 checkpoint lock 已实现。
+
+仍须严格按以下顺序解除 blocker：
+
+1. 经用户批准把确定版本的 `pycocoevalcap` 固定到 M4 环境，或冻结可复现隔离评测环境；
+2. 只下载 LongVALE training 与 UnAV train/validation 的小规模媒体 pilot，审计缺失、音轨、解码和静音率；
+3. 完成候选 checkpoint 的 audio-path selectivity gate；失败则更换合格冻结基座或停止 V2 Oracle utility，不得改写 lock 资格；
+4. 完成 V0 全 contract、1 条和 8 条宿主侧单卡 smoke；
+5. 完成 V1 validation 与独立 review；
+6. 只有 V1 review 通过，才申请 V2 Oracle pilot。
 
 任何一个保留数据集若无法通过依赖 golden test、媒体 pilot、污染排除或许可冻结，立即从 V2 删除，并重新 review 整体计划；不得临时启用已经删除的数据集补位。
 

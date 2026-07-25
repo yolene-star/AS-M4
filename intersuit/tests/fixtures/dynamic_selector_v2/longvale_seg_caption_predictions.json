@@ -1,0 +1,16 @@
+[
+  {
+    "video_id": "video-a",
+    "task": "seg_captioning",
+    "query_id": 0,
+    "answer": "A person rings a bell.",
+    "info": {"sentence_id": 0}
+  },
+  {
+    "video_id": "video-a",
+    "task": "seg_captioning",
+    "query_id": 0,
+    "answer": "The person closes a wooden door.",
+    "info": {"sentence_id": 1}
+  }
+]

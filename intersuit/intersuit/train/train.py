@@ -131,6 +131,7 @@ class ModelArguments:
     dynamic_window_hold_scale: float = field(default=0.25)
     dynamic_window_min_score: float = field(default=0.05)
     dynamic_window_causal: bool = field(default=True)
+    question_conditioned_selector_projection_dim: int = field(default=256)
     num_audio_events: Optional[int] = field(default=25)
     audio_quality_dim: Optional[int] = field(default=1)
     streaming_av_align_dim: Optional[int] = field(default=None)

@@ -41,7 +41,7 @@ import random
 
 
 SCENE_AUDIO_SELECTOR_WINDOW_MODES = frozenset(
-    {"micro_window", "legacy_multiscale_dynamic"}
+    {"micro_window", "legacy_multiscale_dynamic", "question_conditioned"}
 )
 
 
@@ -53,7 +53,8 @@ def normalize_scene_audio_window_mode(value, *, allow_disabled: bool = False) ->
         raise ValueError(
             "scene_audio_window_mode='dynamic' is ambiguous after D0; use "
             "'micro_window' for the formal one-source-window selector or "
-            "'legacy_multiscale_dynamic' for historical regression"
+            "'legacy_multiscale_dynamic' for historical regression, or "
+            "'question_conditioned' for the trainable V2 scorer"
         )
     valid = {"fixed", *SCENE_AUDIO_SELECTOR_WINDOW_MODES}
     if allow_disabled:
@@ -268,6 +269,9 @@ class LlavaMetaModel:
         self.config.dynamic_window_hold_scale = getattr(model_args, "dynamic_window_hold_scale", 0.25)
         self.config.dynamic_window_min_score = getattr(model_args, "dynamic_window_min_score", 0.05)
         self.config.dynamic_window_causal = getattr(model_args, "dynamic_window_causal", True)
+        self.config.question_conditioned_selector_projection_dim = getattr(
+            model_args, "question_conditioned_selector_projection_dim", 256
+        )
         self.config.num_audio_events = getattr(model_args, "num_audio_events", 25)
         self.config.audio_quality_dim = getattr(model_args, "audio_quality_dim", 1)
         self.config.streaming_av_align_dim = getattr(model_args, "streaming_av_align_dim", self.config.hidden_size)
@@ -530,7 +534,13 @@ class LlavaMetaForCausalLM(ABC):
     def get_streaming_av_module(self):
         return self.get_model().get_streaming_av_module()
 
-    def encode_scene_audio(self, scene_audios, scene_audio_mask=None, scene_audio_timestamps=None):
+    def encode_scene_audio(
+        self,
+        scene_audios,
+        scene_audio_mask=None,
+        scene_audio_timestamps=None,
+        question_features=None,
+    ):
         scene_audio_encoder = self.get_scene_audio_encoder()
         if scene_audio_encoder is None:
             raise ValueError("Scene audio encoder is not initialized. Call initialize_scene_audio_modules first.")
@@ -543,19 +553,30 @@ class LlavaMetaForCausalLM(ABC):
                 raise ValueError("Selected scene audio requires streaming_av_module")
             if scene_audio_timestamps is None:
                 raise ValueError("Selected scene audio requires scene_audio_timestamps")
-            selector = (
-                streaming_av_module.dynamic_window_selector
-                if window_mode == "micro_window"
-                else streaming_av_module.legacy_multiscale_dynamic_window_selector
-            )
+            if window_mode == "question_conditioned" and question_features is None:
+                raise ValueError("question_conditioned scene audio selection requires question_features")
+            if window_mode == "micro_window":
+                selector = streaming_av_module.dynamic_window_selector
+            elif window_mode == "legacy_multiscale_dynamic":
+                selector = streaming_av_module.legacy_multiscale_dynamic_window_selector
+            else:
+                selector = streaming_av_module.question_conditioned_window_selector
             if hasattr(scene_audio_encoder, "encode_raw") and hasattr(scene_audio_encoder, "project"):
                 raw_output = scene_audio_encoder.encode_raw(scene_audios, sample_mask=scene_audio_mask)
-                selected = selector(
-                    raw_output.features,
-                    scene_audio_timestamps,
-                    audio_mask=raw_output.mask,
-                    audio_windows=scene_audios,
-                )
+                if window_mode == "question_conditioned":
+                    selected = selector(
+                        raw_output.features,
+                        question_features,
+                        scene_audio_timestamps,
+                        valid_mask=raw_output.mask,
+                    )
+                else:
+                    selected = selector(
+                        raw_output.features,
+                        scene_audio_timestamps,
+                        audio_mask=raw_output.mask,
+                        audio_windows=scene_audios,
+                    )
                 projected = scene_audio_encoder.project(selected.selected_features)
             else:
                 fixed_output = scene_audio_encoder(
@@ -563,12 +584,20 @@ class LlavaMetaForCausalLM(ABC):
                     sample_mask=scene_audio_mask,
                     timestamps=scene_audio_timestamps,
                 )
-                selected = selector(
-                    fixed_output.features,
-                    scene_audio_timestamps,
-                    audio_mask=fixed_output.mask,
-                    audio_windows=scene_audios,
-                )
+                if window_mode == "question_conditioned":
+                    selected = selector(
+                        fixed_output.features,
+                        question_features,
+                        scene_audio_timestamps,
+                        valid_mask=fixed_output.mask,
+                    )
+                else:
+                    selected = selector(
+                        fixed_output.features,
+                        scene_audio_timestamps,
+                        audio_mask=fixed_output.mask,
+                        audio_windows=scene_audios,
+                    )
                 projected = selected.selected_features
             self._last_dynamic_window_selector_output = selected
             self._last_dynamic_window_selector_mode = window_mode
@@ -1395,7 +1424,7 @@ class LlavaMetaForCausalLM(ABC):
         ) == "beats_simple_residual"
         question_features = None
         scene_audio_signal_features = None
-        if enable_gate_v1:
+        if enable_gate_v1 or window_mode == "question_conditioned":
             question_features = _pool_question_text_features(
                 self.get_model().embed_tokens,
                 input_ids,
@@ -1412,6 +1441,7 @@ class LlavaMetaForCausalLM(ABC):
             scene_audios,
             scene_audio_mask=scene_audio_mask,
             scene_audio_timestamps=scene_audio_timestamps,
+            question_features=question_features,
         )
         self._last_scene_audio_output = scene_audio_output
         if selector_mode and scene_audio_signal_features is not None:
@@ -1463,10 +1493,18 @@ class LlavaMetaForCausalLM(ABC):
                         "dynamic_window_selection_mask": selected_mask.detach(),
                         "dynamic_window_timestamps": selector_output.selected_timestamps[idx].detach(),
                         "dynamic_window_selected_source_indices": selector_output.selected_source_indices[idx].detach(),
-                        "dynamic_window_eventness_cached_scores": selector_output.eventness_cached_scores[idx].detach(),
-                        "dynamic_window_thresholds": selector_output.dynamic_thresholds[idx].detach(),
+                        "dynamic_window_all_scores": (
+                            selector_output.all_scores[idx].detach()
+                            if hasattr(selector_output, "all_scores")
+                            else selector_output.eventness_cached_scores[idx].detach()
+                        ),
                     }
                 )
+                if hasattr(selector_output, "eventness_cached_scores"):
+                    diagnostic["dynamic_window_eventness_cached_scores"] = (
+                        selector_output.eventness_cached_scores[idx].detach()
+                    )
+                    diagnostic["dynamic_window_thresholds"] = selector_output.dynamic_thresholds[idx].detach()
 
         mm_patch_merge_type = getattr(self.config, "mm_patch_merge_type", "flat")
         if mm_patch_merge_type == "flat":
