@@ -22,6 +22,25 @@ V2 的研究对象明确缩小为：
 
 旧 N0 已经显示固定 K 与比例预算回答的是不同问题。V2 使用新的假设、数据边界、目录和门禁，不用 V2 结果追认旧路线成功。
 
+### 1.1 2026-07-25 主线状态校正
+
+后续 review 发现，`checkpoint-150` 的音频选择性失败只否决“使用该 checkpoint 运行
+LongVALE Oracle 下游效用”，不能否决不依赖 M4 fusion 的 V1 定位上界。因此当前状态按
+阶段拆分为：
+
+```text
+V0 contract/data review: PASS（媒体资格仍按数据集单独判断）
+V1 localization upper bound: ACTIVE / media-gated
+V2 M4 Oracle downstream utility: BLOCKED_BY_AUDIO_PATH
+V3 learned selector: NOT_AUTHORIZED
+audio semantic reconstruction: CONDITIONAL_BLOCKER_REMEDIATION
+```
+
+主执行入口仍是本计划。音频语义重构计划不是替代路线；只有 V1 证明 Oracle 定位 headroom
+存在、而 V2 又因冻结音频路径不合格无法解释时，才允许用它产出一个新的、独立 review 的
+冻结音频 checkpoint。若 V1 Oracle 本身没有定位 headroom，应直接停止 selector，不应先训练
+音频语义模块来“挽救”定位假设。
+
 ## 2. 核心决策
 
 ### 2.1 主预算
@@ -72,6 +91,10 @@ V1 确定性与 Oracle 定位上界
   ├─ Oracle 无 headroom：停止 selector
   └─ Oracle 有 headroom
        ↓
+     冻结音频路径资格检查
+       ├─ fail：只进入音频语义 blocker 修复；不得运行 V2
+       └─ pass
+            ↓
 V2 冻结 M4 的 LongVALE Oracle 下游效用
   ├─ Oracle 无下游收益：停止 selector，转向语义/表示/融合
   └─ Oracle 有明确收益
@@ -86,6 +109,9 @@ V4 strict-causal replay 与一次性定位确认
 ```
 
 V4 通过不等于已经证明开放域 QA 收益。问题条件下游和 Semantic Contrast 必须另立新计划，并重新审查一套完整、干净、可运行的 QA 数据；不属于当前 V2。
+
+这里的“音频路径资格检查”只用于保证 V2 可解释，不改变用户给定的主假设顺序：先证明
+selector 定位上界，再证明 Oracle 下游效用，最后才训练 question-conditioned selector。
 
 ## 4. V0：Contract、数据与资产资格
 

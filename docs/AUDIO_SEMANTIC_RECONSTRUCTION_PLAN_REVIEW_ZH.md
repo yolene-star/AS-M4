@@ -8,14 +8,16 @@
 不是在 Dynamic Window Selector V2 上追加补丁。Review 结论为：
 
 ```text
-plan_status: APPROVED_FOR_R0_R1_ONLY
+plan_status: CONDITIONALLY_APPROVED_AFTER_SELECTOR_V1
 training_status: NOT_AUTHORIZED
-selector_status: STOPPED
+selector_localization_status: ACTIVE_MEDIA_GATED
+selector_downstream_status: BLOCKED_BY_AUDIO_PATH
 formal_test_status: NOT_AUTHORIZED
 ```
 
-当前计划能够把冻结表示、projector、答案目标、fusion 和下游评分五类问题分开证伪；在
-R1 前不会引入新的可训练模块，也不会继续使用 dev760 调参。
+当前计划能够把冻结表示、projector、答案目标、fusion 和下游评分五类问题分开证伪；但它
+只在 Selector V2 的 V1 Oracle 定位 headroom 通过后用于修复下游 blocker，不再作为主入口。
+在自身 R1 前不会引入新的可训练模块，也不会继续使用 dev760 调参。
 
 ## 2. 代码链路 Review
 
@@ -150,7 +152,7 @@ R4–R5 使用成对条件：video-only、correct、hard mismatch、same-class m
 
 ## 7. 最终批准范围
 
-批准立即执行：
+条件批准（仅在 Selector V2 V1 通过后执行）：
 
 - R0 manifest/label/feature contract；
 - R1 不训练的 raw BEATs 可分性 pilot；
@@ -165,4 +167,5 @@ R4–R5 使用成对条件：video-only、correct、hard mismatch、same-class m
 - dev/test 正式评测；
 - LongVALE/UnAV 媒体下载与 GPU 实验。
 
-下一次决策点是 R1 pilot 的 `decision.json` 与独立 review，而不是训练 loss 是否下降。
+当前更早的决策点是 Selector V2 V1 的定位上界 `decision.json`。只有该门禁通过，才轮到本
+计划的 R1 pilot 与独立 review，而不是训练 loss 是否下降。

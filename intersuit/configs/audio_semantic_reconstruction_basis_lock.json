@@ -2,9 +2,11 @@
   "format_version": 1,
   "frozen_at": "2026-07-25",
   "route": "audio_semantic_reconstruction_diagnostic",
-  "selector_route_status": "stopped_checkpoint_ineligible",
+  "plan_role": "conditional_blocker_remediation_after_selector_v1",
+  "selector_localization_route_status": "active_media_gated",
+  "selector_oracle_downstream_status": "blocked_checkpoint_ineligible",
   "training_allowed": false,
-  "reason_zh": "现有 semantic-contrast checkpoint 的 correct 音频低于 mismatched 与 video-only；下一步必须先证明冻结音频表示、语义目标和融合接口分别具备可分性与因果效用。",
+  "reason_zh": "现有 semantic-contrast checkpoint 的 correct 音频低于 mismatched 与 video-only；该失败只阻断 Selector V2 的 Oracle 下游效用，不阻断 V1 定位上界。本子计划仅在V1 通过后用于修复冻结音频路径资格。",
   "training_manifest_audit": {
     "path": "intersuit/datasets/AS_M4_STAGE2/train_manifest_semantic_negative.json",
     "sha256": "c7c74202272ffef53b56277fbd2c0d106e30b1e563b6a7c7f0a87ed70b32725c",
@@ -219,7 +221,7 @@
     },
     "checkpoint_lock": {
       "path": "intersuit/configs/dynamic_selector_v2_checkpoint_lock.json",
-      "sha256": "ab07ce9e1b4f29ccd87a3d212a2d3661ac8f95b87e6160ebf8ab630fabdd3de8"
+      "sha256": "21b0dce22fb2408f77bf9164612e65eae0d8d8d5a73e364e75b873304d593516"
     }
   },
   "implementation_sha256": {

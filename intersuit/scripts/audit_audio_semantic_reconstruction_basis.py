@@ -275,11 +275,14 @@ def main() -> None:
         "format_version": 1,
         "frozen_at": "2026-07-25",
         "route": "audio_semantic_reconstruction_diagnostic",
-        "selector_route_status": "stopped_checkpoint_ineligible",
+        "plan_role": "conditional_blocker_remediation_after_selector_v1",
+        "selector_localization_route_status": "active_media_gated",
+        "selector_oracle_downstream_status": "blocked_checkpoint_ineligible",
         "training_allowed": False,
         "reason_zh": (
             "现有 semantic-contrast checkpoint 的 correct 音频低于 mismatched 与 video-only；"
-            "下一步必须先证明冻结音频表示、语义目标和融合接口分别具备可分性与因果效用。"
+            "该失败只阻断 Selector V2 的 Oracle 下游效用，不阻断 V1 定位上界。本子计划仅在"
+            "V1 通过后用于修复冻结音频路径资格。"
         ),
         "training_manifest_audit": train_audit,
         "dev_manifest_audit": dev_audit,

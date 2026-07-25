@@ -5,6 +5,11 @@
   "oracle_eligible": false,
   "audio_path_selectivity_gate_status": "failed",
   "v2_oracle_utility_allowed": false,
+  "localization_upper_bound_allowed": true,
+  "deterministic_selector_diagnostic_allowed": true,
+  "learned_selector_training_allowed": false,
+  "route_status": "v1_localization_active_v2_downstream_blocked",
+  "scope_note_zh": "该失败是 checkpoint 级下游资格失败，不是 selector 定位诊断的全局失败。V1 的 All/Random/Energy/Eventness/Temporal/Oracle 定位上界仍可在媒体资格通过后执行。",
   "qualification_note_zh": "该 checkpoint 的 dev760 音频路径 selectivity 门禁已失败：正确音频低于错配音频且低于 video-only。当前 checkpoint 路线必须停止，不得运行 LongVALE Oracle utility。",
   "checkpoint": {
     "path": "intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150",

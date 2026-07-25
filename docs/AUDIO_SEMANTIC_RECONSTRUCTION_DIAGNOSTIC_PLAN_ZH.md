@@ -4,26 +4,33 @@
 
 ## 1. 计划定位与当前决策
 
-本计划是 Dynamic Window Selector V2 被门禁否决后的独立新路线，不是对旧计划的补丁。
-旧 selector 计划、checkpoint 和 dev760 结果继续作为冻结历史证据；本计划重新定义研究问题、
-数据职责、实验顺序、指标、晋级条件和停止条件。
+本计划是 Dynamic Window Selector V2 的条件性 blocker 修复子计划，不是当前主执行入口，
+也不是对旧计划的补丁。旧 checkpoint 的 dev760 门禁只证明该音频路径不适合解释 Oracle
+下游效用；它没有否决 selector 的独立定位上界实验。
+
+本计划只有在以下条件同时成立时才进入执行：
+
+1. Selector V2 的 V1 已证明 Oracle Top-K 存在定位 headroom；
+2. 准备进入 V2 下游效用时，冻结音频路径 selectivity 资格失败；
+3. 用户授权修复该 blocker，且仍保持 M4/视觉塔/BEATs 主体冻结。
 
 当前决策：
 
 ```text
-selector_route: STOPPED
+selector_localization_route: ACTIVE_MEDIA_GATED
+selector_oracle_downstream_route: BLOCKED_BY_AUDIO_PATH
 joint_training: FORBIDDEN
 formal_test: FORBIDDEN
-next_route: audio_semantic_reconstruction_diagnostic
+plan_role: CONDITIONAL_BLOCKER_REMEDIATION
 ```
 
-研究问题不再是“怎样选到更好的窗口”，而是依次回答：
+本子计划不替代“怎样选到更好的窗口”这一主问题，只负责依次回答：
 
 1. 冻结 BEATs 表示是否包含可泛化的音频事件语义；
 2. 当前 projector 是否保留、破坏或错误旋转了这些语义；
 3. 当前答案表示是否是合法的音频语义目标；
 4. 正确音频在不依赖 selector 的条件下是否能对回答产生可重复的因果增益；
-5. 只有前四问通过后，才重新讨论 selector。
+5. 只有前四问通过后，才返回 Selector V2 的 V2 Oracle 下游效用，不直接跳到 learned selector。
 
 ## 2. 冻结失败证据
 
@@ -342,11 +349,11 @@ silence/gate0 exact fallback >= 99%
 同时报告 scorer sensitivity：严格 label、同义词 canonicalization、选择题 exact match。主判定
 必须预注册一个 scorer，其他只做敏感性分析。
 
-### R6：是否恢复 selector
+### R6：返回 Selector V2 主线
 
-只有 R5 全部通过，才允许新建 selector 计划。届时先做 Oracle Top-K vs All 的下游效用，
-再做确定性 Top-K，最后才是 question-conditioned selector-only 训练。任何 R1–R5 失败都不允许
-通过 selector 绕过。
+只有 R5 全部通过，才返回既有 Selector V2 计划，使用新冻结且合格的音频 checkpoint 运行
+V2 Oracle Top-K vs All 下游效用。不得新建另一套 selector 定义，也不得直接跳到
+question-conditioned selector-only 训练。任何 R1–R5 失败都不允许通过 learned selector 绕过。
 
 ## 6. 实验资源与冻结策略
 
@@ -390,7 +397,7 @@ FAIL 不删除结论性 metrics/review；只清理可重建的临时特征和无
 | R3 失败 | projector 不泛化 | 停止当前 projector 目标 |
 | R4 失败 | 融合接口不能利用语义 | 重构 fusion 位置或独立音频 token |
 | R5 失败 | 下游无因果效用 | 不恢复 selector |
-| R5 通过 | 正确音频路径成立 | 新建 selector Oracle 计划 |
+| R5 通过 | 正确音频路径成立 | 返回 Selector V2 的 Oracle 下游效用 |
 
 任何阶段都禁止用以下方式“救结果”：
 
@@ -401,9 +408,10 @@ FAIL 不删除结论性 metrics/review；只清理可重建的临时特征和无
 - 只报告正确音频有若干独有样本而忽略 mismatch 更高；
 - 修改 scorer 后追认旧结果通过。
 
-## 9. 当前可执行的下一步
+## 9. 本子计划的进入条件与首步
 
-当前只授权进入 R0→R1 的离线诊断准备：
+当前主线尚未完成 Selector V2 的 V1，因此本子计划目前不应抢先执行。待 V1 Oracle 定位
+headroom 通过后，本子计划才授权进入 R0→R1 的离线诊断准备：
 
 1. 冻结 AVE_HF_EXPANDED 1000 媒体的物理 ID split、canonical label mapping 和
    `supervision_level=clip`；
