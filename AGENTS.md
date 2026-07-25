@@ -268,19 +268,20 @@ python intersuit/scripts/prepare_ave_hf_pilot.py \
 
 ## 执行规则
 
-1. 不要默认使用所有可见 GPU。
-2. 不要使用 `CUDA_VISIBLE_DEVICES=0,1,2,3,4`，除非用户明确要求做五卡诊断。
-3. 稳定四卡任务默认使用 `CUDA_VISIBLE_DEVICES=0,2,3,4`。
-4. 通信优化的三卡任务默认使用 `CUDA_VISIBLE_DEVICES=2,3,4`。
-5. 单卡开发也要显式选择 GPU，不要依赖默认 CUDA 设备。
-6. 设置 `CUDA_VISIBLE_DEVICES` 后，程序里的逻辑 CUDA 编号会重新映射。
-7. 设置 `CUDA_VISIBLE_DEVICES` 后，不要在 Python 里硬编码原始物理 GPU 编号。
-8. 分布式训练用 `LOCAL_RANK` 分配设备。
-9. 每次稳定性测试都要保存 stdout、stderr、训练配置和开始时间。
-10. 诊断测试结束后，检查内核日志里是否出现 `NVRM`、`Xid`、`AER`、`PCIe Bus Error`、`GPU has fallen`、`hung task`。
-11. 如果训练进程停止前进并进入 `D` 状态，不要反复执行 `nvidia-smi`。
-12. 每次训练结束后都要及时清理无用 checkpoint：成功训练只保留明确需要复现、回退或继续训练的最终/关键 checkpoint；失败训练也要尽快删除失败中间产物、短步 smoke/canary 产物和重复保存的模型权重，避免 `intersuit/checkpoints` 长期堆积。清理前必须确认不会删除当前正式基线、原始模型、仍需 resume 的 checkpoint 或用户明确要求保留的结果。
-13. 每次完成重大设计变更、模块新增、模块删除或核心模块改动后，都要及时提交一次 Git commit。提交前必须确认没有把 checkpoint、权重、数据集、缓存、训练日志等运行资产加入 Git；提交信息要概括本次设计或模块变更。
+1. 每次开始执行任何任务之前，必须先向用户说明预计运行时长；如果任务分为多个阶段，或执行过程中预计耗时发生明显变化，应在开始下一阶段前及时更新预计运行时长。
+2. 不要默认使用所有可见 GPU。
+3. 不要使用 `CUDA_VISIBLE_DEVICES=0,1,2,3,4`，除非用户明确要求做五卡诊断。
+4. 稳定四卡任务默认使用 `CUDA_VISIBLE_DEVICES=0,2,3,4`。
+5. 通信优化的三卡任务默认使用 `CUDA_VISIBLE_DEVICES=2,3,4`。
+6. 单卡开发也要显式选择 GPU，不要依赖默认 CUDA 设备。
+7. 设置 `CUDA_VISIBLE_DEVICES` 后，程序里的逻辑 CUDA 编号会重新映射。
+8. 设置 `CUDA_VISIBLE_DEVICES` 后，不要在 Python 里硬编码原始物理 GPU 编号。
+9. 分布式训练用 `LOCAL_RANK` 分配设备。
+10. 每次稳定性测试都要保存 stdout、stderr、训练配置和开始时间。
+11. 诊断测试结束后，检查内核日志里是否出现 `NVRM`、`Xid`、`AER`、`PCIe Bus Error`、`GPU has fallen`、`hung task`。
+12. 如果训练进程停止前进并进入 `D` 状态，不要反复执行 `nvidia-smi`。
+13. 每次训练结束后都要及时清理无用 checkpoint：成功训练只保留明确需要复现、回退或继续训练的最终/关键 checkpoint；失败训练也要尽快删除失败中间产物、短步 smoke/canary 产物和重复保存的模型权重，避免 `intersuit/checkpoints` 长期堆积。清理前必须确认不会删除当前正式基线、原始模型、仍需 resume 的 checkpoint 或用户明确要求保留的结果。
+14. 每次完成重大设计变更、模块新增、模块删除或核心模块改动后，都要及时提交一次 Git commit。提交前必须确认没有把 checkpoint、权重、数据集、缓存、训练日志等运行资产加入 Git；提交信息要概括本次设计或模块变更。
 
 逻辑编号映射示例：
 
