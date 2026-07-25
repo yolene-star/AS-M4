@@ -41,8 +41,13 @@ def validate_lock(payload: dict, *, project_root: Path, skip_shards: bool = Fals
         raise ValueError("checkpoint_locked 必须为 true")
     if payload.get("oracle_eligible") is not False:
         raise ValueError("selectivity 门禁前 oracle_eligible 必须为 false")
-    if payload.get("blocked_pending_audio_path_selectivity_gate") is not True:
-        raise ValueError("必须显式记录 audio path selectivity blocker")
+    gate_status = payload.get("audio_path_selectivity_gate_status")
+    if gate_status not in {"pending", "failed", "passed"}:
+        raise ValueError("必须显式记录 audio path selectivity gate 状态")
+    if gate_status != "passed" and payload.get("v2_oracle_utility_allowed") is not False:
+        raise ValueError("selectivity gate 未通过时必须禁止 V2 Oracle utility")
+    if gate_status == "passed" and payload.get("oracle_eligible") is not True:
+        raise ValueError("selectivity gate 通过与 oracle_eligible 状态不一致")
 
     checkpoint = payload["checkpoint"]
     checkpoint_dir = project_root / checkpoint["path"]
@@ -60,6 +65,37 @@ def validate_lock(payload: dict, *, project_root: Path, skip_shards: bool = Fals
         for filename, expected in checkpoint["model_shards"].items():
             require_hash(checkpoint_dir / filename, expected)
 
+    evidence = payload.get("selectivity_failure_evidence")
+    if gate_status == "failed":
+        if not isinstance(evidence, dict):
+            raise ValueError("failed gate 必须附带冻结失败证据")
+        artifact_root = project_root / evidence["artifact_root"]
+        require_hash(artifact_root / "matrix_plan.jsonl", evidence["matrix_plan_sha256"])
+        require_hash(artifact_root / "selectivity_summary.json", evidence["summary_sha256"])
+        matrix_rows = [
+            json.loads(line)
+            for line in (artifact_root / "matrix_plan.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not matrix_rows or any(Path(row["model_path"]).resolve() != checkpoint_dir.resolve() for row in matrix_rows):
+            raise ValueError("selectivity evidence 使用的 checkpoint 与 lock 不一致")
+        if any(row["manifest_sha256"] != evidence["manifest_sha256"] for row in matrix_rows):
+            raise ValueError("selectivity evidence manifest SHA 不一致")
+        summary = json.loads((artifact_root / "selectivity_summary.json").read_text(encoding="utf-8"))
+        if summary.get("status") != "FAIL":
+            raise ValueError("冻结证据不是 FAIL")
+        for condition, expected_correct in (
+            ("video_only", evidence["video_only"]),
+            ("correct", evidence["correct"]),
+            ("mismatched", evidence["mismatched"]),
+        ):
+            item = summary["condition_summaries"][condition]
+            if item["count"] != evidence["count_per_condition"] or item["correct"] != expected_correct:
+                raise ValueError(f"selectivity {condition} 汇总漂移")
+        prediction_root = artifact_root / "combined_predictions"
+        for condition, expected_hash in evidence["prediction_sha256"].items():
+            require_hash(prediction_root / f"dev760_{condition}_predictions.jsonl", expected_hash)
+
     beats = payload["beats"]
     require_hash(project_root / beats["path"], beats["sha256"])
     contract = payload["runtime_contract"]
@@ -69,6 +105,8 @@ def validate_lock(payload: dict, *, project_root: Path, skip_shards: bool = Fals
         "status": "pass",
         "checkpoint": checkpoint["path"],
         "oracle_eligible": payload["oracle_eligible"],
+        "audio_path_selectivity_gate_status": gate_status,
+        "v2_oracle_utility_allowed": payload["v2_oracle_utility_allowed"],
         "shards_verified": not skip_shards,
     }
 

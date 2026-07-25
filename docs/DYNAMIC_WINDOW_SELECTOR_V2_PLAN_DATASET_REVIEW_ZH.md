@@ -4,7 +4,7 @@
 
 ## 1. 最终结论
 
-计划结论：`review_passed_with_blockers`。
+计划结论：`review_completed_route_stopped`。
 
 数据集组合结论：`review_passed_with_blockers`。
 
@@ -24,9 +24,9 @@ MUSIC-AVQA: removed_from_v2
 AVQA: removed_from_v2
 ```
 
-保留不是基于 README 推测。LongVALE 与 UnAV-100 均已审查官方仓库固定 commit、逐条验证官方 annotation schema，并实际运行官方指标的最小完美预测夹具。UnAV 的 410 个历史暴露视频已从三个 split 排除并按 `(video_id,event_label)` 重新冻结。两者仍有媒体和依赖门禁；候选 M4 checkpoint 也仍受音频路径 selectivity blocker 限制，门禁未解除时不得进入对应效果阶段。
+保留不是基于 README 推测。LongVALE 与 UnAV-100 均已审查官方仓库固定 commit、逐条验证官方 annotation schema，并实际运行官方指标的最小完美预测夹具。UnAV 的 410 个历史暴露视频已从三个 split 排除并按 `(video_id,event_label)` 重新冻结。数据格式和指标仍合格，但当前锁定 M4 checkpoint 的音频路径 selectivity 门禁已正式失败，因此本轮效果路线停止；数据集不因模型失败而改判，亦不继续下载媒体制造新的 sunk cost。
 
-当前只允许 V0 数据冻结、contract 和小规模媒体可用率 pilot；不允许直接运行 V2 Oracle confirm、selector 训练或任何正式 test。
+当前只允许 V0 CPU contract、回归和新音频语义路线设计；不允许媒体 pilot、V1/V2、selector 训练、GPU smoke 或任何正式 test。
 
 ## 2. 计划 Review
 
@@ -50,15 +50,16 @@ AVQA: removed_from_v2
 - `risk_query`：UnAV 的问题来自 event label 模板，V3 只能证明 `event-label query-conditioned ranking`，不是开放域 QA。
 - `risk_bridge`：LongVALE 只检验 Oracle 音频效用。参考 caption 不得同时作为 selector query 和生成评价答案。
 - `risk_media`：当前只验证了官方仓库、annotation 和指标链；媒体有效率仍须由小规模 pilot 确认。
-- `risk_dependency`：LongVALE 缺少固定的 `pycocoevalcap` 运行依赖；UnAV 官方代码需要 NumPy 弃用别名兼容补丁。
+- `resolved_dependency`：M4 已固定 `pycocoevalcap==1.2`、`pycocotools==2.0.11`；LongVALE official golden 可在当前环境直接运行。UnAV 的 NumPy 弃用别名兼容仍被限制在 adapter 内。
 - `risk_causality`：V1–V3 是离线实验，只有 V4 strict-causal replay 通过后才能讨论在线接入。
-- `blocker_checkpoint`：锁定 checkpoint 尚未通过音频路径 selectivity gate，不能运行 V2 Oracle utility。
+- `failed_checkpoint`：锁定 semantic-contrast checkpoint 的 selectivity 已 FAIL（video-only/correct/mismatched=254/251/259）；Fixed Stage2 也 FAIL（254/255/259）。当前没有合格替代基座。
 
 ### 2.3 执行授权
 
 ```text
 contract_and_metadata_work_allowed: true
-small_media_availability_pilot_allowed: true
+small_media_availability_pilot_allowed: false
+current_route_stopped: true
 oracle_effect_experiment_allowed: false
 selector_training_allowed: false
 formal_test_allowed: false
@@ -137,12 +138,9 @@ CIDEr: 10.0
 
 ### 3.4 依赖与判定
 
-M4 环境当前没有 `pycocoevalcap`。本次仅在 `/tmp` 隔离安装并完成验证，没有修改项目环境。服务器已有 OpenJDK 1.8.0_452，可满足 METEOR 的 Java 调用。
+M4 环境现已安装并冻结 `pycocoevalcap==1.2` 与 `pycocotools==2.0.11`，服务器 OpenJDK 1.8.0_452 可满足 METEOR。Codex 沙箱内 site-packages 只读，官方 PTBTokenizer 原本会在 jar 同目录创建临时文件而失败；adapter 只把临时输入移到 `/tmp`，保持 jar、命令参数、token filtering 和 scorer 不变。无临时 `PYTHONPATH` 的四指标 golden 已再次通过。
 
-正式 V2 前必须二选一并锁定：
-
-1. 经用户批准把确定版本的 `pycocoevalcap` 安装到 M4 环境；
-2. 固定一个隔离评测环境、依赖清单和 SHA。
+依赖清单固定在 `intersuit/configs/dynamic_selector_v2_metric_requirements.txt`；运行脚本会校验精确版本，版本漂移时 fail-closed。
 
 判定：
 
@@ -318,10 +316,10 @@ LongVALE 与 UnAV-100 当前可解析的官方物理 ID 交集为 0。该结果�
 
 | 研究问题 | 唯一数据集 | 当前资格 |
 | --- | --- | --- |
-| Oracle/确定性定位上界 | UnAV-100 | schema、官方指标和去污染 manifest 已验证；待媒体 pilot |
-| 冻结 M4 Oracle 下游效用 | LongVALE | schema 与官方指标已验证；待依赖冻结、媒体 pilot 和 checkpoint selectivity gate |
-| event-label query-conditioned selector 训练 | UnAV-100 | 代码 contract 已建立；待 V2 Oracle 门禁 |
-| strict-causal replay 与一次性 test | UnAV-100 | 待 V3 validation 与 review |
+| Oracle/确定性定位上界 | UnAV-100 | 数据资格通过，但当前基座失败，本轮停止在媒体 pilot 前 |
+| 冻结 M4 Oracle 下游效用 | LongVALE | 数据和依赖资格通过，但 checkpoint selectivity FAIL，本轮禁止运行 |
+| event-label query-conditioned selector 训练 | UnAV-100 | 代码 contract 已建立；当前无 Oracle 授权，禁止训练 |
+| strict-causal replay 与一次性 test | UnAV-100 | 未启动；当前路线停止 |
 
 这套组合能回答“正确音频选窗是否有用”和“受限 event label 条件下能否学会定位”，不能回答开放域自然问题、正式音视频 QA 转化或 Semantic Contrast 的收益。
 
@@ -338,15 +336,16 @@ LongVALE 与 UnAV-100 当前可解析的官方物理 ID 交集为 0。该结果�
 3. UnAV 410 个历史视频已排除，sample unit、多 occurrence union 与新规模已冻结；
 4. 1 秒 tail/hop contract、可训练 question-conditioned scorer、K=8 causal memory 和 checkpoint lock 已实现。
 
-仍须严格按以下顺序解除 blocker：
+停止审查已经完成：
 
-1. 经用户批准把确定版本的 `pycocoevalcap` 固定到 M4 环境，或冻结可复现隔离评测环境；
-2. 只下载 LongVALE training 与 UnAV train/validation 的小规模媒体 pilot，审计缺失、音轨、解码和静音率；
-3. 完成候选 checkpoint 的 audio-path selectivity gate；失败则更换合格冻结基座或停止 V2 Oracle utility，不得改写 lock 资格；
-4. 完成 V0 全 contract、1 条和 8 条宿主侧单卡 smoke；
-5. 完成 V1 validation 与独立 review；
-6. 只有 V1 review 通过，才申请 V2 Oracle pilot。
+1. metric 依赖已固定，官方 golden 通过；
+2. 锁定 semantic-contrast checkpoint 的 dev760 selectivity 正式 FAIL；
+3. Fixed Stage2 checkpoint 同样 FAIL；
+4. 12k/32k M4 baseline 不含 scene-audio/projector/fusion 权重，不能替代；
+5. 因不存在合格冻结基座，媒体 pilot、V0 GPU smoke、V1/V2 和 selector 训练不再执行。
+
+下一步不再尝试调 gate 或更换 selector 超参，而是另立音频语义路线：优先重构音频语义目标、答案表示和融合位置。新路线只有产出一个在物理隔离 validation 上满足“正确音频严格高于错配音频、且不低于 video-only”的冻结 checkpoint 后，才可重新申请本 V2 的媒体 pilot 和 Oracle 诊断；本次失败结果永久保留。
 
 任何一个保留数据集若无法通过依赖 golden test、媒体 pilot、污染排除或许可冻结，立即从 V2 删除，并重新 review 整体计划；不得临时启用已经删除的数据集补位。
 
-当前不批准 selector 训练、正式 test 或 Semantic Contrast。
+当前不批准媒体下载、selector 训练、GPU smoke、正式 test 或继续 Semantic Contrast 调参。

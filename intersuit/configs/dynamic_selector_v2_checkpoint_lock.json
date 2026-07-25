@@ -3,8 +3,9 @@
   "locked_at": "2026-07-25",
   "checkpoint_locked": true,
   "oracle_eligible": false,
-  "blocked_pending_audio_path_selectivity_gate": true,
-  "qualification_note_zh": "该 checkpoint 仅作为不可漂移的 V2 候选基座；在音频路径 selectivity 门禁通过前，不得宣称具备 Oracle utility 资格。",
+  "audio_path_selectivity_gate_status": "failed",
+  "v2_oracle_utility_allowed": false,
+  "qualification_note_zh": "该 checkpoint 的 dev760 音频路径 selectivity 门禁已失败：正确音频低于错配音频且低于 video-only。当前 checkpoint 路线必须停止，不得运行 LongVALE Oracle utility。",
   "checkpoint": {
     "path": "intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150",
     "config_sha256": "5c985e23ea3af4e5d2bb66e1d2fa85c8df06ef0344707c6d9abcb69ad5496b53",
@@ -19,6 +20,24 @@
   "beats": {
     "path": "intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
     "sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34"
+  },
+  "selectivity_failure_evidence": {
+    "artifact_root": "intersuit/harness/artifacts/as_m4_semantic_contrast_dev760_gate0005",
+    "matrix_plan_sha256": "9425a75e2c453209ccd70f85312bab31f6f39a4c0d55746a1b88368438c0549d",
+    "summary_sha256": "cf00f17a6f13559dcb345a4804f05803751721bc725e39ce13d1093fcccc6bce",
+    "manifest_sha256": "0237cdebfb54c2766cd17ab709293862be381fa17ca809d101fbce37d617fb10",
+    "gate": 0.005,
+    "count_per_condition": 760,
+    "correct": 251,
+    "mismatched": 259,
+    "video_only": 254,
+    "prediction_sha256": {
+      "video_only": "a1979373e2555783debf908beeb6bc8a9ec78117e2f63d5deeeb8fe2228b7ec1",
+      "correct": "d2da68e12ac3084a44df980acf2d8ba0e199118cfc98ce222dc8150e9335d968",
+      "mismatched": "f529a01ae0aa3b005b796605127f1ddedca2ebb56d03a07990268ccb44b87d5c",
+      "silence": "227331d3d7b2ca7f7bd518eca5c1bc49e2b9f238837595e08ccd085d75c29c3b",
+      "gate0": "ec00b523bf0a60159a7d48a267dc0303127b5b7b1b018729e49b9c0d6ed55f39"
+    }
   },
   "required_weight_prefixes": [
     "model.scene_audio_encoder.audio_projector.",

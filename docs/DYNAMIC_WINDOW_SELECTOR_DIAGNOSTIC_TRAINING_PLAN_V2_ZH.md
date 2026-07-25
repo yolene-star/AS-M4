@@ -117,7 +117,7 @@ LongVALE：
 - 逐条审计结果为 training 7,240 视频/91,863 事件、eval 1,171 视频/13,867 事件，非法记录均为 0；
 - 官方 `seg_captioning` 预测记录必须包含 `video_id`、`task="seg_captioning"`、`answer` 和 `info.sentence_id`；
 - 官方 golden fixture 已实际跑通 BLEU-4、METEOR、ROUGE-L、CIDEr；源码输出键 `Rouge` 在报告层规范化为 `ROUGE-L`，只允许改字段名，不得改实现或分数；
-- M4 环境当前缺少 `pycocoevalcap`，正式运行前必须经批准固定该依赖或固定隔离评测环境；依赖门禁未解除时不得运行 V2。
+- M4 环境已固定 `pycocoevalcap==1.2` 与 `pycocotools==2.0.11`，版本清单位于 `intersuit/configs/dynamic_selector_v2_metric_requirements.txt`；因 Conda site-packages 在 Codex 沙箱只读，adapter 仅把 PTBTokenizer 临时输入移到 `/tmp`，jar、Java 参数、token filtering 和四项评分公式均不变。无额外 `PYTHONPATH` 的官方 golden 已通过。
 
 UnAV-100：
 
@@ -232,10 +232,11 @@ intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150
 lock: intersuit/configs/dynamic_selector_v2_checkpoint_lock.json
 checkpoint_locked: true
 oracle_eligible: false
-blocked_pending_audio_path_selectivity_gate: true
+audio_path_selectivity_gate_status: failed
+v2_oracle_utility_allowed: false
 ```
 
-lock 已固定 config、model index、4 个 safetensors shard 和 BEATs SHA。它只防止资产漂移，不代表下游 Oracle 资格已通过；音频路径 selectivity gate 未解除前禁止运行 V2 Oracle utility。
+lock 已固定 config、model index、4 个 safetensors shard、BEATs SHA，以及 dev760 五条件预测 SHA。该 checkpoint 在 gate=0.005 下得到 video-only/correct/mismatched = 254/251/259，正确音频低于错配和 video-only，selectivity 门禁正式失败。Fixed Stage2 checkpoint 同样失败（254/255/259）；12k/32k M4 baseline 不含 scene-audio/projector/fusion 权重，不能作为等价替代。当前仓库内没有合格冻结基座，因此本轮 V2 Oracle utility、LongVALE 媒体 pilot、selector 训练和 GPU smoke 全部停止。
 
 全部冻结且 `eval()`：
 
@@ -483,19 +484,21 @@ checkpoint、媒体、数据集、特征、缓存、预测和日志不得加入 
 
 ## 12. 当前执行授权
 
-本计划的独立 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，当前结论为 `review_passed_with_blockers`。
+本计划的独立 review 见 `docs/DYNAMIC_WINDOW_SELECTOR_V2_PLAN_DATASET_REVIEW_ZH.md`，当前结论为 `review_completed_route_stopped`。
 
 当前只允许：
 
-1. V0 数据/许可/污染冻结；
-2. V1 CPU contract；
-3. LongVALE training 和去污染 UnAV train/validation 的小规模媒体可用率 pilot；
-4. 1 条与 8 条单卡 smoke。
+1. V0 CPU contract、数据/许可/污染冻结和回归测试；
+2. 保留 selector 模块作为未来合格音频基座的诊断基础；
+3. 另立音频语义目标、答案表示和融合位置重构计划。
 
-V2 及训练仍须等待 V1 阶段 review。
+本轮不再等待 V1：checkpoint selectivity 前置门禁已经失败，停止规则已触发。只有未来产生新的、物理隔离且通过正确音频高于错配音频门禁的冻结基座，才允许重新申请媒体 pilot 与 V1/V2；不得修改本次负结果。
 
 ```text
 selector_training_allowed: false
+longvale_media_pilot_allowed: false
+gpu_smoke_allowed: false
 formal_test_allowed: false
 semantic_contrast_allowed: false
+current_route: stopped_checkpoint_ineligible
 ```

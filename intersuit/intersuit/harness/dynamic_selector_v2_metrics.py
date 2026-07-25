@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import importlib.metadata
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +19,7 @@ LONGVALE_COMMIT = "2eb88ce3f72458faea6f3db8f841b41e6485a814"
 LONGVALE_METRIC_SHA256 = "9d52e32b4c93421705953e91f7fd2bac02e66637be22efca994982186b9118d5"
 UNAV_COMMIT = "1609deba4fbaf25222c6ee6c7d43b0d0ddfab20d"
 UNAV_METRIC_SHA256 = "31499a26a08ff602f3e67f738d75873cce9e39fcf20d55f7a55c3b75a3bb7f9d"
+METRIC_DEPENDENCY_VERSIONS = {"pycocoevalcap": "1.2", "pycocotools": "2.0.11"}
 
 
 def sha256(path: Path) -> str:
@@ -71,10 +76,12 @@ def run_longvale_golden(
         sys.path.insert(0, str(pycocoevalcap_root))
     if importlib.util.find_spec("pycocoevalcap") is None:
         raise RuntimeError("缺少 pycocoevalcap；LongVALE 正式 metric gate 不允许 skip")
+    _require_metric_dependency_versions()
     annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
     predictions = json.loads(predictions_path.read_text(encoding="utf-8"))
     validate_longvale_fixture(annotation, predictions)
     module = _load_module("longvale_official_metric_v2", metric_path)
+    _install_writable_ptb_tokenizer()
     raw = module.seg_captioning_metrics(predictions, str(annotation_path))
     normalized = {
         "BLEU4": float(raw["BLEU4"]),
@@ -151,3 +158,59 @@ def _load_module(name: str, path: Path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _require_metric_dependency_versions() -> None:
+    for package, expected in METRIC_DEPENDENCY_VERSIONS.items():
+        try:
+            actual = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError as error:
+            raise RuntimeError(f"缺少正式指标依赖：{package}=={expected}") from error
+        if actual != expected:
+            raise RuntimeError(f"正式指标依赖漂移：{package} expected={expected} actual={actual}")
+
+
+def _install_writable_ptb_tokenizer() -> None:
+    """Keep official PTB semantics while moving only its temp file to /tmp.
+
+    pycocoevalcap 1.2 writes the input beside its jar. Conda site-packages is
+    intentionally read-only in the Codex sandbox, so the unmodified wrapper
+    fails before Java starts. The command, jar, flags and punctuation filtering
+    remain identical; only the temporary input path becomes writable.
+    """
+
+    from pycocoevalcap.tokenizer import ptbtokenizer
+
+    def tokenize(self, captions_for_image):
+        tokenizer_dir = Path(ptbtokenizer.__file__).resolve().parent
+        command = [
+            "java",
+            "-cp",
+            ptbtokenizer.STANFORD_CORENLP_3_4_1_JAR,
+            "edu.stanford.nlp.process.PTBTokenizer",
+            "-preserveLines",
+            "-lowerCase",
+        ]
+        final = {}
+        image_ids = [key for key, values in captions_for_image.items() for _ in range(len(values))]
+        sentences = "\n".join(
+            caption["caption"].replace("\n", " ")
+            for values in captions_for_image.values()
+            for caption in values
+        )
+        with tempfile.NamedTemporaryFile(delete=False, dir="/tmp") as handle:
+            handle.write(sentences.encode())
+            temporary_path = Path(handle.name)
+        try:
+            command.append(str(temporary_path))
+            process = subprocess.Popen(command, cwd=tokenizer_dir, stdout=subprocess.PIPE)
+            token_lines = process.communicate(input=sentences.rstrip())[0].decode().split("\n")
+        finally:
+            os.remove(temporary_path)
+        for image_id, line in zip(image_ids, token_lines):
+            final.setdefault(image_id, []).append(
+                " ".join(word for word in line.rstrip().split(" ") if word not in ptbtokenizer.PUNCTUATIONS)
+            )
+        return final
+
+    ptbtokenizer.PTBTokenizer.tokenize = tokenize
