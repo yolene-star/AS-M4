@@ -132,5 +132,61 @@ def build_media_pilot(
     return [{"selection_rank": index, **item} for index, item in enumerate(selected, start=1)]
 
 
+def build_full_validation_media_allowlist(
+    records: Any,
+    source_clips: Mapping[str, SourceClip],
+    *,
+    sparse_ratio: float = 0.10,
+) -> list[dict[str, Any]]:
+    """冻结完整稀疏 validation 的物理视频清单，不进行抽样或补位。"""
+
+    split = validate_s1_manifest_records(records)
+    if split != "validation":
+        raise ValueError("full V1 media allowlist must use validation")
+    if not 0 < sparse_ratio <= 1:
+        raise ValueError("sparse_ratio must be in (0,1]")
+
+    by_video: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in records:
+        if float(record["union_duration_ratio"]) <= sparse_ratio:
+            by_video[str(record["video_id"])].append(dict(record))
+    if not by_video:
+        raise ValueError("full V1 sparse validation set is empty")
+
+    entries = []
+    for video_id in sorted(by_video):
+        samples = by_video[video_id]
+        clip = source_clips.get(video_id)
+        if clip is None:
+            raise ValueError(f"source CSV missing validation video: {video_id}")
+        if clip.split not in {"validation", "val"}:
+            raise ValueError(f"source split mismatch for {video_id}: {clip.split}")
+        durations = {float(sample["duration"]) for sample in samples}
+        if len(durations) != 1:
+            raise ValueError(f"manifest duration mismatch within video: {video_id}")
+        duration = next(iter(durations))
+        if not math.isclose(duration, clip.duration, rel_tol=0.0, abs_tol=0.05):
+            raise ValueError(
+                f"source/manifest duration mismatch for {video_id}: {clip.duration} vs {duration}"
+            )
+        entries.append(
+            {
+                "video_id": video_id,
+                "split": "validation",
+                "source_start_sec": clip.source_start_sec,
+                "source_end_sec": clip.source_end_sec,
+                "duration": duration,
+                "sample_ids": sorted(str(sample["sample_id"]) for sample in samples),
+                "event_labels": sorted({str(sample["event_label"]) for sample in samples}),
+                "sample_count": len(samples),
+                "max_annotation_count": max(int(sample["annotation_count"]) for sample in samples),
+            }
+        )
+    return [
+        {"selection_rank": index, **entry}
+        for index, entry in enumerate(entries, start=1)
+    ]
+
+
 def _stable_tie(seed: int, video_id: str) -> str:
     return hashlib.sha256(f"{seed}\0{video_id}".encode("utf-8")).hexdigest()

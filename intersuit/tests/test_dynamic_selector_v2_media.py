@@ -4,7 +4,12 @@ import csv
 
 import pytest
 
-from intersuit.harness.dynamic_selector_v2_media import SourceClip, build_media_pilot, load_source_clip_csv
+from intersuit.harness.dynamic_selector_v2_media import (
+    SourceClip,
+    build_full_validation_media_allowlist,
+    build_media_pilot,
+    load_source_clip_csv,
+)
 
 
 def _record(sample_id, video_id, *, split="validation", duration=20.0, label="event", annotations=1):
@@ -60,3 +65,29 @@ def test_media_pilot_rejects_source_duration_mismatch():
     clips = {"video": SourceClip("video", 0.0, 19.0, "validation")}
     with pytest.raises(ValueError, match="duration mismatch"):
         build_media_pilot(records, clips, limit=1)
+
+
+def test_full_validation_allowlist_contains_every_sparse_video_in_stable_order():
+    records = [
+        _record("b1", "video-b", label="b"),
+        _record("a2", "video-a", label="c", annotations=2),
+        _record("a1", "video-a", label="a"),
+        {**_record("dense", "video-dense"), "union_duration_ratio": 0.20},
+    ]
+    clips = {
+        "video-a": SourceClip("video-a", 10.0, 30.0, "validation"),
+        "video-b": SourceClip("video-b", 20.0, 40.0, "val"),
+        "video-dense": SourceClip("video-dense", 0.0, 20.0, "validation"),
+    }
+    entries = build_full_validation_media_allowlist(records, clips)
+    assert [entry["video_id"] for entry in entries] == ["video-a", "video-b"]
+    assert entries[0]["sample_ids"] == ["a1", "a2"]
+    assert entries[0]["sample_count"] == 2
+    assert [entry["selection_rank"] for entry in entries] == [1, 2]
+
+
+def test_full_validation_allowlist_refuses_training():
+    records = [{**_record("a", "video"), "split": "train"}]
+    clips = {"video": SourceClip("video", 0.0, 20.0, "train")}
+    with pytest.raises(ValueError, match="must use validation"):
+        build_full_validation_media_allowlist(records, clips)
