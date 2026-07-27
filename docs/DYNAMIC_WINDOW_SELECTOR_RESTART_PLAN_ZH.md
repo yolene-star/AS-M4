@@ -272,6 +272,7 @@ OpenFLAM 的详细执行契约位于分支 `codex/openflam-teacher`：
 docs/OPENFLAM_AUDIO_SEMANTIC_TEACHER_ADAPTATION_PLAN_ZH.md
 基线 commit: d6f5154
 A1 元数据资格 commit: 41c639f
+A1.5 媒体容量预检 commit: 4483f14
 ```
 
 该分支的低层工程锁、预处理和教师指标服从其阶段 `decision.json`；本文件负责冻结它与
