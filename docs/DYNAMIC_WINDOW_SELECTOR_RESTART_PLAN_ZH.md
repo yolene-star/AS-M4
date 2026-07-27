@@ -225,7 +225,8 @@ N0 执行前冻结的首个动作只生成：
 - `review.md`。
 
 这些产物已形成第 11 节的冻结失败结论，因此不得创建 N1 目录中的预测或特征资产。
-第 12.5 节的 OpenFLAM A1 轻量资产审计也已完成；当前停止在媒体下载授权前。
+第 12.5 节的 OpenFLAM A1 轻量资产审计也已完成；EPIC-SOUNDS 媒体已单独获准按流式
+HDF5 事务准备，但正式教师资格和学生训练仍未授权。
 
 ## 11. N0 冻结结果
 
@@ -273,6 +274,7 @@ docs/OPENFLAM_AUDIO_SEMANTIC_TEACHER_ADAPTATION_PLAN_ZH.md
 基线 commit: d6f5154
 A1 元数据资格 commit: 41c639f
 A1.5 媒体容量预检 commit: 4483f14
+A1.6 流式 HDF5 事务与 canary commit: 32b539f
 ```
 
 该分支的低层工程锁、预处理和教师指标服从其阶段 `decision.json`；本文件负责冻结它与
@@ -290,7 +292,8 @@ O-T0H 源码等价、完整 state_dict、local scorer：PASS
 纯 CUDA 音频前端：FAIL，禁止正式提取
 CPU 音频前端 + GPU HTSAT/投影：PASS，已锁定
 同一已消费 AVE validation 上相对 CLAP：+17.3469pp，回顾性胜出
-A1 双轴轻量元数据审计：PASS，停止在媒体下载前
+A1 双轴轻量元数据审计：PASS
+A1.6 EPIC-SOUNDS 流式 HDF5 canary：PASS，全量媒体准备运行中
 正式未泄漏教师资格：NOT_QUALIFIED
 学生训练：未授权
 test_locked：未访问
@@ -464,7 +467,7 @@ selector_training_authorized = false
 qualification/confirm 零物理重叠审计。上述审计通过后仍需单独授权 A2 正式教师资格，
 不能凭项目页描述或 A1 元数据结果直接运行 OpenFLAM。
 
-2026-07-28 获准继续后的 A1.5 媒体预检状态为：
+2026-07-28 获准继续后的 A1.5/A1.6 媒体状态为：
 
 ```text
 STARSS23 foa_dev.zip：
@@ -480,17 +483,32 @@ EPIC-SOUNDS 632 个对应官方视频：
   confirm = 62 files / 77.198 GiB
   total = 1114690667253 bytes / 1038.137 GiB
   632/632 均有官方 URL 和 MD5
-  当前磁盘可用约 1007 GiB
-  status = capacity_preflight_blocked
-  downloaded EPIC videos = 0
+  全量原视频禁止同时落盘
+  status = streaming_hdf5_running
+  service = openflam-epic-hdf5-v2.service
+  workers = 4
+  minimum free space = 150 GiB
+
+P03_15 完整 canary：
+  official MP4 bytes = 39548685
+  official MD5 539850bfd3ec4afe59266f31088953f0 = PASS
+  HDF5 = key P03_15 / shape [251904] / float32 / 24000 Hz
+  shard SHA256 ac0b4b438a5062d9379590d478276c231996bccbcddd61e48be32c9d64151e96
+  HDF5 full readback = PASS
+  MP4/WAV delete after verify = PASS
+  failure atomicity/resume/disk threshold tests = 6/6 PASS
 ```
 
-完整 EPIC 原视频本地并存会超过当前空闲盘，且没有训练和运行余量，禁止强行下载。主线需
-先在以下方案中另行冻结一个：推荐方案是 qualification/confirm 原视频保留，development
-逐视频完成官方 MD5 后抽取 24 kHz 音频、记录 waveform SHA256，再删除已验证 MP4；备选是
-取得官方 EPIC-SOUNDS HDF5 并完成来源/checksum/索引等价审计，或提供带安全余量的额外
-存储。流式方案属于执行契约变更，必须先实现可恢复事务、失败原子性、最低磁盘余量和重解码
-一致性测试，不能在本轮临时拼接命令直接执行。
+完整 EPIC 原视频本地并存仍然禁止。已冻结的流式事务固定为：
+`.part 断点续传 -> 官方 MD5 -> FFmpeg 24 kHz/mono/PCM16 -> 每视频 float32 HDF5 shard
+-> 原子提交和全量回读 -> fsync 账本 -> 删除 MP4/WAV`。632 个 train+validation shard
+全部通过后才合并并验证单体 `EPIC_audio.hdf5`；额外 44 个 recognition test 视频不在
+本次范围，不得下载或访问。任一 worker 失败时不再派发新视频，保留 `.part` 或已验证源
+文件供恢复。
+
+当前长期下载实测受 Bristol 连接限速影响，预计约 7–12 天。服务运行只说明媒体准备已开始，
+不构成 Q-target 媒体 PASS；必须等最终 HDF5 key 集合、dtype、样本数、SHA、标注索引和
+split 零重叠审计完成后，才能申请 A2。
 
 当前禁止：
 
