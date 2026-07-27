@@ -536,9 +536,9 @@ V1 定位上界的全局停止结论。
 
 当前允许：
 
-1. 按已冻结 manifest 和 `download_video.csv` 扩展 UnAV validation 媒体；
-2. 在完整稀疏 validation 上运行 All/Uniform/Random/Energy/Onset/Oracle；
-3. 独立资格审查 `eventness_cached_topk`，合格后补齐完整 V1；
+1. 保留并复核已完成的完整 V1 定位结果与冻结 Eventness 资产；
+2. 按音频语义重构子计划只修复冻结音频路径 blocker；
+3. 新 checkpoint 独立通过 correct/mismatch/video-only 资格门禁后，再申请运行 V2；
 4. 继续 CPU/单机低成本、不训练的定位诊断与双次复现。
 
 当前禁止：
@@ -552,10 +552,23 @@ V1 定位上界的全局停止结论。
 ```text
 v1_metadata_headroom: PASS
 v1_media_pilot: PASS
-v1_full_validation: NOT_RUN
+v1_full_validation: PASS
+v1_eventness_cached_asset: PASS
 selector_training_allowed: false
 longvale_oracle_utility_allowed: false
 formal_test_allowed: false
 semantic_contrast_allowed: false
-current_route: active_v1_full_validation_expansion
+current_route: conditional_audio_semantic_blocker_remediation
 ```
+
+### 12.1 2026-07-27 完整 V1 更新
+
+完整稀疏 validation 已在 443 samples / 335 physical videos 上完成。K=8 的
+Oracle−Random 为 `+82.0843pp`，95% CI `[+80.8502pp,+83.2940pp]`；Energy、Onset 和
+重新从当前 UnAV validation 生成的冻结 cached Eventness 相对 Random 分别为
+`+11.9871pp`、`+13.6916pp` 和 `+14.0870pp`，三者 CI 下界均大于 0 且均胜过 5/5
+Random seed。K=8 与 K=4 均完成双次逐文件一致复现。
+
+详细冻结 review 见
+`docs/DYNAMIC_SELECTOR_V2_V1_FULL_VALIDATION_REVIEW_ZH.md`。该通过只解锁冻结音频路径
+blocker 修复，不解锁 V2、learned selector、联合训练、Semantic Contrast 或 official test。

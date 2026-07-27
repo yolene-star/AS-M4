@@ -14,6 +14,7 @@ from statistics import mean
 from typing import Any
 
 import numpy as np
+import torch
 
 from intersuit.harness.dynamic_selector_v2_audio import energy_scores, onset_scores, topk_from_scores
 from intersuit.harness.dynamic_selector_v2_localization import (
@@ -104,6 +105,11 @@ def evaluate_cohort(
             "onset_topk": topk_from_scores(scores_by_video[video_id]["onset"], k),
             "oracle_topk": oracle_topk_indices(timestamps, record["target_intervals"], k),
         }
+        if "eventness" in scores_by_video[video_id]:
+            strategies["eventness_cached_topk"] = topk_from_scores(
+                scores_by_video[video_id]["eventness"],
+                k,
+            )
         for seed in RANDOM_SEEDS:
             strategies[f"random_topk_seed_{seed}"] = random_topk_indices(
                 len(timestamps),
@@ -144,7 +150,10 @@ def evaluate_cohort(
     }
     deltas = {}
     wins = {}
-    for strategy in ("energy_topk", "onset_topk", "oracle_topk", "uniform_topk"):
+    paired_strategies = ["energy_topk", "onset_topk", "oracle_topk", "uniform_topk"]
+    if "eventness_cached_topk" in per_strategy:
+        paired_strategies.append("eventness_cached_topk")
+    for strategy in paired_strategies:
         values = {
             row["sample_id"]: row["event_coverage"]
             for row in per_strategy[strategy]
@@ -173,6 +182,7 @@ def main() -> None:
     parser.add_argument("--allowlist", type=Path, required=True)
     parser.add_argument("--media-audit", type=Path, required=True)
     parser.add_argument("--media-root", type=Path, required=True)
+    parser.add_argument("--eventness-dir", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--k", type=int, default=8)
     parser.add_argument("--sparse-ratio", type=float, default=0.10)
@@ -224,6 +234,31 @@ def main() -> None:
     ]
 
     scores_by_video: dict[str, dict[str, list[float]]] = {}
+    eventness_manifest_sha256 = None
+    eventness_checkpoint_sha256 = None
+    eventness_summary = None
+    if args.eventness_dir is not None:
+        eventness_summary_path = args.eventness_dir / "summary.json"
+        eventness_manifest_path = args.eventness_dir / "eventness_feature_manifest.jsonl"
+        eventness_summary = json.loads(eventness_summary_path.read_text(encoding="utf-8"))
+        if (
+            eventness_summary.get("artifact_kind")
+            != "dynamic_selector_v2_v1_unav_eventness_features"
+            or eventness_summary.get("status") != "PASS"
+            or eventness_summary.get("scope") != "full_validation"
+            or int(eventness_summary.get("sample_count", -1)) != len(selected_ids)
+            or eventness_summary.get("test_accessed") is not False
+        ):
+            raise ValueError("Eventness summary is not a qualified full-validation asset")
+        if eventness_summary.get("allowlist_sha256") != sha256(args.allowlist):
+            raise ValueError("Eventness/allowlist SHA mismatch")
+        eventness_manifest_sha256 = sha256(eventness_manifest_path)
+        if (
+            eventness_summary.get("manifest", {}).get("sha256")
+            != eventness_manifest_sha256
+        ):
+            raise ValueError("Eventness manifest SHA mismatch")
+        eventness_checkpoint_sha256 = eventness_summary["checkpoint"]["sha256"]
     total_windows = 0
     total_audio_sec = 0.0
     for index, entry in enumerate(entries, start=1):
@@ -235,6 +270,25 @@ def main() -> None:
             "energy": energy_scores(waveform, SAMPLE_RATE, timestamps),
             "onset": onset_scores(waveform, SAMPLE_RATE, timestamps),
         }
+        if args.eventness_dir is not None:
+            feature_path = args.eventness_dir / "features" / f"{video_id}.pt"
+            payload = torch.load(feature_path, map_location="cpu", weights_only=True)
+            metadata = payload.get("metadata", {})
+            cached_timestamps = payload["timestamps"].float()
+            cached_scores = payload["eventness_cached_scores"].float()
+            expected_timestamps = torch.tensor(timestamps, dtype=torch.float32)
+            if (
+                payload.get("video_id") != video_id
+                or metadata.get("official_split") != "validation"
+                or metadata.get("checkpoint_sha256") != eventness_checkpoint_sha256
+                or metadata.get("all_fixed_exact") is not True
+                or cached_timestamps.shape != expected_timestamps.shape
+                or not torch.equal(cached_timestamps, expected_timestamps)
+                or cached_scores.shape != expected_timestamps.shape[:1]
+                or not torch.isfinite(cached_scores).all()
+            ):
+                raise ValueError(f"invalid Eventness cache entry: {video_id}")
+            scores_by_video[video_id]["eventness"] = cached_scores.tolist()
         total_windows += len(timestamps)
         total_audio_sec += float(entry["duration"])
         if index % 10 == 0 or index == len(entries):
@@ -266,11 +320,14 @@ def main() -> None:
     sparse_wins = sparse_result["wins_over_random_seeds"]
     oracle_delta = sparse_deltas["oracle_topk_minus_random_mean"]
     oracle_pass = oracle_delta["delta"] >= 0.20 and oracle_delta["ci95_lower"] > 0
+    deterministic_strategies = ["energy_topk", "onset_topk"]
+    if "eventness_cached_topk_minus_random_mean" in sparse_deltas:
+        deterministic_strategies.append("eventness_cached_topk")
     deterministic_pass = any(
         sparse_deltas[f"{strategy}_minus_random_mean"]["delta"] >= 0.05
         and sparse_deltas[f"{strategy}_minus_random_mean"]["ci95_lower"] > 0
         and sparse_wins[strategy] >= 4
-        for strategy in ("energy_topk", "onset_topk")
+        for strategy in deterministic_strategies
     )
     contract_checks = {
         "all_equals_fixed": True,
@@ -333,7 +390,13 @@ def main() -> None:
             "random_seeds": list(RANDOM_SEEDS),
             "bootstrap_seed": BOOTSTRAP_SEED,
             "bootstrap_repeats": args.bootstrap_repeats,
-            "eventness_cached_topk": "omitted_ineligible_asset",
+            "eventness_cached_topk": (
+                "qualified_frozen_validation_cache"
+                if args.eventness_dir is not None
+                else "omitted_ineligible_asset"
+            ),
+            "eventness_manifest_sha256": eventness_manifest_sha256,
+            "eventness_checkpoint_sha256": eventness_checkpoint_sha256,
             "temporal_high_conf_topk": "omitted_ineligible_asset",
         },
         "compute_accounting": {
@@ -341,7 +404,11 @@ def main() -> None:
             "decoded_audio_sec": total_audio_sec,
             "micro_window_count": total_windows,
             "waveform_feature_video_count": len(entries),
-            "beats_forward_window_count": 0,
+            "offline_beats_encoded_window_count": (
+                total_windows if args.eventness_dir is not None else 0
+            ),
+            "evaluation_beats_forward_window_count": 0,
+            "eventness_saves_beats_compute": False,
             "projector_forward_window_count": 0,
             "fusion_forward_window_count": 0,
         },
