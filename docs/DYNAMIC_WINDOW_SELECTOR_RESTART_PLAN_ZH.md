@@ -275,6 +275,7 @@ docs/OPENFLAM_AUDIO_SEMANTIC_TEACHER_ADAPTATION_PLAN_ZH.md
 A1 元数据资格 commit: 41c639f
 A1.5 媒体容量预检 commit: 4483f14
 A1.6 流式 HDF5 事务与 canary commit: 32b539f
+A1.6 实时进度监控与 8-worker 状态 commit: 2eac23b
 ```
 
 该分支的低层工程锁、预处理和教师指标服从其阶段 `decision.json`；本文件负责冻结它与
@@ -485,9 +486,11 @@ EPIC-SOUNDS 632 个对应官方视频：
   632/632 均有官方 URL 和 MD5
   全量原视频禁止同时落盘
   status = streaming_hdf5_running
-  service = openflam-epic-hdf5-v2.service
-  workers = 4
+  service = openflam-epic-hdf5-v3.service
+  workers = 8
   minimum free space = 150 GiB
+  30 秒聚合实测速率 = 4.50 MiB/s
+  瞬时 ETA = 约 2 天 17 小时
 
 P03_15 完整 canary：
   official MP4 bytes = 39548685
@@ -506,9 +509,11 @@ P03_15 完整 canary：
 本次范围，不得下载或访问。任一 worker 失败时不再派发新视频，保留 `.part` 或已验证源
 文件供恢复。
 
-当前长期下载实测受 Bristol 连接限速影响，预计约 7–12 天。服务运行只说明媒体准备已开始，
-不构成 Q-target 媒体 PASS；必须等最终 HDF5 key 集合、dtype、样本数、SHA、标注索引和
-split 零重叠审计完成后，才能申请 A2。
+当前长期下载受 Bristol 单连接限速影响，已从 4 workers 安全断点切换到 8 workers。
+`intersuit/scripts/watch_epic_sounds_progress.py` 显示已验证 HDF5 数量、精确总源视频字节
+百分比、聚合实时速度、每路速度和 ETA。服务运行只说明媒体准备已开始，不构成 Q-target
+媒体 PASS；必须等最终 HDF5 key 集合、dtype、样本数、SHA、标注索引和 split 零重叠审计
+完成后，才能申请 A2。
 
 当前禁止：
 
