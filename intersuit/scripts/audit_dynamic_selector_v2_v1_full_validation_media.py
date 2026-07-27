@@ -16,6 +16,10 @@ from intersuit.harness.dynamic_selector_v2_localization import validate_s1_manif
 
 
 SAMPLE_RATE = 16_000
+OFFICIAL_SOURCE_CSV_SHA256 = "f1f9b36e607ed0cea04e818cf23027acd1cec4cdd9b7c118c93408e5654be735"
+FROZEN_VALIDATION_MANIFEST_SHA256 = (
+    "34dc790cd07962d8f34a1c8797942915e8b65875f73a8cc0fb9e33b769eddd84"
+)
 
 
 def sha256(path: Path) -> str:
@@ -136,6 +140,11 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--duration-tolerance", type=float, default=0.25)
     parser.add_argument("--sparse-ratio", type=float, default=0.10)
+    parser.add_argument(
+        "--allow-official-packaging-duration-difference",
+        action="store_true",
+        help="仅对已锁定官方 CSV/manifest 与官方归档间的封装时长差异降级为 warning",
+    )
     args = parser.parse_args()
 
     if os.environ.get("CONDA_DEFAULT_ENV") != "M4":
@@ -146,6 +155,14 @@ def main() -> None:
     allowlist = json.loads(args.allowlist.read_text(encoding="utf-8"))
     if allowlist.get("artifact_kind") != "dynamic_selector_v2_v1_full_validation_media_allowlist":
         raise ValueError("invalid full-validation allowlist")
+    manifest_sha256 = sha256(args.manifest)
+    if args.allow_official_packaging_duration_difference:
+        if manifest_sha256 != FROZEN_VALIDATION_MANIFEST_SHA256:
+            raise ValueError("refusing duration exception for a non-frozen validation manifest")
+        if allowlist.get("manifest_sha256") != FROZEN_VALIDATION_MANIFEST_SHA256:
+            raise ValueError("allowlist manifest SHA is not the frozen official validation SHA")
+        if allowlist.get("source_csv_sha256") != OFFICIAL_SOURCE_CSV_SHA256:
+            raise ValueError("allowlist source CSV SHA is not the frozen official source CSV SHA")
     entries = allowlist.get("entries", [])
     allowed_ids = {str(entry["video_id"]) for entry in entries}
     sparse_records = [
@@ -157,8 +174,14 @@ def main() -> None:
     if sparse_ids != allowed_ids:
         raise ValueError("allowlist does not exactly match sparse validation physical videos")
     invalid_timestamp_samples = []
+    max_target_end_by_video: dict[str, float] = {}
     for record in sparse_records:
         duration = float(record["duration"])
+        video_id = str(record["video_id"])
+        max_target_end_by_video[video_id] = max(
+            max_target_end_by_video.get(video_id, 0.0),
+            max(float(end) for _start, end in record["target_intervals"]),
+        )
         if any(
             not (0 <= float(start) < float(end) <= duration + 1e-9)
             for start, end in record["target_intervals"]
@@ -173,6 +196,16 @@ def main() -> None:
             float(entry["duration"]),
             args.duration_tolerance,
         )
+        row["warnings"] = []
+        if (
+            args.allow_official_packaging_duration_difference
+            and row["reasons"] == ["duration_mismatch"]
+            and float(row.get("actual_duration") or 0.0) + 1e-9
+            >= max_target_end_by_video[video_id]
+        ):
+            row["reasons"] = []
+            row["warnings"].append("official_packaging_duration_difference")
+            row["status"] = "accepted"
         row.update({"video_id": video_id, "selection_rank": int(entry["selection_rank"])})
         audit_entries.append(row)
         if index % 10 == 0 or index == len(entries):
@@ -190,12 +223,18 @@ def main() -> None:
             )
 
     rejected = [entry for entry in audit_entries if entry["status"] != "accepted"]
-    status = "PASS" if not rejected and not invalid_timestamp_samples else "FAIL"
+    warned = [entry for entry in audit_entries if entry["warnings"]]
+    if rejected or invalid_timestamp_samples:
+        status = "FAIL"
+    elif warned:
+        status = "PASS_WITH_OFFICIAL_PACKAGING_DURATION_DIFFERENCES"
+    else:
+        status = "PASS"
     payload = {
         "artifact_kind": "dynamic_selector_v2_v1_full_validation_media_audit",
         "status": status,
         "conda_env": os.environ.get("CONDA_DEFAULT_ENV"),
-        "manifest_sha256": sha256(args.manifest),
+        "manifest_sha256": manifest_sha256,
         "allowlist_sha256": sha256(args.allowlist),
         "media_root": str(args.media_root.resolve()),
         "config": {
@@ -205,11 +244,17 @@ def main() -> None:
             "decode_sample_rate": SAMPLE_RATE,
             "decode_channels": 1,
             "full_audio_decode": True,
+            "allow_official_packaging_duration_difference": (
+                args.allow_official_packaging_duration_difference
+            ),
+            "official_source_csv_sha256": OFFICIAL_SOURCE_CSV_SHA256,
         },
         "sample_count": len(sparse_records),
         "video_count": len(entries),
         "accepted_count": len(audit_entries) - len(rejected),
         "rejected_count": len(rejected),
+        "warning_count": len(warned),
+        "warning_video_ids": [entry["video_id"] for entry in warned],
         "invalid_timestamp_sample_count": len(invalid_timestamp_samples),
         "invalid_timestamp_samples": invalid_timestamp_samples,
         "entries": audit_entries,
@@ -221,6 +266,7 @@ def main() -> None:
                 "status": status,
                 "accepted_count": payload["accepted_count"],
                 "rejected_count": payload["rejected_count"],
+                "warning_count": payload["warning_count"],
                 "invalid_timestamp_sample_count": len(invalid_timestamp_samples),
                 "output": str(args.output),
                 "output_sha256": sha256(args.output),
@@ -230,7 +276,7 @@ def main() -> None:
         ),
         flush=True,
     )
-    if status != "PASS":
+    if status == "FAIL":
         raise SystemExit(2)
 
 
