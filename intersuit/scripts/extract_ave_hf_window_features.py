@@ -63,6 +63,8 @@ class FeatureRecord:
     youtube_id: str
     split: str
     label: str | None
+    canonical_label: str | None
+    supervision_level: str
     start_seconds: float | None
     audio_feature_path: str
     video_feature_path: str
@@ -73,6 +75,7 @@ class FeatureRecord:
     window_end: float
     audio_embedding_dim: int
     video_embedding_dim: int
+    valid_sample_counts: list[int]
 
 
 def load_jsonl(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
@@ -136,7 +139,21 @@ def save_audio_feature(
     youtube_id = str(row["youtube_id"])
     audio_path = Path(row["audio_path"])
     waveform, sample_rate = load_wav_mono(audio_path, target_sample_rate=16000)
-    windows, timestamps = avut_beats.window_condition(waveform, sample_rate, window_sec, hop_sec)
+    from intersuit.streaming.audio_stream import split_audio_windows, stack_audio_windows
+
+    window_records = split_audio_windows(
+        waveform,
+        sample_rate=sample_rate,
+        window_sec=window_sec,
+        hop_sec=hop_sec,
+        pad_short=True,
+    )
+    windows, timestamps = stack_audio_windows(window_records)
+    avut_beats.validate_windows(windows, timestamps)
+    valid_sample_counts = torch.tensor(
+        [window.valid_sample_count for window in window_records],
+        dtype=torch.long,
+    )
     embeddings = encoder.encode_windows(windows)
     if embeddings.shape[0] != timestamps.shape[0]:
         raise ValueError(f"{youtube_id} BEATs 输出窗口数不一致")
@@ -159,12 +176,15 @@ def save_audio_feature(
         "embedding_dim": int(embeddings.shape[1]),
         "label": row.get("label"),
         "start_seconds": row.get("start_seconds"),
+        "tail_padding": "right_zero_padding",
+        "valid_sample_count_required": True,
     }
     torch.save(
         {
             "sample_id": youtube_id,
             "condition": "original",
             "timestamps": timestamps.cpu(),
+            "valid_sample_count": valid_sample_counts,
             "audio_embedding": embeddings.cpu(),
             "metadata": metadata,
         },
@@ -172,6 +192,26 @@ def save_audio_feature(
     )
     window_count, _, _ = validate_payload(out_path, "audio_embedding")
     return out_path, timestamps, window_count
+
+
+def load_valid_sample_counts(
+    path: Path,
+    window_count: int,
+    *,
+    required: bool,
+) -> list[int]:
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    values = payload.get("valid_sample_count")
+    if values is None:
+        if required:
+            raise ValueError(f"正式特征缺少 valid_sample_count：{path}")
+        return []
+    values = torch.as_tensor(values, dtype=torch.long)
+    if values.shape != (window_count,):
+        raise ValueError(f"valid_sample_count 与窗口数不一致：{path}")
+    if (values <= 0).any():
+        raise ValueError(f"valid_sample_count 必须为正：{path}")
+    return [int(value) for value in values.tolist()]
 
 
 def find_existing_audio_feature(
@@ -328,6 +368,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 row, encoder, output_root, args.window_sec, args.hop_sec
             )
         audio_windows, audio_dim, audio_ts = validate_payload(audio_feature_path, "audio_embedding")
+        valid_sample_counts = load_valid_sample_counts(
+            audio_feature_path,
+            audio_windows,
+            required=args.require_valid_sample_count,
+        )
         if args.skip_rgb_video_features:
             video_feature_path_text = ""
             video_dim_for_record = 0
@@ -354,8 +399,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 dataset="AVE_HF",
                 sample_id=str(row["youtube_id"]),
                 youtube_id=str(row["youtube_id"]),
-                split=str(row.get("split", "train")),
+                split=str(row.get("diagnostic_split") or row.get("split", "train")),
                 label=row.get("label"),
+                canonical_label=row.get("canonical_label"),
+                supervision_level=str(row.get("supervision_level") or "clip"),
                 start_seconds=row.get("start_seconds"),
                 audio_feature_path=str(audio_feature_path),
                 video_feature_path=video_feature_path_text,
@@ -366,6 +413,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 window_end=float(audio_ts[-1, 1].item()),
                 audio_embedding_dim=audio_dim,
                 video_embedding_dim=video_dim_for_record,
+                valid_sample_counts=valid_sample_counts,
             )
         )
 
@@ -396,6 +444,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "window_count_counts": {str(key): value for key, value in sorted(window_counts.items())},
         "finite_check_passed": True,
         "timestamp_check_passed": timestamp_check_passed,
+        "valid_sample_count_check_passed": all(
+            len(record.valid_sample_counts) == record.window_count for record in records
+        ),
         "gate_or_dynamic_window_modified": False,
         "paths": {
             "feature_manifest": str(output_root / "ave_hf_window_feature_manifest.jsonl"),
@@ -439,6 +490,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-rgb-video-features",
         action="store_true",
         help="只提取 BEATs 音频窗口特征并保留 manifest，视频语义特征由独立 CLIP 脚本生成。",
+    )
+    parser.add_argument(
+        "--require-valid-sample-count",
+        action="store_true",
+        help="正式 R1 契约：要求每个窗口保存精确的 valid_sample_count，缺失时 fail-closed。",
     )
     return parser
 

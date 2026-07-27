@@ -73,3 +73,35 @@ def test_find_existing_audio_feature_returns_none_when_missing(tmp_path):
     result = features.find_existing_audio_feature({"youtube_id": "missing"}, tmp_path)
 
     assert result is None
+
+
+def test_load_valid_sample_counts_requires_exact_window_count(tmp_path):
+    path = tmp_path / "feature.pt"
+    torch.save(
+        {
+            "audio_embedding": torch.ones(2, 4),
+            "timestamps": torch.tensor([[0.0, 1.0], [1.0, 1.5]]),
+            "valid_sample_count": torch.tensor([16000, 8000]),
+        },
+        path,
+    )
+
+    assert features.load_valid_sample_counts(path, 2, required=True) == [16000, 8000]
+
+
+def test_load_valid_sample_counts_fails_closed_when_required(tmp_path):
+    path = tmp_path / "feature.pt"
+    torch.save(
+        {
+            "audio_embedding": torch.ones(1, 4),
+            "timestamps": torch.tensor([[0.0, 1.0]]),
+        },
+        path,
+    )
+
+    try:
+        features.load_valid_sample_counts(path, 1, required=True)
+    except ValueError as exc:
+        assert "valid_sample_count" in str(exc)
+    else:
+        raise AssertionError("required valid_sample_count must fail closed")
