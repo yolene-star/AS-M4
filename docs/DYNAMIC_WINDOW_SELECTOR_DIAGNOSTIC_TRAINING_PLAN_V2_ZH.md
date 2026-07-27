@@ -30,10 +30,10 @@ LongVALE Oracle 下游效用”，不能否决不依赖 M4 fusion 的 V1 定位�
 
 ```text
 V0 contract/data review: PASS（媒体资格仍按数据集单独判断）
-V1 localization upper bound: ACTIVE（metadata headroom PASS；32-video media pilot PASS；full validation 未运行）
+V1 localization upper bound: PASS（335 个 validation 物理视频全量完成）
 V2 M4 Oracle downstream utility: BLOCKED_BY_AUDIO_PATH
 V3 learned selector: NOT_AUTHORIZED
-audio semantic reconstruction: CONDITIONAL_BLOCKER_REMEDIATION
+audio semantic reconstruction: STOPPED_AT_R2_TARGET_SPACE_FAIL
 ```
 
 主执行入口仍是本计划。音频语义重构计划不是替代路线；只有 V1 证明 Oracle 定位 headroom
@@ -558,7 +558,7 @@ selector_training_allowed: false
 longvale_oracle_utility_allowed: false
 formal_test_allowed: false
 semantic_contrast_allowed: false
-current_route: conditional_audio_semantic_blocker_remediation
+current_route: STOPPED_AT_R2_TARGET_SPACE_FAIL
 ```
 
 ### 12.1 2026-07-27 完整 V1 更新
@@ -572,3 +572,33 @@ Random seed。K=8 与 K=4 均完成双次逐文件一致复现。
 详细冻结 review 见
 `docs/DYNAMIC_SELECTOR_V2_V1_FULL_VALIDATION_REVIEW_ZH.md`。该通过只解锁冻结音频路径
 blocker 修复，不解锁 V2、learned selector、联合训练、Semantic Contrast 或 official test。
+
+### 12.2 2026-07-27 音频语义 blocker 执行更新
+
+条件性音频语义重构已严格执行到首个失败门禁：
+
+```text
+audio_semantic_r0_contract: PASS
+audio_semantic_r1_pilot300: PASS
+audio_semantic_r1_expanded_train_validation: PASS
+audio_semantic_r2_target_space: FAIL
+audio_semantic_r3_projector_training: NOT_AUTHORIZED
+audio_semantic_r4_fusion: NOT_AUTHORIZED
+audio_semantic_r5_downstream_gate: NOT_AUTHORIZED
+current_route: STOPPED_AT_R2_TARGET_SPACE_FAIL
+```
+
+R1 在 AVE_HF_EXPANDED 的 608 train / 196 validation、28 类上证明冻结 raw BEATs
+clip 表示可分：macro Recall@1 与 rank-first 均为 `72.4490%`，margin bootstrap
+95% CI 下界为 `0.021355`，28/28 类 Recall@1 高于随机基线。当前冻结
+scene-audio projector 后的 rank-first 为 `72.9592%`，说明类别结构没有在该线性映射中消失。
+
+R2 使用同一 validation，一次性比较旧 assistant-answer token 均值、canonical label、
+question+canonical answer 和固定 label-description prototype。四者 rank-first 分别为
+`9.6939%`、`8.6735%`、`5.1020%`、`5.1020%`，所有 margin CI 下界均小于 0；
+没有合法目标满足 `rank-first>=0.65`、margin CI 下界大于 0、且相对旧目标提升至少
+10pp 的合取门禁。
+
+因此 blocker 没有修复，V2 LongVALE、R3 projector-only、fusion、learned selector、
+Semantic Contrast 与 official test 继续禁止。详细冻结结论见
+`docs/AUDIO_SEMANTIC_RECONSTRUCTION_R0_R2_EXECUTION_REVIEW_ZH.md`。

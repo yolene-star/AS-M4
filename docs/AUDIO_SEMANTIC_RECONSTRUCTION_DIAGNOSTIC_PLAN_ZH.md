@@ -421,3 +421,30 @@ headroom 通过后，本子计划才授权进入 R0→R1 的离线诊断准备�
 5. 先运行 300 样本正式 contract pilot；
 6. pilot 通过后再为剩余合格媒体提取特征；
 7. 在 R1 decision review 前，不实现 projector 训练、fusion 修改或 selector。
+
+## 10. 2026-07-27 实际执行状态
+
+本子计划已在 Selector V1 全量通过后进入执行，并严格停止于 R2：
+
+```text
+R0: PASS
+R1 pilot300: PASS
+R1 expanded train/validation: PASS
+R2: FAIL
+R3-R6: NOT_AUTHORIZED
+formal_test: NOT_ACCESSED
+training: NOT_PERFORMED
+```
+
+R1 证明冻结 BEATs 表示和当前 scene-audio projector 均保留 clip-level 事件类别结构；
+R2 则证明当前 projector 输出没有与旧 Qwen assistant-answer token 目标或三种预注册合法
+文本目标形成可泛化对齐。没有合法目标通过 `rank-first`、margin CI 和相对旧目标提升的
+合取门禁。
+
+因此执行第 8 节的 R2 停止规则：不得进入 R3 projector-only 训练，不得修改 fusion，
+不得运行 gate sweep、selector 或 V2 LongVALE。后续若要继续，必须先提出新的、可资格
+审查的音频语义目标（例如独立音频文本 encoder），更新计划并重新走 R2；不能用当前失败
+结果授权训练。
+
+完整执行 review：
+`docs/AUDIO_SEMANTIC_RECONSTRUCTION_R0_R2_EXECUTION_REVIEW_ZH.md`。
