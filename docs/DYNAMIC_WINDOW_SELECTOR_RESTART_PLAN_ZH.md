@@ -2,6 +2,10 @@
 
 日期：2026-07-25（Asia/Shanghai）
 
+主线更新：2026-07-28（Asia/Shanghai）
+
+计划版本：`restart v1.1 + OpenFLAM fallback`
+
 ## 1. 当前状态与目标
 
 AVE 官方 D1 已按原计划一次性执行，正式结论为 `test_failed`：Oracle 与五个 Random seed 的 Hit@4 差值为 `8.8571pp`，低于预注册的 `10pp` 门槛。该结论永久冻结，不因本计划改变。
@@ -12,6 +16,10 @@ AVE 官方 D1 已按原计划一次性执行，正式结论为 `test_failed`：O
 2. 已知正确音频事件窗口是否能改善冻结 M4 的下游事件描述，再决定是否值得训练 question-conditioned selector。
 
 在 N0 数据适配门禁通过以前，禁止下载新媒体、提取特征、运行模型预测、访问任何新 test 或训练 selector。
+
+截至 2026-07-28，N0 已按第 11 节冻结为 `N0_failed_stop_before_N1`。因此 LongVALE /
+UnAV-100 selector 重启路线已经停止，N1–N3 未获授权。当前主线动作改为第 12 节定义的
+OpenFLAM 音频语义修复分支；该分支不是 N1 的替代实现，也不能反向追认 AVE D1 或 N0 通过。
 
 ## 2. 永久冻结边界
 
@@ -24,13 +32,15 @@ AVE 官方 D1 已按原计划一次性执行，正式结论为 `test_failed`：O
 - 任何新数据集都必须重新生成来源、split、物理视频 ID、窗口 schema、媒体 SHA 和污染审计；
 - 新路线不能把新数据集的结果与 AVE 指标加权成一个总分，也不能用新结果追认 AVE D1 通过。
 
-当前本地盘点未发现 LongVALE 或 UnAV-100 的官方标注、split、特征或媒体目录。已有的 AVQA 分片、AVE 和历史 AS-M4 资产不满足本路线的替代条件。
+计划启动时的本地盘点未发现 LongVALE 或 UnAV-100 的官方标注、split、特征或媒体目录；
+随后 N0 只取得并审计了第 11 节记录的官方轻量标注元数据，仍未下载媒体或特征。已有的
+AVQA 分片、AVE 和历史 AS-M4 资产不满足本路线的替代条件。
 
 ## 3. 阶段与停止关系
 
 ```text
 N0 元数据与动态范围审计
-  ├─ fail：停止新路线，保留 D1 失败
+  ├─ fail：停止 selector 新路线，保留 D1 失败；只允许转入第 12 节音频语义修复
   └─ pass
        ↓
 N1 官方 train/validation 窗口诊断
@@ -185,14 +195,16 @@ N3 confirm 只运行预注册的缩减矩阵。正式通过必须同时满足：
 
 - Random seed 固定为 `20260720`–`20260724`；
 - bootstrap 固定 `10000` 次、seed `20260724`，按物理视频 cluster 重采样；
-- 所有 Python 命令使用 `conda run -n M4`；
+- N0–N3 selector 路线与后续学生/M4 操作使用 `conda run -n M4`；
+- 第 12 节 OpenFLAM 教师推理只使用隔离的 `openflam_teacher` 环境，并通过磁盘 tensor/JSON
+  与 M4 交换；禁止在 `M4` 环境安装 OpenFLAM 依赖；
 - 所有 GPU 命令显式设置 `CUDA_VISIBLE_DEVICES`；
 - N0 不使用 GPU；N1 之前不下载媒体；
 - test 访问前冻结 runner、manifest、配置、prompt、scorer 和资产资格；
 - checkpoint、媒体、数据集、特征、缓存、预测和日志不得加入 Git；
 - 每阶段结束执行 contract、数据/test、指标公平性、运行产物和 Git 范围 review。
 
-## 10. 产物与当前首个动作
+## 10. N0 产物与历史首个动作
 
 独立产物目录固定为：
 
@@ -203,7 +215,7 @@ intersuit/harness/artifacts/dynamic_selector_restart_n2/
 intersuit/harness/artifacts/dynamic_selector_restart_n3/
 ```
 
-当前首个动作只应生成 N0 的：
+N0 执行前冻结的首个动作只生成：
 
 - `candidate_sources.json`；
 - `metadata_manifest.jsonl`；
@@ -212,7 +224,8 @@ intersuit/harness/artifacts/dynamic_selector_restart_n3/
 - 中文 `report.md`；
 - `review.md`。
 
-在这些产物通过 `review_passed` 前，不得创建 N1 目录中的预测或特征资产。
+这些产物已形成第 11 节的冻结失败结论，因此不得创建 N1 目录中的预测或特征资产。当前
+获准动作已经切换为第 12.5 节的 OpenFLAM A1 轻量资产审计。
 
 ## 11. N0 冻结结果
 
@@ -227,3 +240,211 @@ N0 已使用官方 LongVALE annotation JSON 和 UnAV-100 annotation parquet 完�
 - AVQA 本地分片尚未形成可审计的完整物理 ID 清单，因此跨 AVQA 污染审计未完成；该缺口不改变两个候选已先在动态范围门禁失败的结论。
 
 当前决策：`N0_failed_stop_before_N1`。禁止下载 LongVALE/UnAV-100 媒体、运行 N1、运行冻结 M4 预测或训练 selector。若未来要只研究低事件占比子群，必须另立新计划和独立数据边界，不能事后修改本次 N0 的全分层门槛。
+
+## 12. N0 失败后的 OpenFLAM 音频语义修复主线
+
+### 12.1 路线定位
+
+本节落实第 3、6、7 节中的既定回退方向：selector 数据与指标门禁失败后，先修复音频语义
+目标、答案表示和融合位置，再决定是否值得重新研究窗口选择。
+
+OpenFLAM 在这条路线中是**冻结、离线、研究期音频—文本语义教师**，不是 selector 本体：
+
+```text
+OpenFLAM audio encoder: audio -> shared 512-d embedding
+OpenFLAM text encoder: canonical prompt -> shared 512-d embedding
+```
+
+它只用于离线提供事件语义先验和 evaluator。它不得：
+
+- 直接决定最终答案或 question relevance；
+- 把 top-1 事件当作精确伪标签；
+- 把 32 个 local embeddings 自动解释成 32 个精确时间窗；
+- 替代 BEATs、M4/Qwen2、视觉塔、fusion、gate 或 selector；
+- 进入正式 M4 推理 graph、正式学生 checkpoint 或在线依赖；
+- 因回顾性指标较高而直接授权 projector、bridge、fusion、gate 或 selector 训练。
+
+正式推理仍只保留 BEATs、合格的学生 projector/bridge 和后续单独获准的窗口策略。
+
+OpenFLAM 的详细执行契约位于分支 `codex/openflam-teacher`：
+
+```text
+docs/OPENFLAM_AUDIO_SEMANTIC_TEACHER_ADAPTATION_PLAN_ZH.md
+基线 commit: d6f5154
+```
+
+该分支的低层工程锁、预处理和教师指标服从其阶段 `decision.json`；本文件负责冻结它与
+Dynamic Window Selector 主线的关系和返回条件。任何 OpenFLAM 结果都不能改写本文件第 1、
+2、11 节的历史结论。
+
+### 12.2 当前已完成证据与正式状态
+
+截至本次更新：
+
+```text
+OpenFLAM 独立环境与官方资产锁：PASS
+CPU T0 冻结推理：PASS
+O-T0H 源码等价、完整 state_dict、local scorer：PASS
+纯 CUDA 音频前端：FAIL，禁止正式提取
+CPU 音频前端 + GPU HTSAT/投影：PASS，已锁定
+同一已消费 AVE validation 上相对 CLAP：+17.3469pp，回顾性胜出
+正式未泄漏教师资格：NOT_QUALIFIED
+学生训练：未授权
+test_locked：未访问
+```
+
+回顾性 AVE 比较只允许把 OpenFLAM 定为下一轮主候选，不能写成正式教师 PASS。原因是 AVE
+来自 AudioSet，而公开 OpenFLAM 使用 AudioSet 派生数据和 AudioSet Strong 训练；官方没有
+提供完整训练 physical media manifest，预训练物理重叠只能记为 `UNKNOWN_POSSIBLE`。
+
+当前冻结状态为：
+
+```text
+candidate_selection_status = RETROSPECTIVE_WINNER
+formal_teacher_qualification_status = NOT_QUALIFIED
+student_training_authorized = false
+selector_training_authorized = false
+```
+
+### 12.3 三类数据必须分开
+
+后续不得再用“新数据”同时指教师考试、学生训练和 selector 评测。三类数据的职责固定为：
+
+#### A. 教师资格数据
+
+只用于冻结 OpenFLAM 推理和 PASS/FAIL，不训练任何参数：
+
+```text
+Q-general
+  -> 教师公开预训练来源外的通用音频语义、置信度和真实时间定位资格
+
+Q-target
+  -> 非 AudioSet 来源、接近 AS-M4 目标域的新媒体迁移资格
+```
+
+`Q-general` 与 `Q-target` 必须物理隔离、分别一次性评估，并同时通过 clip 语义与置信度
+门禁，才能授权学生 clip projector。若要使用 local/window 教师目标，还必须有独立真实
+segment 时间标注并通过时序门禁。
+
+ASFX-SED 目前只能作为 `Q-general` 的元数据审计候选，不是已批准数据集。必须先证明其
+具体公开版本、许可证、媒体来源和 OpenFLAM 公开训练源不存在 dataset-level 冲突；无法证明
+时必须更换。`Q-target` 当前尚未选定来源。
+
+以下资产不得改名或重切后冒充新教师资格集：
+
+- AVE、AVE_HF、原 196 条 validation 与 `test_locked`；
+- 已参与教师开发的 524 development 和 84 confirm；
+- LongVALE / UnAV-100（其 selector N0 失败结论与用途永久冻结）；
+- AVQA、AVUT、MUSIC-AVQA、AS_M4_STAGE2、dev760 和已观察历史 harness。
+
+#### B. 学生训练数据
+
+只有教师资格通过后才允许建立。它用于训练 BEATs 后的 semantic projector、scene-audio
+bridge 或其他明确白名单模块。OpenFLAM 始终冻结，优先离线预计算目标，不参与反向传播。
+
+学生训练集不得与 `Q-general`、`Q-target` 的正式 qualification/confirm 物理重叠，也不得
+把教师资格集同时用于阈值选择、早停和正式报告。低置信 teacher audio target 必须拒绝或
+降权；canonical text prototype、teacher clip relational target 和 local/window target
+必须按教师能力锁分别授权。
+
+#### C. Selector 返回评测数据
+
+只有音频语义链通过第 12.4 节的下游因果效用门禁后，才能另立计划寻找。它仍需重新执行
+类似 N0 的动态范围、污染、timestamp、caption 和 Oracle headroom 审计。不得自动复用
+LongVALE、UnAV-100 或教师资格数据，也不得把教师资格 PASS 当成 selector 数据适配 PASS。
+
+### 12.4 阶段与逐级授权
+
+后续固定为：
+
+```text
+A0 OpenFLAM O-T0/T0H 工程资格
+  -> 已完成 PASS，但不授权训练
+
+A1 Q-general / Q-target 元数据、许可证、预训练源和 split 审计
+  ├─ 任一轴无合法资产：formal NOT_QUALIFIED，停止学生训练
+  └─ 两轴资产锁定
+       ↓
+A2 OpenFLAM O-T1/T2 正式教师资格
+  ├─ 任一轴 clip/T2C FAIL：淘汰或停止教师路线
+  ├─ clip/T2C PASS、window FAIL/NOT_QUALIFIED：只允许 clip/text + MIL
+  └─ clip/T2C/window PASS：允许申请 clip + local/window 目标
+       ↓
+A3 BEATs 学生 semantic projector（O-R3C/R3W）
+  ├─ FAIL：停止 bridge/fusion/selector
+  └─ PASS
+       ↓
+A4 scene-audio token 与 Qwen bridge（O-R4E/R4B）
+  ├─ contract/目标 FAIL：停止下游接入
+  └─ PASS
+       ↓
+A5 下游因果效用（O-R5）
+  ├─ correct audio 不优于 mismatch/shift/silence：停止 selector
+  └─ 音频语义产生稳定、可归因的回答收益
+       ↓
+A6 返回 selector 的 Oracle 资格
+  -> 另立新数据与新 N0/N1/N2/N3 计划
+  -> Oracle PASS 后才允许讨论 learned question-conditioned selector
+```
+
+授权约束：
+
+1. A0 PASS 只说明教师工程路径可复现。
+2. 只有 `Q-general PASS AND Q-target PASS` 才能授权 O-R3C。
+3. O-T2W 失败时禁止 teacher local/window embedding，但不自动否定已通过的 clip/text 路线。
+4. O-R3C/R3W PASS 只证明学生表征可学，不能证明 Qwen 会使用 audio token。
+5. O-R4E/R4B PASS 只证明接口与显式目标成立，不能证明回答质量受益。
+6. O-R5 必须包含 correct、mismatch、shift、silence、text-only 和 All audio 对照；只有
+   correct audio 的配对收益稳定为正，才允许进入 A6。
+7. A6 必须重新审计数据动态范围和 Oracle headroom，不能恢复本次失败的 N1–N3。
+
+### 12.5 当前唯一获准动作
+
+当前只授权 A1 的**轻量资产审计与计划冻结**，不授权下载全量媒体或运行 OpenFLAM 正式
+qualification。首批标准产物目录固定为：
+
+```text
+intersuit/harness/artifacts/openflam_teacher_q_asset_audit/
+```
+
+必须先生成：
+
+- `candidate_sources.json`：Q-general/Q-target 官方候选、版本和 URL；
+- `license_and_usage_review.json`：许可证、研究/发布边界；
+- `teacher_pretraining_source_exclusion.json`：与 OpenFLAM 公开训练数据源的排除审计；
+- `ontology_mapping_proposal.json`：事件标签、同义词、不可映射类别；
+- `physical_overlap_audit_plan.json`：与所有历史媒体的 ID/SHA 审计方法；
+- `split_and_power_proposal.json`：development/qualification/confirm 与统计功效；
+- `decision.json`、中文 `report.md` 和 `review.md`。
+
+只有上述元数据 review 输出 `asset_metadata_review_passed`，才允许另行批准下载对应开发和
+资格媒体。下载后仍需媒体 SHA、解码、时长、真实 segment 和物理重叠审计，不能凭项目页
+描述直接运行教师。
+
+当前禁止：
+
+- 访问 AVE/旧 validation/test_locked 继续调 OpenFLAM；
+- 训练 OpenFLAM、BEATs projector、bridge、fusion、gate 或 selector；
+- 把 OpenFLAM 事件相似度当作 question relevance；
+- 因回顾性 `+17.3469pp` 调低资格门槛；
+- 下载 LongVALE/UnAV-100 媒体或恢复 N1；
+- 创建 learned selector 训练配置。
+
+### 12.6 停止与回退
+
+| 失败位置 | 必须停止 | 允许返回 |
+| --- | --- | --- |
+| A1 无合法 Q-general/Q-target | 全部学生训练 | 新来源元数据审计 |
+| A2 clip 或 T2C FAIL | projector/bridge/fusion/selector | development 根因分析；不得复用同一 qualification 调门槛 |
+| A2 window FAIL/NOT_QUALIFIED | local/window teacher | clip/text prototype + MIL |
+| A3 projector FAIL | bridge 与下游接入 | projector 目标和数据粒度 |
+| A4 token/bridge FAIL | fusion 与 selector | contract、答案表示和显式目标 |
+| A5 无因果收益 | selector 全路线 | 音频目标、答案表示和融合位置 |
+| A6 新数据 N0/Oracle FAIL | learned selector | 新的独立研究问题，不追认历史结果 |
+
+任何阶段失败都必须保留行为回退：`enable_scene_audio=0` 时插入 0 个 scene-audio token；
+权重回退必须显式加载保留的 12k/32k no-freeze 基线，不能用“冻结参数”冒充恢复旧权重。
+
+许可证边界同样是硬停止条件。OpenFLAM 采用 Adobe Research License，仅限非商业研究；
+OpenFLAM 特征、蒸馏学生权重和相关 checkpoint 在独立许可证 review 前统一标记
+`research_only_noncommercial`，不得混入商业发布包。
