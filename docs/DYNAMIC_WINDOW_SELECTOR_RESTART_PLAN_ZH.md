@@ -457,11 +457,39 @@ student_training_authorized = false
 selector_training_authorized = false
 ```
 
-这只解除“没有合法候选”的 blocker，不构成 `Q-general PASS` 或 `Q-target PASS`。下一动作
-必须由主线单独授权后，才可下载冻结的 STARSS23 FOA development audio 和 EPIC-SOUNDS
-预注册视频子集。下载后先做官方媒体 ID、原始 SHA256、确定性解码 waveform SHA256、时长、
-真实 segment、许可证和 qualification/confirm 零物理重叠审计；这些通过后仍需单独授权
-A2 正式教师资格，不能凭项目页描述或 A1 元数据结果直接运行 OpenFLAM。
+这个 A1 decision 只解除“没有合法候选”的 blocker，不构成 `Q-general PASS` 或
+`Q-target PASS`。它规定主线单独授权后才可下载冻结媒体；下载后仍须先做官方媒体 ID、
+原始 SHA256、确定性解码 waveform SHA256、时长、真实 segment、许可证和
+qualification/confirm 零物理重叠审计。上述审计通过后仍需单独授权 A2 正式教师资格，
+不能凭项目页描述或 A1 元数据结果直接运行 OpenFLAM。
+
+2026-07-28 获准继续后的 A1.5 媒体预检状态为：
+
+```text
+STARSS23 foa_dev.zip：
+  3406085425 bytes
+  official MD5 316b834ee6393c22862c314cc3c7ebb0 = PASS
+  local SHA256 b8a4a51409982bd567529f06bd37399f6b404cdf035cb7adce52eb32d12bc81b
+  ZIP full CRC = PASS，168 WAV
+  原始 archive 已锁；尚未解压、解码或运行教师
+
+EPIC-SOUNDS 632 个对应官方视频：
+  development = 495 files / 866.995 GiB
+  qualification = 75 files / 93.944 GiB
+  confirm = 62 files / 77.198 GiB
+  total = 1114690667253 bytes / 1038.137 GiB
+  632/632 均有官方 URL 和 MD5
+  当前磁盘可用约 1007 GiB
+  status = capacity_preflight_blocked
+  downloaded EPIC videos = 0
+```
+
+完整 EPIC 原视频本地并存会超过当前空闲盘，且没有训练和运行余量，禁止强行下载。主线需
+先在以下方案中另行冻结一个：推荐方案是 qualification/confirm 原视频保留，development
+逐视频完成官方 MD5 后抽取 24 kHz 音频、记录 waveform SHA256，再删除已验证 MP4；备选是
+取得官方 EPIC-SOUNDS HDF5 并完成来源/checksum/索引等价审计，或提供带安全余量的额外
+存储。流式方案属于执行契约变更，必须先实现可恢复事务、失败原子性、最低磁盘余量和重解码
+一致性测试，不能在本轮临时拼接命令直接执行。
 
 当前禁止：
 
