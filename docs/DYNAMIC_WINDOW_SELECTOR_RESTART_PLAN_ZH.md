@@ -326,9 +326,10 @@ Q-target
 门禁，才能授权学生 clip projector。若要使用 local/window 教师目标，还必须有独立真实
 segment 时间标注并通过时序门禁。
 
-ASFX-SED 目前只能作为 `Q-general` 的元数据审计候选，不是已批准数据集。必须先证明其
-具体公开版本、许可证、媒体来源和 OpenFLAM 公开训练源不存在 dataset-level 冲突；无法证明
-时必须更换。`Q-target` 当前尚未选定来源。
+ASFX-SED 已在 A1 轻量审计中排除，不得作为 `Q-general`。FLAM 论文虽然声明其
+event/background 在训练时未见，但同一论文已经用它报告主表、检索、消融、阈值曲线和附录
+结果；它属于教师作者已经消费的评测 benchmark，不是新的独立资格考试。`Q-general` 替代
+来源和 `Q-target` 当前都尚未选定。
 
 以下资产不得改名或重切后冒充新教师资格集：
 
