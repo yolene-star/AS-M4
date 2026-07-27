@@ -224,8 +224,8 @@ N0 执行前冻结的首个动作只生成：
 - 中文 `report.md`；
 - `review.md`。
 
-这些产物已形成第 11 节的冻结失败结论，因此不得创建 N1 目录中的预测或特征资产。当前
-获准动作已经切换为第 12.5 节的 OpenFLAM A1 轻量资产审计。
+这些产物已形成第 11 节的冻结失败结论，因此不得创建 N1 目录中的预测或特征资产。
+第 12.5 节的 OpenFLAM A1 轻量资产审计也已完成；当前停止在媒体下载授权前。
 
 ## 11. N0 冻结结果
 
@@ -271,6 +271,7 @@ OpenFLAM 的详细执行契约位于分支 `codex/openflam-teacher`：
 ```text
 docs/OPENFLAM_AUDIO_SEMANTIC_TEACHER_ADAPTATION_PLAN_ZH.md
 基线 commit: d6f5154
+A1 元数据资格 commit: 41c639f
 ```
 
 该分支的低层工程锁、预处理和教师指标服从其阶段 `decision.json`；本文件负责冻结它与
@@ -288,6 +289,7 @@ O-T0H 源码等价、完整 state_dict、local scorer：PASS
 纯 CUDA 音频前端：FAIL，禁止正式提取
 CPU 音频前端 + GPU HTSAT/投影：PASS，已锁定
 同一已消费 AVE validation 上相对 CLAP：+17.3469pp，回顾性胜出
+A1 双轴轻量元数据审计：PASS，停止在媒体下载前
 正式未泄漏教师资格：NOT_QUALIFIED
 学生训练：未授权
 test_locked：未访问
@@ -301,6 +303,7 @@ test_locked：未访问
 
 ```text
 candidate_selection_status = RETROSPECTIVE_WINNER
+A1_asset_metadata_status = PASSED_STOP_BEFORE_MEDIA
 formal_teacher_qualification_status = NOT_QUALIFIED
 student_training_authorized = false
 selector_training_authorized = false
@@ -328,8 +331,32 @@ segment 时间标注并通过时序门禁。
 
 ASFX-SED 已在 A1 轻量审计中排除，不得作为 `Q-general`。FLAM 论文虽然声明其
 event/background 在训练时未见，但同一论文已经用它报告主表、检索、消融、阈值曲线和附录
-结果；它属于教师作者已经消费的评测 benchmark，不是新的独立资格考试。`Q-general` 替代
-来源和 `Q-target` 当前都尚未选定。
+结果；它属于教师作者已经消费的评测 benchmark，不是新的独立资格考试。
+
+2026-07-28 已在任何正式教师推理前冻结两套替代资产：
+
+```text
+Q-general = STARSS23 v1.1.0，MIT
+  metadata SHA256 =
+    2fa848545a520b4a9d490459de7f079aa49ae16daf0affc859c016f5146981d6
+  development = 官方 dev-train，90 clips
+  qualification = rooms 2/10/16/23，43 clips
+  confirm = rooms 8/15/24，35 clips
+  13 类真实 100 ms 强标注；class 0..10 为硬门槛，11/12 只诊断
+
+Q-target = EPIC-SOUNDS commit 57a922f...，CC BY-NC 4.0
+  annotation SHA256 =
+    eec068f121a52602f285f3aa888029d8cabe1b667ed90ab8f99db5226a7ce3f2
+  development = 官方 train，495 videos / 60055 events
+  qualification = validation video hash 偶数侧，75 videos / 4402 events
+  confirm = validation video hash 奇数侧，62 videos / 3633 events
+  两侧 video overlap = 0；18 个足量类别为硬门槛，其余只诊断
+```
+
+EPIC-SOUNDS 的冻结规则是 `sha256("20260728:" + video_id) % 2`。两套来源均不在
+OpenFLAM 已声明训练源和 FLAM 论文/仓库评测表中，物理来源也不同；但官方 README 使用
+`including` 且未公开逐媒体训练 manifest，所以只能写“无已声明 dataset-level 重叠”，
+未声明训练重叠仍为 `not independently verifiable`，不能宣称绝对零风险。
 
 以下资产不得改名或重切后冒充新教师资格集：
 
@@ -399,16 +426,15 @@ A6 返回 selector 的 Oracle 资格
    correct audio 的配对收益稳定为正，才允许进入 A6。
 7. A6 必须重新审计数据动态范围和 Oracle headroom，不能恢复本次失败的 N1–N3。
 
-### 12.5 当前唯一获准动作
+### 12.5 当前停止点与下一动作
 
-当前只授权 A1 的**轻量资产审计与计划冻结**，不授权下载全量媒体或运行 OpenFLAM 正式
-qualification。首批标准产物目录固定为：
+A1 的轻量资产审计与计划冻结已完成，标准产物目录为：
 
 ```text
 intersuit/harness/artifacts/openflam_teacher_q_asset_audit/
 ```
 
-必须先生成：
+已生成：
 
 - `candidate_sources.json`：Q-general/Q-target 官方候选、版本和 URL；
 - `license_and_usage_review.json`：许可证、研究/发布边界；
@@ -418,9 +444,24 @@ intersuit/harness/artifacts/openflam_teacher_q_asset_audit/
 - `split_and_power_proposal.json`：development/qualification/confirm 与统计功效；
 - `decision.json`、中文 `report.md` 和 `review.md`。
 
-只有上述元数据 review 输出 `asset_metadata_review_passed`，才允许另行批准下载对应开发和
-资格媒体。下载后仍需媒体 SHA、解码、时长、真实 segment 和物理重叠审计，不能凭项目页
-描述直接运行教师。
+当前 decision 已输出：
+
+```text
+status = asset_metadata_review_passed_stop_before_media
+asset_metadata_review_passed = true
+q_general_metadata_locked = true
+q_target_metadata_locked = true
+media_download_authorized = false
+formal_teacher_qualification_authorized = false
+student_training_authorized = false
+selector_training_authorized = false
+```
+
+这只解除“没有合法候选”的 blocker，不构成 `Q-general PASS` 或 `Q-target PASS`。下一动作
+必须由主线单独授权后，才可下载冻结的 STARSS23 FOA development audio 和 EPIC-SOUNDS
+预注册视频子集。下载后先做官方媒体 ID、原始 SHA256、确定性解码 waveform SHA256、时长、
+真实 segment、许可证和 qualification/confirm 零物理重叠审计；这些通过后仍需单独授权
+A2 正式教师资格，不能凭项目页描述或 A1 元数据结果直接运行 OpenFLAM。
 
 当前禁止：
 
