@@ -509,7 +509,19 @@ P03_15 完整 canary：
 本次范围，不得下载或访问。任一 worker 失败时不再派发新视频，保留 `.part` 或已验证源
 文件供恢复。
 
-当前长期下载受 Bristol 单连接限速影响，已从 4 workers 安全断点切换到 8 workers。
+首轮长期下载受 Bristol 单连接限速影响，已从 4 workers 安全断点切换到 8 workers；
+当时 30 秒采样为 4.50 MiB/s、ETA 约 2 天 17 小时。该 transient service 随后于
+2026-07-28 06:02 因读取超时且没有重试而停止在 16/632。
+
+OpenFLAM 分支已用 commit `4d3275b` 增加断点网络重试、提前 EOF 检测、失败视频账本和
+受限自动重启 unit，并用 commit `fddf04b` 改为 `HTTPResponse.read1()` 增量落盘。
+31 项 OpenFLAM CPU 测试和官方 `P01_01` 最后 1 字节真实 Range canary 通过。持久
+8-worker service 于 18:36:15 恢复后保持 `active/running`，三路真实超时均从原断点
+自动重试，没有触发服务重启。两次 20 秒聚合速度为 175.98 KiB/s 和 168.78 KiB/s；
+独立官方源 1 MiB Range 探针也只有约 19.7 KiB/s，说明当前约 70–73 天的瞬时 ETA
+来自 Bristol 官方源/链路限速，不是 Python 下载器再次停滞。不得为了追求速度违反冻结
+协议增加 worker 或切换到未审计来源。
+
 `intersuit/scripts/watch_epic_sounds_progress.py` 显示已验证 HDF5 数量、精确总源视频字节
 百分比、聚合实时速度、每路速度和 ETA。服务运行只说明媒体准备已开始，不构成 Q-target
 媒体 PASS；必须等最终 HDF5 key 集合、dtype、样本数、SHA、标注索引和 split 零重叠审计
