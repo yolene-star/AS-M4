@@ -522,6 +522,14 @@ OpenFLAM 分支已用 commit `4d3275b` 增加断点网络重试、提前 EOF 检
 来自 Bristol 官方源/链路限速，不是 Python 下载器再次停滞。不得为了追求速度违反冻结
 协议增加 worker 或切换到未审计来源。
 
+2026-07-28 19:52 在用户明确要求后，下载源仍保持同一 Bristol 官方 URL 和官方 MD5
+门禁，仅把传输出口从本机直连切换为显式 Mihomo mixed proxy
+`http://127.0.0.1:7890`。下载器新增 `--proxy-url`，不读取继承的代理环境变量；8 个
+既有 `.part` 均从原字节位置续传。Mihomo 单连接 1 MiB Range 探针约 210.7 KiB/s，
+切换后的两轮 8-worker 聚合采样分别约 4.19 MiB/s 和 4.28 MiB/s，瞬时 ETA 降至约
+2 天 19–20 小时。服务保持 `active/running`、`NRestarts=0`，Python 下载连接只到
+本机 `127.0.0.1:7890`；代理切换没有改变媒体来源、MD5、解码或 HDF5 验证契约。
+
 `intersuit/scripts/watch_epic_sounds_progress.py` 显示已验证 HDF5 数量、精确总源视频字节
 百分比、聚合实时速度、每路速度和 ETA。服务运行只说明媒体准备已开始，不构成 Q-target
 媒体 PASS；必须等最终 HDF5 key 集合、dtype、样本数、SHA、标注索引和 split 零重叠审计
