@@ -530,6 +530,14 @@ OpenFLAM 分支已用 commit `4d3275b` 增加断点网络重试、提前 EOF 检
 2 天 19–20 小时。服务保持 `active/running`、`NRestarts=0`，Python 下载连接只到
 本机 `127.0.0.1:7890`；代理切换没有改变媒体来源、MD5、解码或 HDF5 验证契约。
 
+2026-07-29 发现原有“单视频 5 次瞬态重试 + 任一 worker 失败后停止派发”的组合会在
+Mihomo 长连接偶发提前 EOF 时逐步耗尽 worker：`P02_09`、`P02_109`、`P01_18`
+耗尽重试后，联网 worker 一度只剩 2 路，聚合速度约 1.14 MiB/s。commit `0d28a7f`
+把 `--download-retries -1` 定义为仅对 Timeout、提前 EOF、连接错误和可重试 HTTP
+状态进行无限断点重试；404、其他非瞬态错误和最终 MD5 不匹配仍会失败。无损重启后
+8 条代理连接恢复，8 个 `.part` 同时增长，聚合约 4.48 MiB/s，瞬时 ETA 约 2 天
+11 小时。
+
 `intersuit/scripts/watch_epic_sounds_progress.py` 显示已验证 HDF5 数量、精确总源视频字节
 百分比、聚合实时速度、每路速度和 ETA。服务运行只说明媒体准备已开始，不构成 Q-target
 媒体 PASS；必须等最终 HDF5 key 集合、dtype、样本数、SHA、标注索引和 split 零重叠审计
