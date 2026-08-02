@@ -2,9 +2,9 @@
 
 日期：2026-07-25（Asia/Shanghai）
 
-主线更新：2026-07-28（Asia/Shanghai）
+主线更新：2026-08-02（Asia/Shanghai）
 
-计划版本：`restart v1.1 + OpenFLAM fallback`
+计划版本：`restart v1.2 + OpenFLAM multi-domain fallback`
 
 ## 1. 当前状态与目标
 
@@ -294,8 +294,11 @@ O-T0H 源码等价、完整 state_dict、local scorer：PASS
 CPU 音频前端 + GPU HTSAT/投影：PASS，已锁定
 同一已消费 AVE validation 上相对 CLAP：+17.3469pp，回顾性胜出
 A1 双轴轻量元数据审计：PASS
-A1.6 EPIC-SOUNDS 流式 HDF5 canary：PASS，全量媒体准备运行中
-正式未泄漏教师资格：NOT_QUALIFIED
+A1.6/A1.8 正式媒体与 teacher view：PASS
+Q-general / STARSS23 clip + T2C：PASS
+Q-target / EPIC-SOUNDS clip + T2C：FAIL
+v1.1 双轴正式聚合：TEACHER_REJECTED
+v1.2 核心多域资格：NOT_QUALIFIED，等待全新 A1-MD 资产审计
 学生训练：未授权
 test_locked：未访问
 ```
@@ -307,9 +310,10 @@ test_locked：未访问
 当前冻结状态为：
 
 ```text
-candidate_selection_status = RETROSPECTIVE_WINNER
-A1_asset_metadata_status = PASSED_STOP_BEFORE_MEDIA
-formal_teacher_qualification_status = NOT_QUALIFIED
+historical_v1_1_decision = TEACHER_REJECTED
+general_capability = PASS
+kitchen_domain_capability = FAIL
+core_multidomain_capability = NOT_QUALIFIED
 student_training_authorized = false
 selector_training_authorized = false
 ```
@@ -570,3 +574,75 @@ Mihomo 长连接偶发提前 EOF 时逐步耗尽 worker：`P02_09`、`P02_109`�
 许可证边界同样是硬停止条件。OpenFLAM 采用 Adobe Research License，仅限非商业研究；
 OpenFLAM 特征、蒸馏学生权重和相关 checkpoint 在独立许可证 review 前统一标记
 `research_only_noncommercial`，不得混入商业发布包。
+
+### 12.7 通用 AS-M4 的多域教师资格修订（v1.2）
+
+本节在 2026-08-02 的 Q-general/Q-target 正式事务完成后新增，因此只约束未来新实验，
+不回顾性修改第 12.2～12.6 节所记录的预注册规则、原始指标或阶段 decision。
+
+用户已明确最终 AS-M4 **不是厨房专用模型**。EPIC-SOUNDS 来自 EPIC-KITCHENS-100 的
+第一视角厨房录音，其 44 类重点是厨房动作、物体交互和材料碰撞。它适合作为厨房域压力
+测试，但不能单独代表通用 AS-M4 的完整目标分布。旧 v1.1 以
+`Q-general PASS AND EPIC Q-target PASS` 作为全局授权条件，所得
+`TEACHER_REJECTED` 仍是该版本下有效且不可改写的历史结论；其可解释范围固定为：
+
+```text
+公开 OpenFLAM：STARSS23 通用语义/置信度 PASS
+公开 OpenFLAM：EPIC-SOUNDS 厨房细粒度域 FAIL
+旧双轴全局授权：TEACHER_REJECTED
+不能外推为：OpenFLAM 在所有通用 AS-M4 场景均无教师价值
+```
+
+未来若重启教师路线，资格结构改为三层：
+
+```text
+Q-general
+  -> 教师预训练来源外的通用声音语义与置信度基础资格
+
+Q-core-multidomain
+  -> 与最终 AS-M4 数据配比一致的多域核心资格
+  -> 至少覆盖：非厨房室内、户外/交通、机械/工具、动物/自然、音乐/人声中的四组
+  -> 每个物理媒体只属于一个 qualification/confirm split
+
+Q-domain-diagnostic
+  -> EPIC-SOUNDS 厨房域及其他专项压力测试
+  -> 产生域级能力锁，不再单独拥有全局否决权
+```
+
+新版授权必须满足：
+
+1. Q-general 保持 PASS，且其资产、输出和历史 decision 不被重新切分或调参；
+2. Q-core-multidomain 使用全新、合法、未被当前开发过程消费的物理媒体，并在任何教师输出
+   前冻结来源、领域构成、类别映射、prompt、门槛、bootstrap、qualification/confirm 和账本；
+3. 每个核心域单独报告 rank-first、macro recall、相对 random/majority 的增益、margin CI、
+   T2C coverage、增强稳定性和物理 cluster 覆盖，禁止只报混合总体均值；
+4. 全局门槛按最终 AS-M4 的冻结任务权重聚合，同时设置域级最低线和 catastrophic-fail 规则；
+   具体数值只能由独立 development split 预注册，不能从 qualification/confirm 结果倒推；
+5. 某个 Q-domain-diagnostic 失败时，只把该域写入 `disallowed_teacher_domains`，禁止为该域
+   生成学生伪标签或宣称教师合格；它不再自动淘汰已通过的通用/核心域能力；
+6. 若某个域属于最终模型的明确核心部署分布，则必须在运行前将其提升为
+   Q-core-multidomain 硬门槛，不能在失败后降级成 diagnostic；
+7. 在新的多域资产、预注册门槛、执行器、聚合器和独立 review 全部完成前，
+   `student_training_authorized=false`，不得仅凭 STARSS23 PASS 直接训练 projector；
+8. 多域教师资格通过只授权限定域内的离线 clip/text relational target。是否接入 AS-M4
+   仍须依次通过 O-R3C、O-R4E/O-R4B 和 correct/mismatch/shift/silence/video-only 的 O-R5
+   下游因果效用门禁。
+
+建议的新状态字段为：
+
+```json
+{
+  "historical_v1_1_decision": "TEACHER_REJECTED",
+  "general_capability": "PASS",
+  "kitchen_domain_capability": "FAIL",
+  "core_multidomain_capability": "NOT_QUALIFIED",
+  "allowed_teacher_domains": [],
+  "disallowed_teacher_domains": ["kitchen_fine_grained_actions"],
+  "student_training_authorized": false,
+  "authorized_next_stage": "A1_MULTIDOMAIN_ASSET_AUDIT"
+}
+```
+
+第 12.3、12.4 和 12.6 节中的“双轴任一失败即全局停止”继续解释旧 v1.1 事务；未来新事务
+以本节的分层、多域、域级白名单规则为准。不得覆盖旧 decision，必须使用新的 run name、
+artifact root、计划版本和 Git commit。
