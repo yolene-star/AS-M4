@@ -39,15 +39,33 @@ def require_hash(path: Path, expected: str) -> None:
 def validate_lock(payload: dict, *, project_root: Path, skip_shards: bool = False) -> dict:
     if payload.get("checkpoint_locked") is not True:
         raise ValueError("checkpoint_locked 必须为 true")
-    if payload.get("oracle_eligible") is not False:
-        raise ValueError("selectivity 门禁前 oracle_eligible 必须为 false")
     gate_status = payload.get("audio_path_selectivity_gate_status")
     if gate_status not in {"pending", "failed", "passed"}:
         raise ValueError("必须显式记录 audio path selectivity gate 状态")
-    if gate_status != "passed" and payload.get("v2_oracle_utility_allowed") is not False:
-        raise ValueError("selectivity gate 未通过时必须禁止 V2 Oracle utility")
-    if gate_status == "passed" and payload.get("oracle_eligible") is not True:
-        raise ValueError("selectivity gate 通过与 oracle_eligible 状态不一致")
+    oracle_eligible = payload.get("oracle_eligible")
+    utility_allowed = payload.get("v2_oracle_utility_allowed")
+    pilot_allowed = payload.get("v2_oracle_pilot_allowed")
+    confirm_allowed = payload.get("v2_oracle_confirm_allowed")
+    if gate_status == "failed":
+        if (
+            oracle_eligible != "diagnostic_only"
+            or utility_allowed != "pilot_only"
+            or pilot_allowed is not True
+            or confirm_allowed is not False
+        ):
+            raise ValueError("failed gate 只允许 diagnostic_only/pilot_only，且必须禁止 confirm")
+    elif gate_status == "pending":
+        if any(value is not False for value in (oracle_eligible, utility_allowed, pilot_allowed, confirm_allowed)):
+            raise ValueError("pending gate 必须禁止全部 V2 Oracle 权限")
+    elif not (
+        oracle_eligible is True
+        and utility_allowed is True
+        and pilot_allowed is True
+        and confirm_allowed is True
+    ):
+        raise ValueError("passed gate 必须显式授权完整 V2 Oracle 权限")
+    if payload.get("learned_selector_training_allowed") is not False:
+        raise ValueError("本 lock 不得授权 learned selector training")
 
     checkpoint = payload["checkpoint"]
     checkpoint_dir = project_root / checkpoint["path"]
@@ -107,6 +125,8 @@ def validate_lock(payload: dict, *, project_root: Path, skip_shards: bool = Fals
         "oracle_eligible": payload["oracle_eligible"],
         "audio_path_selectivity_gate_status": gate_status,
         "v2_oracle_utility_allowed": payload["v2_oracle_utility_allowed"],
+        "v2_oracle_pilot_allowed": payload["v2_oracle_pilot_allowed"],
+        "v2_oracle_confirm_allowed": payload["v2_oracle_confirm_allowed"],
         "shards_verified": not skip_shards,
     }
 
