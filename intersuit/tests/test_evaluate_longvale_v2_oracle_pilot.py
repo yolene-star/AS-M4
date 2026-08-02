@@ -68,6 +68,13 @@ def test_pilot_gate_requires_every_preregistered_check():
     assert result["status"] == "pass"
     assert result["locked_deterministic_strategy"] == "uniform_topk"
 
+    anomalies["oracle_topk"]["repeated_text"] = 1
+    anomalies["all"]["repeated_text"] = 0
+    result = MODULE.evaluate_pilot_gate(metrics, anomalies)
+    assert result["status"] == "stop"
+    assert result["oracle_anomaly_delta_vs_all"]["repeated_text"] == 1
+
+    anomalies["all"]["repeated_text"] = 1
     metrics["all"]["METEOR"] = 0.135
     result = MODULE.evaluate_pilot_gate(metrics, anomalies)
     assert result["status"] == "stop"

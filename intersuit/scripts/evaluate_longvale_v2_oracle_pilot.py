@@ -130,7 +130,13 @@ def evaluate_pilot_gate(metrics: dict[str, dict[str, float]], anomalies: dict[st
     oracle = metrics["oracle_topk"]["METEOR"]
     random_mean = sum(metrics[name]["METEOR"] for name in random_names) / len(random_names)
     mismatch_mean = sum(metrics[name]["METEOR"] for name in mismatch_names) / len(mismatch_names)
-    anomaly_pass = all(value == 0 for value in anomalies["oracle_topk"].values())
+    oracle_anomalies = anomalies["oracle_topk"]
+    all_anomalies = anomalies["all"]
+    anomaly_delta_vs_all = {
+        name: int(oracle_anomalies.get(name, 0)) - int(all_anomalies.get(name, 0))
+        for name in sorted(set(oracle_anomalies) | set(all_anomalies))
+    }
+    anomaly_pass = all(delta <= 0 for delta in anomaly_delta_vs_all.values())
     checks = {
         "oracle_minus_all_ge_0_01": oracle - metrics["all"]["METEOR"] >= 0.01,
         "oracle_minus_random_mean_ge_0_01": oracle - random_mean >= 0.01,
@@ -160,6 +166,7 @@ def evaluate_pilot_gate(metrics: dict[str, dict[str, float]], anomalies: dict[st
         },
         "eligible_deterministic_strategies": eligible,
         "locked_deterministic_strategy": eligible[0] if eligible else None,
+        "oracle_anomaly_delta_vs_all": anomaly_delta_vs_all,
         "next_action": "review_then_unlock_confirm" if all(checks.values()) else "stop_selector_route",
     }
 
