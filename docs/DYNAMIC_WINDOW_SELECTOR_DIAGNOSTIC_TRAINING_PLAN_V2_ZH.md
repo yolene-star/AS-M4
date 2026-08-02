@@ -22,24 +22,26 @@ V2 的研究对象明确缩小为：
 
 旧 N0 已经显示固定 K 与比例预算回答的是不同问题。V2 使用新的假设、数据边界、目录和门禁，不用 V2 结果追认旧路线成功。
 
-### 1.1 2026-07-25 主线状态校正
+### 1.1 2026-08-03 selector-first 主线最终校正
 
-后续 review 发现，`checkpoint-150` 的音频选择性失败只否决“使用该 checkpoint 运行
-LongVALE Oracle 下游效用”，不能否决不依赖 M4 fusion 的 V1 定位上界。因此当前状态按
-阶段拆分为：
+后续 review 发现，`checkpoint-150` 的音频选择性失败不能否决不依赖 M4 fusion 的 V1
+定位上界，也不应在运行低成本 Oracle 诊断前把教师资格审计提升为新的总主线。根据用户
+2026-08-03 再次确认的 selector-first 顺序，当前状态按阶段拆分为：
 
 ```text
 V0 contract/data review: PASS（媒体资格仍按数据集单独判断）
 V1 localization upper bound: PASS（335 个 validation 物理视频全量完成）
-V2 M4 Oracle downstream utility: BLOCKED_BY_AUDIO_PATH
+V2 M4 Oracle downstream diagnostic: AUTHORIZED_PILOT_AFTER_PREFLIGHT
 V3 learned selector: NOT_AUTHORIZED
-audio semantic reconstruction: STOPPED_AT_R2_TARGET_SPACE_FAIL
+audio semantic reconstruction: PAUSED_CONDITIONAL_FALLBACK
 ```
 
-主执行入口仍是本计划。音频语义重构计划不是替代路线；只有 V1 证明 Oracle 定位 headroom
-存在、而 V2 又因冻结音频路径不合格无法解释时，才允许用它产出一个新的、独立 review 的
-冻结音频 checkpoint。若 V1 Oracle 本身没有定位 headroom，应直接停止 selector，不应先训练
-音频语义模块来“挽救”定位假设。
+主执行入口始终是本计划。V2 使用当前锁定 checkpoint 做诊断，不隐藏或改判其历史
+selectivity FAIL；必须把 video-only、text-only、All、Oracle、Oracle-mismatch 和 Random
+同时放入矩阵，使结果可证伪。V2 Oracle 未通过时立即停止 selector，才进入音频语义目标、
+答案表示和融合位置重构。V2 Oracle 通过时才允许最小 question-conditioned selector-only
+训练，并重新设计 Semantic Contrast。四域教师资格、最终 benchmark 冻结和联合训练都不得
+抢在该决策之前成为新的主入口。
 
 ## 2. 核心决策
 
@@ -91,12 +93,8 @@ V1 确定性与 Oracle 定位上界
   ├─ Oracle 无 headroom：停止 selector
   └─ Oracle 有 headroom
        ↓
-     冻结音频路径资格检查
-       ├─ fail：只进入音频语义 blocker 修复；不得运行 V2
-       └─ pass
-            ↓
 V2 冻结 M4 的 LongVALE Oracle 下游效用
-  ├─ Oracle 无下游收益：停止 selector，转向语义/表示/融合
+  ├─ Oracle 无下游收益或不高于 mismatch：停止 selector，转向语义/表示/融合
   └─ Oracle 有明确收益
        ↓
 V3 最小 question-conditioned selector-only 训练
@@ -110,8 +108,9 @@ V4 strict-causal replay 与一次性定位确认
 
 V4 通过不等于已经证明开放域 QA 收益。问题条件下游和 Semantic Contrast 必须另立新计划，并重新审查一套完整、干净、可运行的 QA 数据；不属于当前 V2。
 
-这里的“音频路径资格检查”只用于保证 V2 可解释，不改变用户给定的主假设顺序：先证明
-selector 定位上界，再证明 Oracle 下游效用，最后才训练 question-conditioned selector。
+当前 checkpoint 的 selectivity FAIL 是 V2 必须显式报告的已知风险，不再是阻止低成本 V2
+诊断的前置门禁。只有 V2 同时证明 Oracle 高于 All、Random、text-only 和 Oracle-mismatch，
+才可把收益归因给正确音频窗口并授权 question-conditioned selector。
 
 ## 4. V0：Contract、数据与资产资格
 
@@ -257,12 +256,20 @@ Oracle 未通过时停止 selector。确定性策略失败但 Oracle 通过时�
 intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150
 lock: intersuit/configs/dynamic_selector_v2_checkpoint_lock.json
 checkpoint_locked: true
-oracle_eligible: false
+oracle_eligible: diagnostic_only
 audio_path_selectivity_gate_status: failed
-v2_oracle_utility_allowed: false
+v2_oracle_utility_allowed: pilot_only
 ```
 
-lock 已固定 config、model index、4 个 safetensors shard、BEATs SHA，以及 dev760 五条件预测 SHA。该 checkpoint 在 gate=0.005 下得到 video-only/correct/mismatched = 254/251/259，正确音频低于错配和 video-only，selectivity 门禁正式失败。Fixed Stage2 checkpoint 同样失败（254/255/259）；12k/32k M4 baseline 不含 scene-audio/projector/fusion 权重，不能作为等价替代。当前仓库内没有合格冻结基座，因此本轮 V2 Oracle utility、LongVALE 媒体 pilot、selector 训练和 GPU smoke 全部停止。
+lock 已固定 config、model index、4 个 safetensors shard、BEATs SHA，以及 dev760 五条件预测 SHA。
+该 checkpoint 在 gate=0.005 下得到 video-only/correct/mismatched = 254/251/259，正确音频低于
+错配和 video-only，selectivity 门禁正式失败。Fixed Stage2 checkpoint 同样失败（254/255/259）；
+12k/32k M4 baseline 不含 scene-audio/projector/fusion 权重，不能作为等价替代。
+
+该失败禁止把 V2 结果解释为已合格音频路径的正式收益，但不再禁止用户要求的低成本、全冻结
+Oracle 诊断。V2 先运行 `oracle_pilot`；只有第 6.4 节全部条件通过才解封 confirm。pilot 失败
+立即停止 selector 并转向音频语义目标、答案表示和融合位置，不更换 checkpoint、K、阈值或
+样本挽救结果。
 
 全部冻结且 `eval()`：
 
@@ -537,8 +544,8 @@ V1 定位上界的全局停止结论。
 当前允许：
 
 1. 保留并复核已完成的完整 V1 定位结果与冻结 Eventness 资产；
-2. 按音频语义重构子计划只修复冻结音频路径 blocker；
-3. 新 checkpoint 独立通过 correct/mismatch/video-only 资格门禁后，再申请运行 V2；
+2. 完成 LongVALE V2 数据/媒体 preflight；
+3. 使用锁定 checkpoint 运行全冻结、无 optimizer 的 `oracle_pilot`；
 4. 继续 CPU/单机低成本、不训练的定位诊断与双次复现。
 
 当前禁止：
@@ -546,8 +553,8 @@ V1 定位上界的全局停止结论。
 1. learned selector 或 question-conditioned selector 训练；
 2. 将 selector 接入正式 M4 联合训练；
 3. 使用 UnAV official test；
-4. 运行 V2 LongVALE Oracle 下游效用，直到新的冻结 M4 音频路径通过独立资格门禁；
-5. 启动 Semantic Contrast。
+4. 在 V2 pilot 通过前运行 `oracle_confirm`；
+5. 在 V2 confirm 通过前启动音频语义教师扩展、projector/fusion 重构或 Semantic Contrast。
 
 ```text
 v1_metadata_headroom: PASS
@@ -555,10 +562,11 @@ v1_media_pilot: PASS
 v1_full_validation: PASS
 v1_eventness_cached_asset: PASS
 selector_training_allowed: false
-longvale_oracle_utility_allowed: false
+longvale_oracle_pilot_allowed: true
+longvale_oracle_confirm_allowed: false
 formal_test_allowed: false
 semantic_contrast_allowed: false
-current_route: STOPPED_AT_R2_TARGET_SPACE_FAIL
+current_route: V2_ORACLE_PILOT_PREFLIGHT
 ```
 
 ### 12.1 2026-07-27 完整 V1 更新
@@ -570,8 +578,9 @@ Oracle−Random 为 `+82.0843pp`，95% CI `[+80.8502pp,+83.2940pp]`；Energy、O
 Random seed。K=8 与 K=4 均完成双次逐文件一致复现。
 
 详细冻结 review 见
-`docs/DYNAMIC_SELECTOR_V2_V1_FULL_VALIDATION_REVIEW_ZH.md`。该通过只解锁冻结音频路径
-blocker 修复，不解锁 V2、learned selector、联合训练、Semantic Contrast 或 official test。
+`docs/DYNAMIC_SELECTOR_V2_V1_FULL_VALIDATION_REVIEW_ZH.md`。根据 2026-08-03 的最新主线
+指令，该通过解锁全冻结 V2 Oracle pilot；不解锁 learned selector、联合训练、Semantic
+Contrast、confirm 或 official test。
 
 ### 12.2 2026-07-27 音频语义 blocker 执行更新
 
@@ -599,6 +608,23 @@ question+canonical answer 和固定 label-description prototype。四者 rank-fi
 没有合法目标满足 `rank-first>=0.65`、margin CI 下界大于 0、且相对旧目标提升至少
 10pp 的合取门禁。
 
-因此 blocker 没有修复，V2 LongVALE、R3 projector-only、fusion、learned selector、
-Semantic Contrast 与 official test 继续禁止。详细冻结结论见
-`docs/AUDIO_SEMANTIC_RECONSTRUCTION_R0_R2_EXECUTION_REVIEW_ZH.md`。
+该历史失败继续禁止 R3 projector-only、fusion、learned selector、Semantic Contrast 与
+official test，但不再阻止全冻结 V2 Oracle pilot。V2 pilot 若失败，才恢复音频语义目标、
+答案表示和融合位置重构；若通过，则继续 confirm，并只在 confirm 通过后训练 selector。
+详细冻结结论见 `docs/AUDIO_SEMANTIC_RECONSTRUCTION_R0_R2_EXECUTION_REVIEW_ZH.md`。
+
+### 12.3 2026-08-03 下一步唯一执行序列
+
+```text
+1. LongVALE oracle_pilot 媒体与 manifest preflight
+2. 冻结 pilot config、样本、K=8、五个 Random/mismatch 映射和 scorer
+3. 复核 M4/Qwen2、视觉塔、BEATs、projector、fusion/gate 全部 eval 且 requires_grad=false
+4. 运行 text-only / All / Uniform / Energy / Onset / Eventness / Random / Oracle /
+   Oracle-mismatch；Temporal 仅在独立资格 PASS 时加入，否则记录 not_qualified
+5. 写出逐样本结果、参数 SHA、输出退化审计和 pilot decision
+6. pilot FAIL：停止 selector，进入音频语义目标、答案表示和融合位置重构
+7. pilot PASS：解封 oracle_confirm；confirm PASS 后才训练 question-conditioned selector
+```
+
+该序列执行期间禁止修改 checkpoint、gate、projector、fusion、K、阈值、样本或主 scorer，
+也禁止并行推进四域教师资格、Semantic Contrast 或正式联合训练。

@@ -2,6 +2,9 @@
 
 日期：2026-07-25（Asia/Shanghai）
 
+最新校正：2026-08-03（Asia/Shanghai）。本次校正按用户再次确认的 selector-first 顺序，
+覆盖下文旧的 `S2 audio-path precondition` 和 `S3 BLOCKED` 状态，但保留全部历史失败证据。
+
 ## 1. 基准主线
 
 本 review 只使用以下研究顺序作为判定标准：
@@ -48,8 +51,10 @@
 
 问题：把 Oracle 选中的音频窗口送入冻结 M4，是否比 All/Random 改善 caption/QA？
 
-依赖：一个已证明 correct audio 优于 mismatch 的冻结音频路径。当前 checkpoint 不满足，
-所以该实验被阻断；强行运行得到“无收益”也无法归因到 selector。
+当前 checkpoint 的 correct audio 低于 mismatch/video-only，因此它不是合格音频路径。但按
+最新主线，该失败作为 V2 的显式风险，而不是阻止低成本 Oracle 诊断的前置门禁。V2 必须
+同时包含 Oracle-mismatch、All、Random、text-only 和输出退化检查；任何一项不通过都停止
+selector，并把结论限定为“当前冻结栈中 Oracle 选窗没有可归因下游收益”。
 
 ## 4. 修正后的唯一工作流
 
@@ -62,68 +67,63 @@ S1 Selector 定位上界（不接 M4、不训练）
   │    └─ 停止 selector；再决定是否独立研究音频语义
   └─ Oracle 有定位 headroom
        ↓
-S2 冻结音频路径资格
-  correct > mismatch，且 correct 不低于 video-only
-  ├─ fail
-  │    └─ 进入音频语义重构子计划，只修 blocker；selector 主假设保持 pending
-  └─ pass
-       ↓
-S3 Oracle 下游效用（冻结 M4 全部模块）
+S2 Oracle 下游效用（冻结 M4 全部模块、不创建 optimizer）
   Oracle Top-K vs All vs Random vs deterministic Top-K
-  ├─ Oracle 无明确下游收益
+  ├─ Oracle 无明确下游收益或不高于 Oracle-mismatch
   │    └─ 停止 selector；转向语义目标、答案表示和 fusion
   └─ Oracle 有明确收益
        ↓
-S4 确定性 selector 接入
+S3 确定性 selector 接入
   Energy/Eventness/Temporal Top-K，仍不训练
        ↓
-S5 question-conditioned selector-only 训练
+S4 question-conditioned selector-only 训练
   只训练 selector；其他模块 SHA 必须不变
        ↓
-S6 causal replay、一次性 test 与新的 Semantic Contrast 计划
+S5 causal replay、一次性 test 与新的 Semantic Contrast 计划
 ```
 
 ## 5. 当前真实状态
 
 ```text
-S0: PASS（UnAV 小规模媒体资格已通过；LongVALE 媒体资格仍为 false）
-S1 metadata: PASS_ORACLE_HEADROOM
-S1 32-video media pilot: PASS_MEDIA_QUALIFICATION / PASS_PILOT_SIGNAL
-S1 full validation: NOT RUN；当前主线下一步
-S2: FAIL for checkpoint-150
-S3: BLOCKED
-S4: NOT AUTHORIZED
-S5: NOT AUTHORIZED
-S6: NOT AUTHORIZED
+S0: PASS
+S1 metadata/media/full validation: PASS
+S1 Oracle−Random: +82.0843pp，95% CI 下界 > 0
+S1 Energy/Onset/Eventness: PASS vs Random
+S2 LongVALE Oracle pilot: AUTHORIZED_AFTER_PREFLIGHT
+S2 confirm: NOT AUTHORIZED，等待 pilot
+S3 deterministic integration: NOT AUTHORIZED，等待 S2 confirm
+S4 learned selector: NOT AUTHORIZED
+S5 causal replay / Semantic Contrast: NOT AUTHORIZED
 ```
 
-因此不能说“Oracle 已经没有收益”，也不能说“selector 已被效果实验否决”。目前只知道：
+因此不能说“Oracle 已经没有下游收益”，也不能说“selector 已被效果实验否决”。目前已知：
 
-- Oracle 的 validation metadata 定位 headroom 已通过并完成双次复现；
-- 32-video validation 媒体 pilot 上 Energy/Onset 已显著高于 Random，但该分层 pilot 不能替代完整 validation；
-- Eventness 与完整 validation 定位矩阵尚未运行；
-- 当前冻结 M4 音频路径不具备解释 Oracle 下游效用的资格。
+- Oracle 的完整 validation 定位 headroom 已通过并完成双次复现；
+- Energy、Onset 和冻结 cached Eventness 均显著高于 Random；
+- 当前冻结 M4 音频路径历史 selectivity FAIL，V2 必须保留 mismatch 和 video-only 风险解释；
+- LongVALE Oracle 下游 pilot 尚未运行，是当前主线下一动作。
 
 ## 6. 数据与执行 blocker
 
 - AVE_HF 没有可靠本地事件边界，不能承担正式 window-level Oracle 定位监督；
-- UnAV-100 有可靠区间、格式和指标，32-video pilot 的 `media_verified=true`，全量 validation 仍未准备；
-- LongVALE 格式和 caption 指标已验证，但同样 `media_verified=false`；
-- 因此 S1 的实际下一动作是扩展完整 validation 媒体并复现 Energy/Onset/Oracle，而不是训练 selector 或音频 projector。
+- UnAV-100 完整稀疏 validation 已完成 443 samples / 335 physical videos；
+- LongVALE 格式和 caption 指标已验证，V2 运行前仍需完成目标 pilot 媒体 preflight；
+- Temporal scorer 历史资产资格失败且窗口 schema 不兼容；只有新 scorer 独立资格通过才加入，
+  否则在正式矩阵中明确记录 `not_qualified`，不能静默替代。
 
-完整 V1 通过前只允许继续无训练的 validation 定位实验和 Eventness 资产资格审查；
-learned selector、M4 联合训练和 test 仍禁止。
+当前只允许全冻结 V2 Oracle pilot；learned selector、M4 联合训练、教师扩展、Semantic
+Contrast 和 test 仍禁止。
 
 ## 7. Review 决策
 
 ```text
 main_plan: docs/DYNAMIC_WINDOW_SELECTOR_DIAGNOSTIC_TRAINING_PLAN_V2_ZH.md
-current_stage: S1_LOCALIZATION_UPPER_BOUND
-immediate_action: EXPAND_UNAV_VALIDATION_AND_COMPLETE_V1
-audio_semantic_plan: CONDITIONAL_BLOCKER_REMEDIATION
+current_stage: S2_LONGVALE_ORACLE_PILOT_PREFLIGHT
+immediate_action: RUN_FROZEN_ORACLE_PILOT_AFTER_MEDIA_PREFLIGHT
+audio_semantic_plan: PAUSED_UNTIL_ORACLE_FAILS
 joint_training: FORBIDDEN
 formal_test: FORBIDDEN
 ```
 
-本次校正不追认任何未运行实验，也不改变 dev760 的冻结失败结论；它只把失败作用域恢复到
-正确层级，并恢复用户给定的 selector-first 主线。
+本次校正不追认任何未运行实验，也不改变 dev760 的冻结失败结论。它只把该失败降为 V2
+必须显式控制的风险，并恢复“Oracle 先判、失败后才重构语义”的 selector-first 主线。

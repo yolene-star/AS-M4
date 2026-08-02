@@ -4,7 +4,7 @@
 
 ## 1. 最终结论
 
-计划结论：`review_completed_route_stopped`。
+计划结论：`review_updated_selector_first_v2_pilot_authorized`。
 
 数据集组合结论：`review_passed_with_blockers`。
 
@@ -24,9 +24,14 @@ MUSIC-AVQA: removed_from_v2
 AVQA: removed_from_v2
 ```
 
-保留不是基于 README 推测。LongVALE 与 UnAV-100 均已审查官方仓库固定 commit、逐条验证官方 annotation schema，并实际运行官方指标的最小完美预测夹具。UnAV 的 410 个历史暴露视频已从三个 split 排除并按 `(video_id,event_label)` 重新冻结。数据格式和指标仍合格，但当前锁定 M4 checkpoint 的音频路径 selectivity 门禁已正式失败，因此本轮效果路线停止；数据集不因模型失败而改判，亦不继续下载媒体制造新的 sunk cost。
+保留不是基于 README 推测。LongVALE 与 UnAV-100 均已审查官方仓库固定 commit、逐条验证官方
+annotation schema，并实际运行官方指标的最小完美预测夹具。UnAV 的 410 个历史暴露视频已从
+三个 split 排除并按 `(video_id,event_label)` 重新冻结。后续完整 V1 已在 443 samples / 335
+physical videos 上通过，不能再沿用“停止在媒体 pilot 前”的旧状态。
 
-当前只允许 V0 CPU contract、回归和新音频语义路线设计；不允许媒体 pilot、V1/V2、selector 训练、GPU smoke 或任何正式 test。
+当前锁定 M4 checkpoint 的音频路径 selectivity 历史结论仍为 FAIL，但根据用户 2026-08-03
+确认的 selector-first 主线，该失败只作为 V2 的显式风险和 mismatch 对照，不阻止全冻结、
+无 optimizer 的 LongVALE `oracle_pilot`。pilot 未通过时立即停止 selector；通过后才解封 confirm。
 
 ## 2. 计划 Review
 
@@ -42,7 +47,8 @@ AVQA: removed_from_v2
 - `pass`：未把任何未验证数据集保留为辅助支线、正式 QA 门禁或失败后的替代数据。
 - `pass`：1 秒窗口已固定为 `window=1.0/hop=1.0`，partial tail 的 timestamp 截断到媒体真实时长并保存有效采样数。
 - `pass`：causal memory 已显式保存 Top-K feature/score/timestamp/source-index/mask 与 `next_source_index`，逐窗和不同 chunk-size 回放测试一致。
-- `pass`：候选 checkpoint 的 config、index、4 个 shard 与 BEATs SHA 已锁定；lock 明确记录 `oracle_eligible=false`。
+- `pass`：候选 checkpoint 的 config、index、4 个 shard 与 BEATs SHA 已锁定；其资格只限
+  `diagnostic_only`，不得解释为已通过音频路径资格。
 
 ### 2.2 保留风险
 
@@ -58,9 +64,10 @@ AVQA: removed_from_v2
 
 ```text
 contract_and_metadata_work_allowed: true
-small_media_availability_pilot_allowed: false
-current_route_stopped: true
-oracle_effect_experiment_allowed: false
+small_media_availability_pilot_allowed: true
+current_route_stopped: false
+oracle_pilot_allowed: true
+oracle_confirm_allowed: false
 selector_training_allowed: false
 formal_test_allowed: false
 semantic_contrast_allowed: false
@@ -316,10 +323,10 @@ LongVALE 与 UnAV-100 当前可解析的官方物理 ID 交集为 0。该结果�
 
 | 研究问题 | 唯一数据集 | 当前资格 |
 | --- | --- | --- |
-| Oracle/确定性定位上界 | UnAV-100 | 数据资格通过，但当前基座失败，本轮停止在媒体 pilot 前 |
-| 冻结 M4 Oracle 下游效用 | LongVALE | 数据和依赖资格通过，但 checkpoint selectivity FAIL，本轮禁止运行 |
-| event-label query-conditioned selector 训练 | UnAV-100 | 代码 contract 已建立；当前无 Oracle 授权，禁止训练 |
-| strict-causal replay 与一次性 test | UnAV-100 | 未启动；当前路线停止 |
+| Oracle/确定性定位上界 | UnAV-100 | 完整 V1 PASS；443 samples / 335 physical videos |
+| 冻结 M4 Oracle 下游效用 | LongVALE | 数据和依赖资格通过；授权全冻结 `oracle_pilot` |
+| event-label query-conditioned selector 训练 | UnAV-100 | 代码 contract 已建立；等待 V2 confirm 授权 |
+| strict-causal replay 与一次性 test | UnAV-100 | 未启动；等待 V3 通过 |
 
 这套组合能回答“正确音频选窗是否有用”和“受限 event label 条件下能否学会定位”，不能回答开放域自然问题、正式音视频 QA 转化或 Semantic Contrast 的收益。
 
@@ -336,16 +343,21 @@ LongVALE 与 UnAV-100 当前可解析的官方物理 ID 交集为 0。该结果�
 3. UnAV 410 个历史视频已排除，sample unit、多 occurrence union 与新规模已冻结；
 4. 1 秒 tail/hop contract、可训练 question-conditioned scorer、K=8 causal memory 和 checkpoint lock 已实现。
 
-停止审查已经完成：
+历史风险已经冻结：
 
 1. metric 依赖已固定，官方 golden 通过；
 2. 锁定 semantic-contrast checkpoint 的 dev760 selectivity 正式 FAIL；
 3. Fixed Stage2 checkpoint 同样 FAIL；
 4. 12k/32k M4 baseline 不含 scene-audio/projector/fusion 权重，不能替代；
-5. 因不存在合格冻结基座，媒体 pilot、V0 GPU smoke、V1/V2 和 selector 训练不再执行。
+5. 当前 checkpoint 只能用于诊断，不具备正式音频路径资格。
 
-下一步不再尝试调 gate 或更换 selector 超参，而是另立音频语义路线：优先重构音频语义目标、答案表示和融合位置。新路线只有产出一个在物理隔离 validation 上满足“正确音频严格高于错配音频、且不低于 video-only”的冻结 checkpoint 后，才可重新申请本 V2 的媒体 pilot 和 Oracle 诊断；本次失败结果永久保留。
+下一步严格运行 LongVALE `oracle_pilot`：全部模型模块冻结，只改变音频窗口集合，比较
+text-only、All、Uniform、Energy、Onset、cached Eventness、Random、Oracle 和
+Oracle-mismatch。Temporal scorer 只有独立资格通过后才加入，否则明确记录 `not_qualified`。
+pilot 失败立即停止 selector 并转向音频语义目标、答案表示和融合位置；pilot 通过才解封
+confirm，confirm 通过才训练 question-conditioned selector。
 
 任何一个保留数据集若无法通过依赖 golden test、媒体 pilot、污染排除或许可冻结，立即从 V2 删除，并重新 review 整体计划；不得临时启用已经删除的数据集补位。
 
-当前不批准媒体下载、selector 训练、GPU smoke、正式 test 或继续 Semantic Contrast 调参。
+当前批准 V2 所需的受控媒体 preflight 和全冻结 Oracle pilot；不批准 selector 训练、联合训练、
+正式 test、教师扩展训练或继续 Semantic Contrast 调参。

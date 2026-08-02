@@ -13,14 +13,31 @@ v1_full_validation_k8: PASS
 v1_full_validation_k4_supplement: PASS
 v1_double_reproduction: PASS
 selector_training_allowed: false
-v2_oracle_utility_allowed: false
-current_route: conditional_audio_semantic_blocker_remediation
+historical_v2_oracle_utility_allowed: false
+historical_current_route: conditional_audio_semantic_blocker_remediation
 ```
 
 完整 V1 定位上界与确定性策略门禁通过。该结果只证明固定容量音频窗口选择在
 UnAV-100 稀疏 validation 上存在明确定位 headroom，并证明 Energy、Onset 与冻结
 cached Eventness 均显著优于 Random；不证明冻结 M4 下游语义收益，也不授权 learned
 selector、联合训练或 official test。
+
+### 1.1 2026-08-03 主线授权覆盖
+
+用户再次确认 selector-first 顺序后，本 review 的实验结果与 SHA 全部保持不变，但第 7 节
+“先修复音频路径才可运行 V2”的执行授权被以下最新决策覆盖：
+
+```text
+v2_oracle_pilot_allowed: true
+v2_oracle_confirm_allowed: false
+selector_training_allowed: false
+audio_semantic_teacher_expansion_allowed: false
+semantic_contrast_allowed: false
+```
+
+当前 checkpoint 的 selectivity FAIL 必须作为 V2 风险完整披露，并通过 Oracle-mismatch、
+All、Random、text-only 和输出退化条件共同判定。pilot 失败立即停止 selector 并转向音频
+语义目标、答案表示和融合位置；pilot 通过才解封 confirm，confirm 通过才训练 selector。
 
 ## 2. 官方媒体资格
 
@@ -129,14 +146,16 @@ V1 完整通过后，决策树进入“冻结音频路径资格检查”。当�
 
 ```text
 audio_path_selectivity_gate_status: failed
-v2_oracle_utility_allowed: false
+historical_v2_oracle_utility_allowed: false
 ```
 
-因此下一步只能进入音频语义 blocker 修复，生成新的、独立 review 的冻结音频 checkpoint。
-在新的 checkpoint 通过 `correct > mismatch` 且 `correct >= video-only` 之前：
+以下是 2026-07-27 的历史授权，已由第 1.1 节覆盖。当时要求先进入音频语义 blocker 修复，
+并在新的 checkpoint 通过 `correct > mismatch` 且 `correct >= video-only` 之前：
 
 - 禁止运行 LongVALE V2 Oracle utility；
 - 禁止训练 question-conditioned selector；
 - 禁止接入 M4 联合训练；
 - 禁止访问 UnAV official test；
 - 禁止启动 Semantic Contrast。
+
+最新有效动作是全冻结 LongVALE V2 `oracle_pilot`；其余四项禁止仍然有效。
