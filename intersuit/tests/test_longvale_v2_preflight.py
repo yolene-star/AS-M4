@@ -4,6 +4,7 @@ from pathlib import Path
 import zipfile
 
 import pytest
+import torch
 
 from intersuit.harness.longvale_v2_preflight import (
     MIN_SPARSE_EVENTS,
@@ -100,3 +101,69 @@ def test_parse_annotations_and_validate_sparse_threshold(tmp_path: Path):
         for _ in range(MIN_SPARSE_EVENTS["oracle_dev"] // SPLIT_SIZES["oracle_dev"])
     ]
     assert validate_split(rows, split_name="oracle_dev")["sparse_event_count"] == 100
+
+
+def test_pilot_matrix_explicit_strategies_are_sorted_and_k_bounded():
+    import importlib.util
+    import sys
+
+    script = Path(__file__).resolve().parents[1] / "scripts/build_longvale_v2_pilot_matrix.py"
+    spec = importlib.util.spec_from_file_location("longvale_v2_matrix_fixture", script)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    payload = {
+        "timestamps": torch.tensor([[float(index), float(index + 1)] for index in range(12)]),
+        "energy_scores": torch.arange(12, dtype=torch.float32),
+        "onset_scores": torch.arange(12, dtype=torch.float32).flip(0),
+        "eventness_cached_scores": torch.zeros(12),
+        "metadata": {"duration_sec": 12.0},
+    }
+    for condition in (
+        "uniform_topk", "energy_topk", "onset_topk", "eventness_cached_topk",
+        "random_topk_seed_20260720", "oracle_topk",
+    ):
+        indices = module.select_indices(
+            condition,
+            sample_id="sample",
+            target_start=5.1,
+            target_end=5.9,
+            target_duration=12.0,
+            score_payload=payload,
+        )
+        assert indices == sorted(set(indices))
+        assert len(indices) == 8
+        assert min(indices) >= 0 and max(indices) < 12
+
+
+def test_pilot_matrix_mismatch_uses_normalized_target_time():
+    import importlib.util
+    import sys
+
+    script = Path(__file__).resolve().parents[1] / "scripts/build_longvale_v2_pilot_matrix.py"
+    spec = importlib.util.spec_from_file_location("longvale_v2_matrix_mismatch_fixture", script)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    target = {
+        "timestamps": torch.tensor([[float(index), float(index + 1)] for index in range(10)]),
+        "energy_scores": torch.zeros(10), "onset_scores": torch.zeros(10),
+        "eventness_cached_scores": torch.zeros(10), "metadata": {"duration_sec": 10.0},
+    }
+    source = {
+        "timestamps": torch.tensor([[float(index), float(index + 1)] for index in range(20)]),
+        "energy_scores": torch.zeros(20), "onset_scores": torch.zeros(20),
+        "eventness_cached_scores": torch.zeros(20), "metadata": {"duration_sec": 20.0},
+    }
+    indices = module.select_indices(
+        "oracle_mismatch_seed_20260720",
+        sample_id="sample",
+        target_start=5.0,
+        target_end=6.0,
+        target_duration=10.0,
+        score_payload=target,
+        mismatch_payload=source,
+    )
+    assert 10 in indices and 11 in indices

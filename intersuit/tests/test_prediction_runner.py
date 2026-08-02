@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from collections import OrderedDict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -60,6 +61,7 @@ def test_iter_qa_samples_preserves_video_path(tmp_path):
                 "video_path": "local_demo/assets/water.mp4",
                 "video_max_frames": 8,
                 "scene_audio_path": "local_demo/assets/water.mp4",
+                "scene_audio_selected_indices": [1, 3],
                 "generation_mode": "parallel",
                 "context": "Can you describe the video?",
                 "new_query": "How many people in the video?",
@@ -79,12 +81,70 @@ def test_iter_qa_samples_preserves_video_path(tmp_path):
     assert rows[0]["video_path"] == "local_demo/assets/water.mp4"
     assert rows[0]["video_max_frames"] == 8
     assert rows[0]["scene_audio_path"] == "local_demo/assets/water.mp4"
+    assert rows[0]["scene_audio_selected_indices"] == [1, 3]
     assert rows[0]["video_features"] is None
     assert rows[0]["generation_mode"] == "parallel"
     assert rows[0]["context"] == "Can you describe the video?"
     assert rows[0]["new_query"] == "How many people in the video?"
     assert rows[0]["accept_contains"] == ["two people"]
     assert rows[0]["accept_regex"] == ["\\btwo\\b"]
+
+
+def test_load_scene_audio_applies_explicit_indices_and_reuses_cache(monkeypatch, tmp_path):
+    from intersuit.streaming import audio_stream
+
+    calls = []
+
+    def fake_load(path, sample_rate, mono):
+        calls.append((str(path), sample_rate, mono))
+        return torch.arange(3 * 16000, dtype=torch.float32), 16000
+
+    monkeypatch.setattr(audio_stream, "load_scene_audio", fake_load)
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    qa = {
+        "scene_audio_path": str(media),
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_expected_duration_sec": 2.5,
+        "scene_audio_selected_indices": [0, 2],
+    }
+    cache = OrderedDict()
+
+    first, timestamps, metadata = runner._load_scene_audio_tensor(qa, audio_cache=cache)
+    second, _, _ = runner._load_scene_audio_tensor(qa, audio_cache=cache)
+
+    assert first.shape == second.shape == (2, 16000)
+    assert timestamps.tolist() == [[0.0, 1.0], [2.0, 2.5]]
+    assert metadata["full_window_count"] == 3
+    assert metadata["waveform_num_samples"] == 40000
+    assert metadata["decoded_waveform_num_samples"] == 48000
+    assert metadata["selected_source_indices"] == [0, 2]
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("indices", [[1, 1], [2, 0], [0, 3], []])
+def test_load_scene_audio_rejects_invalid_explicit_indices(monkeypatch, tmp_path, indices):
+    from intersuit.streaming import audio_stream
+
+    monkeypatch.setattr(
+        audio_stream,
+        "load_scene_audio",
+        lambda path, sample_rate, mono: (torch.zeros(3 * 16000), 16000),
+    )
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    qa = {
+        "scene_audio_path": str(media),
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_selected_indices": indices,
+    }
+
+    with pytest.raises(ValueError, match="scene_audio_selected_indices"):
+        runner._load_scene_audio_tensor(qa, audio_cache=OrderedDict())
 
 
 def test_prediction_correct_supports_contains_and_regex():
@@ -221,6 +281,56 @@ def test_oracle_backend_can_skip_locked_manifest_prefix(tmp_path):
 
     rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
     assert [row["sample_id"] for row in rows] == ["s1", "s2"]
+
+
+def test_oracle_backend_resume_validates_prefix_and_appends(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [
+            {
+                "id": sample_id,
+                "conversations": [
+                    {"from": "human", "value": "Q"},
+                    {"from": "gpt", "value": "A"},
+                ],
+            }
+            for sample_id in ("s0", "s1", "s2")
+        ],
+    )
+    output = tmp_path / "pred.jsonl"
+    plan = tmp_path / "plan.jsonl"
+    plan.write_text(
+        json.dumps({"id": "E2", "manifest": str(manifest), "output_jsonl": str(output)}) + "\n",
+        encoding="utf-8",
+    )
+    runner.run_predictions(
+        plan, backend="oracle", limit=1, feature_root=tmp_path, device="cpu",
+        max_new_tokens=4, resume=True,
+    )
+    runner.run_predictions(
+        plan, backend="oracle", limit=None, feature_root=tmp_path, device="cpu",
+        max_new_tokens=4, resume=True,
+    )
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert [row["sample_id"] for row in rows] == ["s0", "s1", "s2"]
+
+
+def test_oracle_backend_resume_rejects_nonprefix_output(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [{"id": "s0", "conversations": [{"from": "human", "value": "Q"}, {"from": "gpt", "value": "A"}]}],
+    )
+    output = tmp_path / "pred.jsonl"
+    output.write_text(json.dumps({"sample_id": "wrong", "experiment_id": "E2"}) + "\n", encoding="utf-8")
+    plan = tmp_path / "plan.jsonl"
+    plan.write_text(json.dumps({"id": "E2", "manifest": str(manifest), "output_jsonl": str(output)}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="resume 输出前缀"):
+        runner.run_predictions(
+            plan, backend="oracle", limit=None, feature_root=tmp_path, device="cpu",
+            max_new_tokens=4, resume=True,
+        )
 
 
 def test_dry_run_does_not_create_prediction_files(tmp_path):
