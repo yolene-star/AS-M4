@@ -150,8 +150,9 @@ def evaluate_pilot_gate(metrics: dict[str, dict[str, float]], anomalies: dict[st
         if name in metrics and metrics[name]["METEOR"] > random_mean
     ]
     eligible.sort(key=lambda name: (-metrics[name]["METEOR"], DETERMINISTIC_CANDIDATES.index(name)))
+    gate_pass = all(checks.values())
     return {
-        "status": "pass" if all(checks.values()) else "stop",
+        "status": "pass" if gate_pass else "stop",
         "checks": checks,
         "meteor": {
             "oracle": oracle,
@@ -165,9 +166,9 @@ def evaluate_pilot_gate(metrics: dict[str, dict[str, float]], anomalies: dict[st
             "oracle_minus_text_only": oracle - metrics["text_only"]["METEOR"],
         },
         "eligible_deterministic_strategies": eligible,
-        "locked_deterministic_strategy": eligible[0] if eligible else None,
+        "locked_deterministic_strategy": eligible[0] if gate_pass and eligible else None,
         "oracle_anomaly_delta_vs_all": anomaly_delta_vs_all,
-        "next_action": "review_then_unlock_confirm" if all(checks.values()) else "stop_selector_route",
+        "next_action": "review_then_unlock_confirm" if gate_pass else "stop_selector_route",
     }
 
 

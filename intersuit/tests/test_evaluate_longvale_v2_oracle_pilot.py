@@ -79,3 +79,4 @@ def test_pilot_gate_requires_every_preregistered_check():
     result = MODULE.evaluate_pilot_gate(metrics, anomalies)
     assert result["status"] == "stop"
     assert result["next_action"] == "stop_selector_route"
+    assert result["locked_deterministic_strategy"] is None
