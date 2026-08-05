@@ -27,6 +27,23 @@ def _write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
 
 
+def test_checkpoint_config_overrides_ambiguous_run_directory_name(tmp_path):
+    checkpoint = tmp_path / "checkpoint-150"
+    _write_json(
+        checkpoint / "config.json",
+        {"model_type": "qwen2", "architectures": ["LlavaQwenForCausalLM"]},
+    )
+
+    assert runner.resolve_model_name_from_checkpoint_config(checkpoint, "checkpoint-150") == "LongVA-Qwen2"
+
+
+def test_checkpoint_config_keeps_path_fallback_for_non_qwen_models(tmp_path):
+    checkpoint = tmp_path / "checkpoint-150"
+    _write_json(checkpoint / "config.json", {"model_type": "llava_llama"})
+
+    assert runner.resolve_model_name_from_checkpoint_config(checkpoint, "checkpoint-150") == "checkpoint-150"
+
+
 def test_iter_qa_samples_extracts_human_gpt_pairs(tmp_path):
     manifest = tmp_path / "manifest.json"
     _write_json(
@@ -656,6 +673,17 @@ def test_first_token_logits_reports_focus_tokens_and_ranks():
     assert debug["focus_tokens"]["D"]["rank"] == 4
     assert debug["focus_tokens"]["EOS"]["rank"] == 6
     assert [item["token_id"] for item in debug["top10"]] == [0, 1, 2, 3, 4, 5]
+
+
+def test_frozen_runtime_hash_accepts_original_model_without_audio_modules():
+    class OriginalModel:
+        def get_model(self):
+            return SimpleNamespace()
+
+    assert runner.frozen_runtime_module_sha256(OriginalModel()) == {
+        "scene_audio_encoder": "__absent__",
+        "streaming_av_module": "__absent__",
+    }
 
 
 def test_choice_prompt_contains_assistant_boundary():

@@ -878,3 +878,284 @@
 - 结果或验证：GitHub 接受推送，远端 `Yolene-star/AS-M4` 的 `feat/audio-event-aligner-v1` 从 `5595021` 前进到 `dd543bf`；本次共同步此前领先远端的 54 个 commit，未强推、未改写远端历史。
 - 当前整体进度：截止本次发布前的可提交源码、文档、测试和项目约定已经同步；本地数据集、媒体、特征、checkpoint、缓存、运行报告、训练日志和 Codex 恢复备份继续仅保留在本机并由 `.gitignore` 隔离。
 - 下一步：将本条发布记录作为独立文档提交同步到同一远端分支，然后核对本地 HEAD、upstream SHA 和工作树状态。
+
+## 2026-08-04 进度回顾
+
+- 完成的操作：回顾当前进度记录，核对最近一轮工作方向。
+- 结果或验证：现阶段工作重点仍是音频语义目标、答案表示与融合位置重构。
+- 当前整体进度：已经从教师适配/发布阶段切换到 AS-M4 音频语义结构重构阶段。
+- 下一步：围绕目标表示、答案编码和融合插入点继续收敛设计与实现。
+
+## 2026-08-03 — 音频语义重构切入顺序确认
+
+- 完成的操作：核对当前教师资格、学生训练集隔离规则和 12k/32k no-freeze 基线定位。
+- 结果或验证：当前不应先随意选择新数据集；应先冻结 12k no-freeze 开发基线与可归因评测契约，再选择与教师资格集物理隔离的音频依赖型学生 pilot 数据。
+- 当前整体进度：音频语义重构尚处于任务目标、答案表示和融合位置重新定义阶段，32k 基线暂保留给最终验证。
+- 下一步：先定义一个可用 correct/mismatch/shift/silence 对照验证的音频依赖任务，并建立小规模 pilot 数据和答案规范。
+
+## 2026-08-03 — 开发基线锁定状态核对
+
+- 完成的操作：核对 12k/32k no-freeze 权重目录、模型分片、trainer state、launcher 回退路径和现有 checkpoint lock 记录。
+- 结果或验证：12k 与 32k 均为 622 step 完整模型，4 个 safetensors 分片和索引文件存在；`weights12k/weights32k` 回退配置已接入。开发基线已选为 12k no-freeze，32k 为最终长上下文基线。当前未发现针对这两套 M4 基线的正式 lock manifest 和文件 SHA256 清单。
+- 当前整体进度：baseline 选择完成，但严格意义上的不可歧义锁定尚未完成。
+- 下一步：生成并验证 baseline lock，记录精确路径、训练契约、关键文件 SHA256、代码 commit 和用途边界。
+
+## 2026-08-03 — 当前模型音频理解能力分层结论
+
+- 完成的操作：复核 raw BEATs、scene-audio projector、Qwen 文本目标对齐和 correct/mismatch/video-only 下游选择性结果。
+- 结果或验证：raw BEATs 在 28 类 clip-level 音频事件上约 72% Recall@1，当前 projector 后仍约 72.96%，说明基础音频编码和类别结构存在；但 projector 到合法 Qwen 文本目标的 rank-first 仅约 5.10%–8.67%，且 dev760 上 correct/mismatch/video-only 为 251/259/254，正确音频低于错配和视频基线。
+- 当前整体进度：不能表述为模型已经完整理解音频；准确结论是底层音频事件可分，但答案相关的跨模态语义对齐和下游因果使用失败，当前音频注入会带来无选择性的扰动并可能损害视频问答。
+- 下一步：重构合法的答案相关音频语义目标和 audio-to-Qwen bridge，再比较独立音频 token 与现有视频残差融合位置。
+
+## 2026-08-03 — dev760 冻结组成核对
+
+- 完成的操作：在 Conda `M4` 环境中，从冻结 correct prediction 的 760 个 `sample_id` 回查当前 `AS_M4_STAGE2/dev_manifest.json`，统计任务类型、数据来源、问答来源、答案形式和独立媒体数。
+- 结果或验证：冻结 dev760 为 audio 316、audio_visual 228、visual 216；来源为 AVE_HF_EXPANDED 352、AVUT 249、MUSIC-AVQA-v2.0 159；模板 QA 511、人类 QA 249；A-D 答案 249、yes/no 70、其他文本 441；覆盖 300 个 source video ID、294 个 physical media。当前 manifest 实际有 780 条，但历史正式评测产物只包含冻结的 760 个 sample ID，新增/未评测 20 条不得混入旧 dev760 结论。
+- 当前整体进度：dev760 组成和历史冻结边界已明确；它已被多轮观察，不再具备新路线未见测试或调参资格。
+- 下一步：新音频语义路线需要另建与训练和旧 dev760 隔离的 reserve_new/dev_new。
+
+## 2026-08-03 — 原始 M4 dev760 评测配置建立
+
+- 完成的操作：确认原始 M4 权重存在，并新增只加载 `/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2`、关闭 `scene_audio` 的独立 dev760 video-only 配置；用 Conda `M4` 严格校验模型路径和 manifest SHA。
+- 结果或验证：计划生成 PASS，`ORIGINAL_M4_VIDEO_ONLY` 仅包含 1 个实验，manifest SHA 与历史冻结值一致。
+- 当前整体进度：已完成原始 M4 视频基线评测准备，尚未启动 GPU 推理。
+- 下一步：使用显式单卡 `CUDA_VISIBLE_DEVICES=1` 先跑 2 条 smoke，再续跑冻结 760 条。
+
+## 2026-08-03 — 原始 M4 dev760 GPU smoke 被阻塞
+
+- 完成的操作：准备在物理 GPU 1 上运行 2 条原始 M4 video-only smoke，并保存 stdout/stderr 与运行环境。
+- 结果或验证：宿主机 GPU 命令的升级权限请求被自动审批器以 `502 Bad Gateway` 拒绝；推理进程未启动，没有生成预测或准确率结果。
+- 当前整体进度：原始 M4 权重、独立配置和评测计划均已通过静态校验，GPU 执行仍被权限阻塞。
+- 下一步：获得可用的宿主机 GPU 执行权限后，先完成 2 条 smoke，再续跑冻结 760 条并按三类任务统计。
+
+## 2026-08-03 — 原始 M4/OmniMMI/dev760 执行因 GPU 权限停止
+
+- 完成的操作：核对原始 M4 权重、OmniMMI 本地仓库/PA/PT 历史结果、M4/M4Online 适配器、原始 video-only dev760 配置；按用户要求改用物理 GPU 2 尝试 2 条 smoke。
+- 结果或验证：原始权重和 OmniMMI 数据/入口均存在，静态配置通过；GPU 2 推理的升级权限请求再次被自动审批器以 `502 Bad Gateway` 拒绝，进程未启动、没有新预测。
+- 当前整体进度：所有非 GPU 准备完成，但原始 M4、OmniMMI 和音频接入模型的实际推理均未执行。
+- 下一步：按用户“无解就停止”的约束停止本轮；只有用户在获知审批失败后再次明确授权宿主机 GPU 2 执行，才可继续。
+
+## 2026-08-03 — 用户明确授权后 GPU 审批服务仍失败
+
+- 完成的操作：在用户明确允许后，再次请求使用物理 GPU 2 执行原始 M4 的 2 条 dev760 smoke。
+- 结果或验证：自动审批服务仍以相同 `502 Bad Gateway` 拒绝 CreateProcess；命令未执行、模型未加载、GPU 未占用、预测文件未生成。该阻塞来自权限审批基础设施，不是原始 M4、OmniMMI、CUDA 或评测代码错误。
+- 当前整体进度：非 GPU 准备完成，所有实际推理继续被外部审批服务阻塞。
+- 下一步：按“无解就停止”要求结束本轮；需恢复/重启权限审批服务，或由用户在服务器终端手动运行已冻结命令后再继续统计。
+
+## 2026-08-03 — GPU 2 smoke 按用户要求重试仍被审批服务拒绝
+
+- 完成的操作：在用户明确要求“重试”后，再次请求使用物理 GPU 2 执行原始 M4 的 2 条 dev760 smoke。
+- 结果或验证：权限审批服务第三次返回 `502 Bad Gateway`，CreateProcess 未发生；没有模型加载、GPU 占用或新预测。
+- 当前整体进度：评测配置已就绪，但 GPU 推理持续被外部审批基础设施阻塞。
+- 下一步：停止自动重试；需先恢复审批服务，或由用户在服务器终端手动执行冻结命令。
+
+## 2026-08-03 — GPU 2 smoke 再次重试仍被 502 阻塞
+
+- 完成的操作：按用户明确“重试”要求，再次提交物理 GPU 2 的原始 M4 两条 dev760 smoke。
+- 结果或验证：权限审批服务继续返回 `502 Bad Gateway`，CreateProcess 未发生；模型未加载、GPU 未占用、预测未生成。
+- 当前整体进度：评测配置保持就绪，实际推理继续被外部审批基础设施阻塞。
+- 下一步：停止自动重试，等待审批服务恢复或用户手动执行冻结命令。
+
+## 2026-08-04 02:02:11 CST
+- 完成操作：检查 Git 状态、历史进度、相关评测脚本与 checkpoint 目录。
+- 结果：已收集当前工作区和既有产物信息，下一步定位最近一次未完成的原模型/OmniMMI/dev760 流程。
+- 当前整体进度：历史检查进行中。
+- 下一步：读取相关脚本、配置与最近日志。
+
+## 2026-08-04 02:02:28 CST
+- 完成操作：核对原始 M4、OmniMMI、dev760 相关历史记录、冻结配置和入口脚本。
+- 结果或验证：确认上次阻塞为 GPU 审批服务 `502 Bad Gateway`；已定位原始视频-only dev760 配置及相关评测入口，三类问题统计口径待从历史结果/脚本进一步确认。
+- 当前整体进度：历史检查完成，准备做非 GPU 预检。
+- 下一步：确认模型路径、数据清单、输出目录和可执行命令。
+
+## 2026-08-04 02:02:42 CST
+- 完成操作：读取最近任务记录、原始模型 dev760 配置、已有 summary/matrix plan 与评测脚本。
+- 结果或验证：已确认已有 artifact 是否仅为计划文件，并提取上次冻结的执行参数与统计口径。
+- 当前整体进度：非 GPU 预检进行中。
+- 下一步：核对数据与模型文件完整性，执行最小 CPU 配置校验。
+
+## 2026-08-04 02:03:04 CST
+- 完成操作：定向核对历史标题、原始 dev760 artifact 内容、模型/数据体积和 Conda `M4` 解释器。
+- 结果或验证：已确认所需模型与数据资产的本地状态，并核对 Python 解释器路径。
+- 当前整体进度：非 GPU 预检接近完成。
+- 下一步：读取冻结运行脚本和评分实现，形成 smoke/full 精确命令。
+
+## 2026-08-03 02:03:18 CST
+- 完成操作：精确读取上次原始 M4/OmniMMI/dev760 停止点、独立配置与 runner 关联实现。
+- 结果或验证：确认原始 dev760 当前只有计划/summary，无预测；GPU smoke 命令及停止原因已恢复。
+- 当前整体进度：历史恢复完成。
+- 下一步：做 GPU/系统只读健康检查并尝试一次 smoke。
+
+## 2026-08-03 02:03:49 CST
+- 完成操作：执行原始模型 smoke 前的 D 状态与 GPU 只读健康门禁。
+- 结果或验证：未发现 D 状态进程；沙箱内 `nvidia-smi` 失败，原始错误为 `NVIDIA-SMI has failed because it could not communicate with the NVIDIA driver`，后续 runner 定位因 `set -e` 未执行。
+- 当前整体进度：GPU 门禁被沙箱/驱动可见性阻塞，尚未启动推理。
+- 下一步：仅申请一次宿主机只读 `nvidia-smi` 检查；若审批服务仍失败则按用户要求停止。
+
+## 2026-08-03 02:04:29 CST
+- 完成操作：按约束申请一次宿主机只读 NVIDIA GPU 健康检查。
+- 结果或验证：自动审批服务返回 `502 Bad Gateway`（CreateProcess rejected），命令未执行；未读取宿主机 GPU 状态，未启动模型、未生成预测、未得到任何新的准确率。
+- 当前整体进度：原始 M4、OmniMMI、接入音频模块模型的实际推理均因外部审批基础设施阻塞；按用户“无解就停止”要求停止本轮。
+- 下一步：需恢复审批服务，或用户在服务器终端手动运行已冻结命令后再继续统计三类问题正确率。
+
+## 2026-08-03 — 原模型/OmniMMI/dev760 本轮恢复审计
+
+- 完成操作：检查上次中断后的相关进程、Git 工作区、原始 M4 dev760 独立配置、历史评测入口和最近进度记录。
+- 结果或验证：未发现遗留评测进程；原始 M4 video-only 配置仍指向保留的原始权重。历史记录确认实际 GPU 推理此前被宿主机审批服务 `502 Bad Gateway` 阻塞，尚无新的原模型、OmniMMI 或音频模型预测结果。
+- 当前整体进度：正在复核正式 runner、OmniMMI 入口与 dev760 三类统计口径，避免重复尝试已知无效路径。
+- 下一步：确定可执行 smoke/full 命令和输出边界后，进行一次只读 GPU 健康检查；若仍被同一审批错误阻塞则停止。
+
+## 2026-08-03 — 正式评测入口与评分口径复核
+
+- 完成操作：读取 AS-M4 prediction runner、矩阵计划、原始 M4 dev760 plan、OmniMMI PA/PT 启动脚本及历史结果。
+- 结果或验证：原始 M4 plan 只含 `ORIGINAL_M4_VIDEO_ONLY`，使用冻结 manifest 和 `label_terms` scorer；正式推理由 `intersuit.harness.runners.run_predictions_from_plan` 执行。dev760 历史冻结构成为 audio 316、audio_visual 228、visual 216。OmniMMI 本地已有原始 M4 适配入口和仅供参考的历史 PA/PT 结果，但本轮不会将旧结果视为新运行结果。
+- 当前整体进度：推理命令与统计分组已确定，尚未执行 GPU 任务。
+- 下一步：执行一次宿主机 GPU 只读健康检查；通过后只运行原始 M4 两条 dev760 smoke，失败则停止。
+
+## 2026-08-03 — 宿主机 GPU 健康门禁通过
+
+- 完成操作：通过宿主机只读 `nvidia-smi` 检查 GPU 空闲状态和功率限制。
+- 结果或验证：物理 GPU 0、1、2、3、4 均仅有 11 MiB 的空闲上下文占用，均配置为已验证的 450W；本轮单卡推理固定使用物理 GPU 2（`CUDA_VISIBLE_DEVICES=2`，进程内为 `cuda:0`）。
+- 当前整体进度：GPU 执行条件满足，准备运行原始 M4 的两条 dev760 smoke。
+- 下一步：核对音频接入 checkpoint 与 runner 的加载参数后启动原始 M4 smoke。
+
+## 2026-08-03 — 原始 M4 dev760 smoke 再次被审批服务阻塞
+
+- 完成操作：核对音频模型为 `AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150`，随后申请在物理 GPU 2 对原始 M4 运行冻结 dev760 前两条 smoke，并准备保存配置、开始时间和 stdout/stderr。
+- 结果或验证：自动审批服务在 CreateProcess 前返回 `502 Bad Gateway`；命令未执行，未创建 GPU 推理进程，未加载任何权重，未写入预测或 smoke 日志。该失败与此前审批基础设施阻塞一致，不能据此判断模型、数据或评测实现存在问题。
+- 当前整体进度：原始 M4、OmniMMI 和音频接入模型的真实推理均仍未执行；当前没有可报告的本轮三类问题正确率。
+- 下一步：按用户“无解就停止”要求停止自动执行；待宿主机审批服务恢复后，必须先重新运行该两条 smoke，通过后再依次运行原始 M4、OmniMMI 和音频模型 dev760 全量评测。
+
+## 2026-08-03 — 用户授权后 GPU smoke 仍无法创建进程
+
+- 完成操作：在用户明确允许后，按同一冻结命令重新申请在物理 GPU 2 执行原始 M4 的两条 dev760 smoke。
+- 结果或验证：审批后端再次在 CreateProcess 前返回 `502 Bad Gateway`；未启动任何推理进程，未加载权重，未写入预测或可统计结果。
+- 当前整体进度：外部审批服务仍是唯一阻塞点；三类问题的本轮正确率尚不可得。
+- 下一步：停止自动重试，等待审批服务恢复后再从原始 M4 两条 smoke 继续。
+
+## 2026-08-03 — 新一轮执行前 GPU 复检
+
+- 完成操作：按用户再次要求继续评测后，重新检查宿主机 GPU 状态。
+- 结果或验证：物理 GPU 0–4 均仅有 11 MiB 空闲上下文占用，功率限制均为 450W；物理 GPU 2 仍适合单卡 smoke。
+- 当前整体进度：GPU 硬件条件正常，重新尝试原始 M4 dev760 两条 smoke。
+- 下一步：启动冻结原始 M4 smoke；若审批服务再次拒绝 CreateProcess，则按用户约束停止。
+
+## 2026-08-03 — 原始 M4 基线 runner 兼容修复
+
+- 完成操作：原始 M4 两条 dev760 smoke 已真实加载四个 checkpoint shard，但 runner 将原模型没有 `scene_audio_encoder` / `streaming_av_module` 误判为运行时错误；现将缺失模块记录为稳定的 `__absent__` 状态，并新增 CPU 回归测试。
+- 结果或验证：`conda run -n M4 pytest -q intersuit/tests/test_prediction_runner.py -k frozen_runtime_hash_accepts_original_model_without_audio_modules` 通过（1 passed）。该改动不改变音频模型的模块哈希，只允许没有音频模块的原始基线完成冻结状态前后校验。
+- 当前整体进度：原始权重已完成真实加载验证，正准备重跑两条推理 smoke。
+- 下一步：在物理 GPU 2 重跑原始 M4 dev760 前两条；通过后再运行全量和 OmniMMI。
+
+## 2026-08-03 — 原始 M4 dev760 两条 smoke 通过
+
+- 完成操作：在物理 GPU 2（`CUDA_VISIBLE_DEVICES=2`）加载保留的原始 M4 权重，并对冻结 dev760 的前两条样本执行真实生成。
+- 结果或验证：smoke 成功退出；原始 M4 的 `scene_audio_encoder` 与 `streaming_av_module` 均稳定为 `__absent__`，推理前后冻结状态一致。配置、开始时间和完整 stdout/stderr 已保存至 `intersuit/harness/artifacts/as_m4_original_video_only_dev760/logs/`，前两条预测已写入对应 JSONL。
+- 当前整体进度：原始 M4 已跑通真实推理链路，准备从第 3 条安全续跑完整冻结 dev760。
+- 下一步：使用 `--resume` 续跑剩余样本；完成后统计三类问题准确率并运行 OmniMMI。
+
+## 2026-08-03 — 原始 M4 dev760 全量续跑监控确认
+
+- 完成操作：启动原始 M4 的 `--resume` 全量 dev760 推理并核对预测文件进度。
+- 结果或验证：预测 JSONL 在检查间隔内由 8 条增至 13 条，确认宿主机推理仍在持续写入；当前 Codex 会话未能继续跟踪该宿主机子进程，但不能据此视为评测完成或失败。一次静态诊断因未设置 `PYTHONPATH` 无法导入 runner，未影响已经运行的 GPU 评测。
+- 当前整体进度：原始 M4 正在单卡 GPU 2 上续跑；不得并发启动 OmniMMI 或音频 dev760，以免争用显存。
+- 下一步：仅监控预测条数和日志；达到冻结样本总数并确认进程退出后，统计基线三类准确率，再继续 OmniMMI。
+
+## 2026-08-03 — dev760 冻结边界修复
+
+- 完成操作：发现当前 `dev_manifest.json` 已扩展到 780 条，而历史正式 dev760 只允许固定 760 个 sample ID；已停止 PID 471761 的错误范围推理，并从历史正式 `dev760_video_only_predictions.jsonl` 恢复 760 个唯一 ID。
+- 结果或验证：已生成 `intersuit/datasets/AS_M4_STAGE2/dev760_frozen_manifest.json`（760 条，SHA256=`6d8a29e53532593eb5b66f007e0cc774631f52afa070b82a3e3e1718fd4a2ea7`），更新原始 M4 config 并通过 `run_ablation_matrix --strict_paths` 校验。此前 780 范围的部分预测不用于任何结论，新的非 resume 推理将覆盖其输出。
+- 当前整体进度：原始 M4 将基于严格冻结的 dev760 从头运行；历史新增 20 条不会混入最终三类准确率。
+- 下一步：启动严格 760 条原始 M4 全量推理，完成后统计并继续 OmniMMI。
+
+## 2026-08-03 — 原始 M4 冻结 dev760 进度估算
+
+- 完成操作：尝试读取宿主机进程状态，并回退到本地预测文件进度估算。
+- 结果或验证：宿主机 `ps` 再次被审批服务 `502 Bad Gateway` 阻塞；本地输出显示严格冻结 run 自 02:55:49 CST 开始后已写入 54/760 条，最近写入时间为 02:59:48 CST，说明原始 M4 全量评测仍在持续推进。
+- 当前整体进度：原始 M4 dev760 约完成 7%；尚未启动 OmniMMI 或音频模型，避免 GPU 2 并发争用。
+- 下一步：原始 M4 完成后统计三类准确率，依次运行 OmniMMI 与音频模型 dev760。
+
+## 2026-08-04 — 原始 M4 输出边界再次校正
+
+- 完成操作：核对原始 M4 全量输出与进程结束状态。
+- 结果或验证：原始推理进程已结束，但输出为 780 行；原因是按 760 个 sample 过滤后，部分 sample 的多轮 conversations 被 runner 展开为额外 QA。该输出不纳入结论。已按历史正式预测的精确 `sample_id + turn` 重建 `dev760_frozen_qa_manifest.json`，共 760 条，并更新配置路径。
+- 当前整体进度：原始 M4 需要按精确 760 条 QA 重新评测；OmniMMI 和音频模型尚未启动。
+- 下一步：重建计划并重跑原始 M4 精确 760 条，之后再继续后续评测。
+
+## 2026-08-04 — 原始 M4 精确 QA 计划未实际生效
+
+- 完成操作：核对原始 M4 最新预测、精确 QA manifest 和实际 `matrix_plan.jsonl`。
+- 结果或验证：精确 QA manifest 可展开为 760 条，但当前 `matrix_plan.jsonl` 仍指向旧 `dev_manifest.json`（780 条），因此最新原始 M4 输出仍为 780 条且不能用于 dev760 结论。OmniMMI 和音频模型评测尚未启动。
+- 当前整体进度：任务未完成；阻塞点是计划文件未随配置更新而重写，不是模型或 GPU 故障。
+- 下一步：需显式重写 matrix plan 后才可重跑精确 760 条；在此之前停止后续评测，避免继续产生无效结果。
+
+## 2026-08-04 — matrix plan 输出目录根因修复
+
+- 完成操作：将“配置与实际 matrix plan 脱节”作为 runner 缺陷排查，定位并修复 `run_ablation_matrix` 未显式传入 `--output_dir` 时忽略 config `output_root` 的设计问题；新增 CLI 回归测试。
+- 结果或验证：`conda run -n M4 pytest -q intersuit/tests/test_attribution_harness.py intersuit/tests/test_prediction_runner.py -k 'main_uses_config_output_root_when_output_dir_is_omitted or frozen_runtime_hash_accepts_original_model_without_audio_modules'` 通过（2 passed）。真实重建后，`as_m4_original_video_only_dev760/matrix_plan.jsonl` 已明确指向 `dev760_frozen_qa_manifest.json` 及其冻结 SHA256。
+- 当前整体进度：计划与配置已一致，严格 760 条原始 M4 评测可以安全重启；此前所有 780 条输出继续视为无效，不参与后续统计。
+- 下一步：重启原始 M4 严格 760 条评测，完成后再依次运行 OmniMMI 和音频模型。
+
+## 2026-08-04 — 原始 M4 严格 dev760 正式完成
+
+- 完成操作：运行原始 M4 对精确冻结 760 条 QA 的 dev760 正式推理，并核对输出与冻结模块状态。
+- 结果或验证：`original_m4_video_only_predictions.jsonl` 恰为 760 条，runner 返回 `status=pass`；原始模型的音频运行时模块稳定为 `__absent__`，推理前后状态一致。尚未发现本轮 OmniMMI 或音频 dev760 的新结果产物。
+- 当前整体进度：原始 M4 dev760 已完成；OmniMMI 和音频模型 dev760 尚未开始，三类最终对比正确率尚不可汇总。
+- 下一步：启动原始 M4 的 OmniMMI PA/PT，再运行音频模型严格 dev760 并统计三类问题准确率。
+
+## 2026-08-04 — OmniMMI 首次运行根因定位
+
+- 完成操作：启动原始 M4 的 OmniMMI PT/M4 与 PA/M4Online，并检查两条失败日志。
+- 结果或验证：PT 失败因为调用方传入的 `video_dir` 已含 `videos`，而 OmniMMI inference 内部再次拼接 `videos`，形成错误路径 `../omnimmi/videos/videos/...`；PA 失败因为 M4Online 的 Accelerate 初始化缺少本机已验证的 `NCCL_P2P_DISABLE=1` 与 `NCCL_IB_DISABLE=1`。两者均为明确的调用环境问题，不是模型权重或媒体缺失。
+- 当前整体进度：OmniMMI 尚未完成，音频 dev760 尚未启动。
+- 下一步：按历史稳定解法使用 `video_dir=../omnimmi` 与稳定 NCCL 环境，从头重跑 PT 和 PA。
+
+## 2026-08-04 — OmniMMI 稳定重跑进行中
+
+- 完成操作：按正确媒体根目录和项目稳定 NCCL 环境启动原始 M4 OmniMMI PT→PA 顺序任务，并核对宿主机进程。
+- 结果或验证：PT 当前仍在运行，已生成 `48/200` 条；宿主机进程链存在且未退出，PA 尚未开始。未启动音频评测，避免 GPU 2 争用。
+- 当前整体进度：原始 M4 dev760 已完成；OmniMMI PT 进行中，PA 和音频 dev760 待 PT/PA 完成。
+- 下一步：等待 PT 200 条完成并自动进入 PA，随后启动严格 760 条音频模型评测。
+
+## 2026-08-04 — 严格 dev760 正式评测重启前检查
+
+- 完成操作：按修复后的计划重新检查宿主机 GPU 状态。
+- 结果或验证：物理 GPU 0–4 均空闲，仅有 11 MiB 上下文占用且功率限制为 450W；本轮固定使用物理 GPU 2。
+- 当前整体进度：严格 760 条 plan、模型权重与 GPU 条件均已就绪。
+- 下一步：启动原始 M4 的严格 dev760 正式推理；完成前不并发 OmniMMI 或音频评测。
+
+## 2026-08-03 — 原模型/OmniMMI/dev760 续跑前复核
+
+- 完成操作：检查遗留评测进程、Git 工作区、冻结原模型 dev760 配置、历史运行记录、OmniMMI 本地资产和 Conda 环境。
+- 结果或验证：未发现遗留推理进程；原始 M4 权重、AS-M4 音频 checkpoint 与 OmniMMI 本地数据/入口均存在；Conda `M4` 环境可用。已有 `PROGRESS_LOG.md` 修改及未跟踪的原模型配置均保留未覆盖。
+- 当前整体进度：GPU 推理尚未启动；历史确认物理 GPU 2 空闲且固定作为本轮单卡推理设备，下一步先执行两条原模型 dev760 smoke。
+- 下一步：定位实际 prediction runner，执行原模型 smoke；若同类宿主机 GPU 权限错误再次出现，则按用户要求停止。
+
+## 2026-08-03 — 原始 M4 dev760 smoke 被宿主机审批阻塞
+
+- 完成操作：确认物理 GPU 2 空闲（11 MiB 占用、450W），随后在 Conda `M4` 环境申请运行原始 M4 的 2 条 dev760 smoke，并指定仅写入项目内预测和日志目录。
+- 结果或验证：审批服务在创建进程前返回 `502 Bad Gateway`，拒绝 GPU 推理请求；模型未加载、没有新预测、没有新的准确率。该结果与此前同类审批故障一致。
+- 当前整体进度：原模型、OmniMMI 与接入音频模块模型均未执行实际推理；外部 GPU 执行权限是唯一阻塞点。
+- 下一步：按用户“无解就停止”要求停止本轮。待宿主机审批服务恢复或用户提供可执行 GPU 权限后，从原始 M4 的 2 条 dev760 smoke 继续。
+
+## 2026-08-04 — OmniMMI PA 与音频 dev760 被宿主机 GPU 状态阻塞
+
+- 完成操作：原始 M4 OmniMMI PT 已完成 200 条；按已定位的参数解析问题移除 PA 调用中的外层 `--device 0` 后重跑 `M4Online`。
+- 结果或验证：PT 输出 `pt_M4_0.json` 恰为 200 条；PA 重跑未生成有效结果，且只读检查确认 `/dev/nvidia*` 设备节点不存在、`nvidia-smi` 无法连接驱动、Conda `M4` 中 `torch.cuda.is_available()` 为 `False`、设备数为 0。内核日志未发现新的 `NVRM/Xid` 错误；当前属于宿主机 GPU 设备不可用，无法通过代码或参数补丁解决。
+- 当前整体进度：原始 M4 dev760 已完成，OmniMMI PT 已完成；OmniMMI PA、音频模型严格 dev760 及三类正确率统计未完成。
+- 下一步：按用户“无解就停止”要求停止；待宿主机恢复 NVIDIA 设备节点并通过 CUDA 探测后，再从 PA 评测继续，不能使用不完整结果推导最终准确率。
+
+## 2026-08-04 — 宿主机恢复后确认 OmniMMI 完整，旧音频结果不作为本轮证据
+
+- 完成操作：复核宿主机遗留任务、OmniMMI 产物和严格 dev760 输出。
+- 结果或验证：`pt_M4_0.json` 与 `pa_M4Online_0.json` 均恰为 200 条；原始 M4 dev760 输出恰为 760 条。音频模型两份 760 条输出的时间戳为 2026-07-21，属于旧运行，不能直接用于本轮最终结论。
+- 当前整体进度：原始 M4 dev760 与 OmniMMI PT/PA 已完成；音频模型严格 dev760 需要按当前严格 manifest 重新运行。
+- 下一步：在恢复的 GPU 条件下顺序重跑音频模型 correct/mismatched 两组，并核对输出时间戳、manifest hash 和 760 条完整性。
+
+## 2026-08-04 — 原始 M4 OmniMMI 与严格音频 dev760 全部完成
+
+- 完成操作：完成 OmniMMI 原始 M4 PT/M4 与 PA/M4Online 推理和官方离线 evaluator；修复 checkpoint 目录名导致 Qwen2 权重被误按 Llama 加载的问题，以及 `--output_dir` 与计划中 `output_jsonl` 脱节的问题；在独立目录完成音频模型 correct/mismatched 严格 dev760 重跑。
+- 结果或验证：OmniMMI PT、PA 输出均为 200 条；官方指标为 PT accuracy `0.5700`，PA accuracy `0.2150`、precision `0.3181904762`、IoU `0.1402209194`。严格 dev760 manifest SHA256 为 `6d8a29e53532593eb5b66f007e0cc774631f52afa070b82a3e3e1718fd4a2ea7`；原始 M4、正确音频、错配音频三组均逐条对齐且各 760 条。音频模型 runner 返回 `status=pass`，并确认 `scene_audio_encoder` 与 `streaming_av_module` 推理前后 SHA 相同。
+- 三类准确率（原始 M4 / 正确音频 / 错配音频）：audio `96/316=30.38%` / `94/316=29.75%` / `97/316=30.70%`；audio_visual `81/228=35.53%` / `81/228=35.53%` / `85/228=37.28%`；visual `73/216=33.80%` / `76/216=35.19%` / `77/216=35.65%`；总体 `250/760=32.89%` / `251/760=33.03%` / `259/760=34.08%`。
+- 当前整体进度：用户要求的原始 M4 dev760、原始 M4 OmniMMI 和音频模块 dev760 评测均已完成；最终结果已落盘。
+- 下一步：将本轮根因修复的代码、配置、测试和进度日志提交；不将 checkpoint、媒体、预测、运行日志或缓存加入 Git。

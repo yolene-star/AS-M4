@@ -75,6 +75,58 @@ def test_write_outputs_creates_plan_and_summary(tmp_path):
     assert summary["experiment_ids"] == list(runner.REQUIRED_IDS)
 
 
+def test_main_uses_config_output_root_when_output_dir_is_omitted(tmp_path, monkeypatch):
+    data = _base_config(tmp_path)
+    data["experiments"] = [
+        {
+            "id": "E0",
+            "model_key": "baseline_m4",
+            "audio_condition": "none",
+            "rollback_mode": "behavior",
+            "alignment": "off",
+            "gate_ablation": "none",
+        }
+    ]
+    data["experiment_ids"] = ["E0"]
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["run_ablation_matrix.py", "--config", str(config_path), "--strict_paths"])
+
+    runner.main()
+
+    plan_path = Path(data["output_root"]) / "matrix_plan.jsonl"
+    row = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert row["manifest"] == data["dataset"]["manifest"]
+
+
+def test_main_uses_explicit_output_dir_for_prediction_paths(tmp_path, monkeypatch):
+    data = _base_config(tmp_path)
+    data["experiments"] = [
+        {
+            "id": "E0",
+            "model_key": "baseline_m4",
+            "audio_condition": "none",
+            "rollback_mode": "behavior",
+            "alignment": "off",
+            "gate_ablation": "none",
+        }
+    ]
+    data["experiment_ids"] = ["E0"]
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(data), encoding="utf-8")
+    output_dir = tmp_path / "isolated_predictions"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["run_ablation_matrix.py", "--config", str(config_path), "--output_dir", str(output_dir)],
+    )
+
+    runner.main()
+
+    row = json.loads((output_dir / "matrix_plan.jsonl").read_text(encoding="utf-8"))
+    assert Path(row["output_jsonl"]).parent == output_dir
+
+
 def test_build_plan_preserves_additional_experiment_environment(tmp_path):
     data = _base_config(tmp_path)
     experiments = [dict(item) for item in runner.DEFAULT_EXPERIMENTS]

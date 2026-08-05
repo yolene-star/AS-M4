@@ -373,6 +373,29 @@ def apply_audio_condition(
     return result
 
 
+def resolve_model_name_from_checkpoint_config(model_path: Path, fallback: str) -> str:
+    """Prefer checkpoint architecture metadata over an arbitrary run-directory name."""
+
+    config_path = model_path / "config.json"
+    if not config_path.is_file():
+        return fallback
+    try:
+        config = load_json(config_path)
+    except (OSError, json.JSONDecodeError):
+        return fallback
+    if not isinstance(config, dict):
+        return fallback
+    architecture_identity = " ".join(
+        [
+            str(config.get("model_type") or ""),
+            *[str(value) for value in (config.get("architectures") or [])],
+        ]
+    ).lower()
+    if "qwen" in architecture_identity:
+        return "LongVA-Qwen2"
+    return fallback
+
+
 def load_model_once(model_path: str, device: str, model_name_override: str | None = None):
     from intersuit.mm_utils import get_model_name_from_path
     from intersuit.model.builder import load_pretrained_model
@@ -381,7 +404,10 @@ def load_model_once(model_path: str, device: str, model_name_override: str | Non
     if not model_path_abs.is_absolute():
         model_path_abs = (REPO_ROOT / model_path_abs).resolve()
     model_path_str = str(model_path_abs)
-    model_name = model_name_override or get_model_name_from_path(model_path_str)
+    model_name = model_name_override or resolve_model_name_from_checkpoint_config(
+        model_path_abs,
+        get_model_name_from_path(model_path_str),
+    )
     cwd = Path.cwd()
     cpu_rng_state = torch.random.get_rng_state()
     cuda_rng_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
@@ -428,8 +454,9 @@ def frozen_runtime_module_sha256(model: Any) -> dict[str, str]:
         if isinstance(module, list):
             module = module[0] if module else None
         if module is None:
-            raise RuntimeError(f"冻结 pilot 模型缺少运行时模块：{name}")
-        result[name] = module_state_sha256(module)
+            result[name] = "__absent__"
+        else:
+            result[name] = module_state_sha256(module)
     return result
 
 
