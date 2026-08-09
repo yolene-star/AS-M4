@@ -534,6 +534,24 @@ class LlavaMetaForCausalLM(ABC):
     def get_streaming_av_module(self):
         return self.get_model().get_streaming_av_module()
 
+    def scene_audio_branch_is_active(self, scene_audios=None) -> bool:
+        """Return whether the optional scene-audio side branch should run.
+
+        The branch is deliberately routed outside the original M4 visual and
+        query-speech paths.  Keeping the decision in one place makes behavior
+        rollback exact even when callers still provide cached audio tensors.
+        """
+
+        if scene_audios is None or not bool(
+            getattr(self.config, "enable_scene_audio", False)
+        ):
+            return False
+        window_mode = normalize_scene_audio_window_mode(
+            getattr(self.config, "scene_audio_window_mode", "fixed"),
+            allow_disabled=True,
+        )
+        return window_mode != "disabled"
+
     def encode_scene_audio(
         self,
         scene_audios,
@@ -1347,13 +1365,12 @@ class LlavaMetaForCausalLM(ABC):
         frame_timestamps=None,
         **kwargs,
     ):
-        enable_scene_audio = getattr(self.config, "enable_scene_audio", False)
         window_mode = normalize_scene_audio_window_mode(
             getattr(self.config, "scene_audio_window_mode", "fixed"),
             allow_disabled=True,
         )
         selector_mode = window_mode in SCENE_AUDIO_SELECTOR_WINDOW_MODES
-        if not enable_scene_audio or window_mode == "disabled" or scene_audios is None:
+        if not self.scene_audio_branch_is_active(scene_audios):
             if speeches is not None:
                 return self.prepare_inputs_labels_for_multimodal_av(
                     input_ids,

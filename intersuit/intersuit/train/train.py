@@ -2153,6 +2153,19 @@ def train(attn_implementation=None):
                 for name, param in model.named_parameters():
                     if "streaming_av_module.fusion" in name:
                         param.requires_grad_(True)
+            if "scene_audio_branch" in tunable_parts and model_args.enable_scene_audio:
+                # Stable high-level alias for the optional audio side branch.
+                # Frozen backbones (notably BEATs/torchaudio) stay frozen; only
+                # their lightweight projection plus the AS-M4 routing/fusion
+                # modules are trainable. Existing parameter names are retained
+                # so old checkpoints remain loadable without key remapping.
+                for name, param in model.named_parameters():
+                    is_audio_adapter = (
+                        "scene_audio_encoder.audio_projector" in name
+                        or "scene_audio_encoder.proj" in name
+                    )
+                    if is_audio_adapter or "streaming_av_module" in name:
+                        param.requires_grad_(True)
             if "mm_language_model" in tunable_parts:
                 for name, param in model.named_parameters():
                     if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name and "speech_encoder" not in name and "speech_projector" not in name and "scene_audio_encoder" not in name and "streaming_av_module" not in name:

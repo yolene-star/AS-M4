@@ -199,6 +199,28 @@ def test_enable_scene_audio_zero_uses_existing_fixed_fallback():
     assert model.fallback_calls == 1
 
 
+def test_scene_audio_branch_activation_contract():
+    model = _DisabledSceneAudioRoutingModel()
+    audio = torch.zeros(1, 2, 16)
+
+    assert not model.scene_audio_branch_is_active(audio)
+    model.config.enable_scene_audio = True
+    assert model.scene_audio_branch_is_active(audio)
+    assert not model.scene_audio_branch_is_active(None)
+
+    model.config.scene_audio_window_mode = "disabled"
+    assert not model.scene_audio_branch_is_active(audio)
+
+
+def test_scene_audio_branch_rejects_ambiguous_legacy_dynamic_mode():
+    model = _DisabledSceneAudioRoutingModel()
+    model.config.enable_scene_audio = True
+    model.config.scene_audio_window_mode = "dynamic"
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        model.scene_audio_branch_is_active(torch.zeros(1, 2, 16))
+
+
 class _SceneAudioEncodingModel(LlavaMetaForCausalLM):
     def __init__(self):
         self.config = SimpleNamespace(

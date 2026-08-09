@@ -239,7 +239,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         semantic_labels = labels
         contrastive_loss = None
         if inputs_embeds is None:
-            if scene_audios is not None:
+            if self.scene_audio_branch_is_active(scene_audios):
                 (input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels) = self.prepare_inputs_labels_for_streaming_av(
                     input_ids,
                     position_ids,
@@ -390,7 +390,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
         original_inputs = inputs
         if images is not None:
-            if scene_audios is not None:
+            if self.scene_audio_branch_is_active(scene_audios):
                 (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_streaming_av(
                     inputs,
                     position_ids,
@@ -447,7 +447,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
         original_inputs = inputs
         if images is not None:
-            if scene_audios is not None:
+            if self.scene_audio_branch_is_active(scene_audios):
                 (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_streaming_av(
                     inputs,
                     position_ids,
@@ -695,7 +695,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             raise NotImplementedError("`inputs_embeds` is not supported")
         
         if images is not None:
-            if scene_audios is not None:
+            if self.scene_audio_branch_is_active(scene_audios):
                 (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_streaming_av(
                     inputs,
                     position_ids,
