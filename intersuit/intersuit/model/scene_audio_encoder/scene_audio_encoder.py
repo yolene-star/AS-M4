@@ -229,12 +229,15 @@ class FrozenBEATsSceneAudioEncoder(nn.Module):
         code_root: str,
         sample_rate: int = 16000,
         expected_sha256: str | None = None,
+        encode_chunk_size: int = 0,
     ) -> None:
         super().__init__()
         if hidden_size <= 0:
             raise ValueError("hidden_size must be positive")
         if sample_rate != 16000:
             raise ValueError("BEATs scene audio currently requires 16000 Hz input")
+        if encode_chunk_size < 0:
+            raise ValueError("encode_chunk_size must be non-negative")
 
         checkpoint = _resolve_local_file(checkpoint_path, "BEATs checkpoint")
         source = _resolve_local_file(Path(code_root) / "beats/BEATs.py", "BEATs source")
@@ -299,6 +302,7 @@ class FrozenBEATsSceneAudioEncoder(nn.Module):
         self.code_root = str(source_root)
         self.checkpoint_sha256 = checkpoint_sha256
         self.feature_kind = "beats_projected_semantic"
+        self.encode_chunk_size = int(encode_chunk_size)
 
     @property
     def beats_model(self) -> nn.Module:
@@ -358,14 +362,21 @@ class FrozenBEATsSceneAudioEncoder(nn.Module):
         flat = windows.detach().float().cpu().reshape(batch * steps, -1)
         fbanks = torch.stack([_waveform_to_fbank(window, self.sample_rate) for window in flat])
         beats_param = next(self.beats_model.parameters())
-        fbanks = fbanks.to(device=beats_param.device, dtype=beats_param.dtype)
+        chunk_size = self.encode_chunk_size or int(fbanks.shape[0])
+        pooled_chunks = []
         with torch.no_grad():
-            encoded, _, _ = self.beats_model.extract_features(
-                fbanks,
-                padding_mask=None,
-                feature_only=True,
-            )
-            pooled = encoded.float().mean(dim=1)
+            for start in range(0, int(fbanks.shape[0]), chunk_size):
+                chunk = fbanks[start : start + chunk_size].to(
+                    device=beats_param.device,
+                    dtype=beats_param.dtype,
+                )
+                encoded, _, _ = self.beats_model.extract_features(
+                    chunk,
+                    padding_mask=None,
+                    feature_only=True,
+                )
+                pooled_chunks.append(encoded.float().mean(dim=1))
+        pooled = torch.cat(pooled_chunks, dim=0)
         if not torch.isfinite(pooled).all():
             raise ValueError("BEATs produced NaN/Inf embeddings")
         pooled = pooled.reshape(batch, steps, self.encoder_dim)

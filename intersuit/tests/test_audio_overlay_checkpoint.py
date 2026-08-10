@@ -99,6 +99,7 @@ def test_build_overlay_keeps_base_weights_and_adds_only_audio(tmp_path):
     assert manifest["audio_checkpoint"]["current_code_initialized_weight_count"] > 0
 
     with safe_open(output / "audio-branch.safetensors", framework="pt", device="cpu") as handle:
+        assert handle.metadata() == {"format": "pt"}
         keys = set(handle.keys())
         assert "model.scene_audio_encoder.audio_projector.weight" in keys
         assert "model.streaming_av_module.fusion.audio_projector.weight" in keys

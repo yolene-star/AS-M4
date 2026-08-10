@@ -58,6 +58,9 @@ def build_scene_audio_encoder(config):
             ),
             sample_rate=int(getattr(config, "scene_audio_sample_rate", 16000)),
             expected_sha256=getattr(config, "scene_audio_beats_checkpoint_sha256", None),
+            encode_chunk_size=int(
+                getattr(config, "scene_audio_beats_encode_chunk_size", 0)
+            ),
         )
         config.scene_audio_beats_checkpoint_sha256 = encoder.checkpoint_sha256
         return encoder

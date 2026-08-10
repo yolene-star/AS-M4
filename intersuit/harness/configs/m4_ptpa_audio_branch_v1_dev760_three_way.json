@@ -1,0 +1,53 @@
+{
+  "dataset": {
+    "name": "AS_M4_STAGE2",
+    "split": "dev760_audio_branch_v1_three_way",
+    "manifest": "/home/yjm/M4-main/intersuit/datasets/AS_M4_STAGE2/dev760_frozen_qa_manifest.json",
+    "manifest_sha256": "6d8a29e53532593eb5b66f007e0cc774631f52afa070b82a3e3e1718fd4a2ea7",
+    "scorer": "label_terms"
+  },
+  "models": {
+    "baseline_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "as_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1"
+  },
+  "output_root": "/home/yjm/M4-main/intersuit/harness/artifacts/m4_ptpa_audio_branch_v1_dev760_three_way",
+  "experiment_ids": [
+    "AUDIO_BRANCH_BEHAVIOR_OFF",
+    "AUDIO_BRANCH_GATE0",
+    "AUDIO_BRANCH_CORRECT"
+  ],
+  "experiments": [
+    {
+      "id": "AUDIO_BRANCH_BEHAVIOR_OFF",
+      "description": "同一组合 checkpoint，完全关闭场景音频分支。",
+      "model_key": "as_m4",
+      "audio_condition": "none",
+      "rollback_mode": "behavior",
+      "force_audio_gate": "0",
+      "alignment": "off",
+      "gate_ablation": "none"
+    },
+    {
+      "id": "AUDIO_BRANCH_GATE0",
+      "description": "同一组合 checkpoint，正确音频进入编码链路但强制 gate=0。",
+      "model_key": "as_m4",
+      "audio_condition": "correct",
+      "rollback_mode": "gate0",
+      "force_audio_gate": "0",
+      "alignment": "off",
+      "gate_ablation": "all"
+    },
+    {
+      "id": "AUDIO_BRANCH_CORRECT",
+      "description": "同一组合 checkpoint，正确同步音频和固定推理 gate=0.005。",
+      "model_key": "as_m4",
+      "audio_condition": "correct",
+      "rollback_mode": "none",
+      "alignment": "off",
+      "gate_ablation": "none",
+      "env": {
+        "AS_M4_INFERENCE_SIMPLE_AUDIO_GATE": "0.005"
+      }
+    }
+  ]
+}

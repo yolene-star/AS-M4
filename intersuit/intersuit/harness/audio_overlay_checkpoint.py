@@ -268,9 +268,14 @@ def build_overlay_checkpoint(
                 relative_symlink(source, output_dir / filename)
 
         overlay_filename = "audio-branch.safetensors"
-        # 来源、版本与资格均已写入 manifest。这里不写 safetensors
-        # metadata，避免底层 map 序列化顺序造成数值相同但文件 hash 不同。
-        save_file(audio_tensors, str(output_dir / overlay_filename))
+        # Transformers 把该文件作为 checkpoint shard 加载时要求存在
+        # ``metadata["format"]``。只写固定、路径无关的单项 metadata，
+        # 既满足加载协议，也保持跨输出目录的字节级可复现性。
+        save_file(
+            audio_tensors,
+            str(output_dir / overlay_filename),
+            metadata={"format": "pt"},
+        )
 
         combined_weight_map = dict(base_weight_map)
         combined_weight_map.update({key: overlay_filename for key in audio_tensors})

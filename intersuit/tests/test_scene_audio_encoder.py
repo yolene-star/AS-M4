@@ -175,6 +175,60 @@ def test_frozen_beats_materializes_external_weights_inside_meta_context(
     assert encoder.audio_projector.weight.is_meta is True
 
 
+def test_frozen_beats_encode_raw_chunks_without_dropping_windows(
+    monkeypatch,
+    tmp_path,
+):
+    source = tmp_path / "beats" / "BEATs.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("# test source\n", encoding="utf-8")
+    call_sizes = []
+
+    class FakeConfig:
+        def __init__(self, _cfg):
+            self.encoder_embed_dim = 2
+
+    class FakeBEATs(nn.Module):
+        def __init__(self, cfg):
+            super().__init__()
+            self.cfg = cfg
+            self.weight = nn.Parameter(torch.ones(1))
+
+        def extract_features(self, fbanks, padding_mask, feature_only):
+            call_sizes.append(int(fbanks.shape[0]))
+            return fbanks, None, None
+
+    fake_module = types.ModuleType("beats.BEATs")
+    fake_module.BEATsConfig = FakeConfig
+    fake_module.BEATs = FakeBEATs
+    monkeypatch.setitem(sys.modules, "beats.BEATs", fake_module)
+    monkeypatch.setattr(
+        scene_audio_encoder,
+        "_waveform_to_fbank",
+        lambda window, _sample_rate: torch.stack((window[:2], window[:2]), dim=0),
+    )
+    checkpoint = tmp_path / "beats.pt"
+    torch.save(
+        {
+            "cfg": {"encoder_embed_dim": 2},
+            "model": {"weight": torch.tensor([1.0])},
+        },
+        checkpoint,
+    )
+    encoder = FrozenBEATsSceneAudioEncoder(
+        hidden_size=2,
+        checkpoint_path=str(checkpoint),
+        code_root=str(tmp_path),
+        encode_chunk_size=2,
+    )
+    windows = torch.arange(5 * 4, dtype=torch.float32).reshape(1, 5, 4)
+    output = encoder.encode_raw(windows)
+
+    assert output.features.shape == (1, 5, 2)
+    assert call_sizes == [2, 2, 1]
+    assert torch.equal(output.mask, torch.ones(1, 5, dtype=torch.bool))
+
+
 if __name__ == "__main__":
     test_dummy_encoder_outputs_shape_and_mask()
     test_dummy_encoder_handles_silence_without_nan()
