@@ -1,0 +1,62 @@
+{
+  "format_version": 1,
+  "model_version": "M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+  "qualification": "diagnostic_only",
+  "source_summary": "third_party/OmniMMI/BEST_PT_PA_CONFIG_THIS_WEEK_ZH.md",
+  "base_model": {
+    "path": "intersuit/checkpoints/M4-LongVA-7B-Qwen2",
+    "huggingface_revision": "c859c97d357a612183d8caa258b5812b7e78080f",
+    "official_m4_source_revision": "574d2244576190cd150cd28aaaa8dbd2ea7502e6"
+  },
+  "audio_branch": {
+    "checkpoint": "intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150",
+    "beats_checkpoint": "intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+    "beats_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+    "scene_audio_window_mode": "micro_window",
+    "window_sec": 1.0,
+    "hop_sec": 1.0,
+    "dynamic_window_top_k": 8,
+    "fusion_mode": "beats_simple_residual",
+    "inference_gate": 0.005,
+    "debug_audio_residual_scale": 1.0,
+    "audio_delta_ratio_cap": 0.0
+  },
+  "pt": {
+    "task": "proactive_turntaking",
+    "sample_count": 200,
+    "frame_policy": "fixed_uniform",
+    "max_frames": 32,
+    "gen": false,
+    "detection_token_id": 151644,
+    "temperature": 1.0,
+    "beta": 0.2,
+    "decision": "silent_if_token_probability_gt_beta_times_exp_negative_entropy",
+    "reference_accuracy": 0.63,
+    "audio_media_count": 184,
+    "no_audio_fallback_count": 16
+  },
+  "pa": {
+    "task": "proactive_alerting",
+    "sample_count": 200,
+    "frame_fps": 1,
+    "frame_resolution": 336,
+    "query_injection": "from_start",
+    "attention_layer": "last",
+    "attention_head_reduce": "mean",
+    "qwen_query_token_index": -3,
+    "saliency_threshold": "mean_plus_2_std",
+    "grounding_start_condition": "frame_count_gt_4",
+    "trigger_condition": "cnt_gt_4",
+    "generation": "greedy_argmax",
+    "max_new_tokens": 64,
+    "seed": 42,
+    "reference_accuracy": 0.215,
+    "reference_precision": 0.3181904762,
+    "reference_iou": 0.1402209194
+  },
+  "known_limitations_zh": [
+    "音频权重未通过 dev760 正确音频高于 video-only 与 mismatched 的正式门禁。",
+    "selector v2 oracle pilot 已停止，learned selector training 不允许。",
+    "本版本用于可审计诊断和接线测试，不得预先宣称优于官方 M4。"
+  ]
+}
