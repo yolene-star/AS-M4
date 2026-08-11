@@ -62,6 +62,7 @@ def test_current_micro_preserves_internal_selector_path():
     sample = module.condition_samples("current_micro_top8", rows())[0]
 
     assert "scene_audio_selection_policy" not in sample
+    assert sample["audio_sha256"] == "a" * 64
     assert sample["scene_audio_window_sec"] == 1.0
     assert sample["scene_audio_hop_sec"] == 1.0
 
@@ -78,3 +79,7 @@ def test_only_gate0_and_behavior_force_zero_gate():
     assert module.experiment_env("behavior_off")["AS_M4_FORCE_AUDIO_GATE"] == "0"
     assert module.experiment_env("gate0")["AS_M4_FORCE_AUDIO_GATE"] == "0"
     assert "AS_M4_FORCE_AUDIO_GATE" not in module.experiment_env("external_oracle_top8")
+
+
+def test_p2_generation_budget_is_large_enough_for_caption_eos_review():
+    assert module.MAX_NEW_TOKENS == 128

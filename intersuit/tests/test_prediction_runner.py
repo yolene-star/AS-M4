@@ -527,12 +527,16 @@ def test_mismatched_condition_replaces_path_backed_audio():
         "scene_audio_sample_rate": 16000,
         "scene_audio_window_sec": 1.0,
         "scene_audio_hop_sec": 0.5,
+        "scene_audio_expected_duration_sec": 10.0,
+        "audio_sha256": "first-sha",
     }
     qa1 = {
         "scene_audio_path": "second.mp4",
         "scene_audio_sample_rate": 8000,
         "scene_audio_window_sec": 2.0,
         "scene_audio_hop_sec": 1.0,
+        "scene_audio_expected_duration_sec": 22.5,
+        "audio_sha256": "second-sha",
     }
 
     mismatched = runner.apply_audio_condition(
@@ -546,6 +550,28 @@ def test_mismatched_condition_replaces_path_backed_audio():
     assert mismatched["scene_audio_sample_rate"] == 8000
     assert mismatched["scene_audio_window_sec"] == 2.0
     assert mismatched["scene_audio_hop_sec"] == 1.0
+    assert mismatched["scene_audio_expected_duration_sec"] == 22.5
+    assert mismatched["audio_sha256"] == "second-sha"
+
+
+def test_mismatched_condition_clears_missing_optional_source_metadata():
+    target = {
+        "scene_audio_path": "target.mp4",
+        "scene_audio_expected_duration_sec": 10.0,
+        "audio_sha256": "target-sha",
+    }
+    source = {"scene_audio_path": "source.mp4"}
+
+    mismatched = runner.apply_audio_condition(
+        target,
+        {"audio_condition": "mismatched"},
+        [target, source],
+        0,
+    )
+
+    assert mismatched["scene_audio_path"] == "source.mp4"
+    assert mismatched["scene_audio_expected_duration_sec"] is None
+    assert mismatched["audio_sha256"] is None
 
 
 def test_mismatched_condition_skips_rows_without_audio():

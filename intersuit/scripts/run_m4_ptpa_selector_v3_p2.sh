@@ -2,7 +2,12 @@
 set -euo pipefail
 
 project_root="/home/yjm/M4-main"
-run_dir="$project_root/intersuit/harness/artifacts/m4_ptpa_audio_dynamic_selector_v3/p2_smoke"
+run_name="${P2_RUN_NAME:-p2_smoke}"
+if [[ ! "$run_name" =~ ^p2_smoke(_rerun[0-9]+)?$ ]]; then
+  echo "P2_RUN_NAME 必须是 p2_smoke 或 p2_smoke_rerun<数字>" >&2
+  exit 2
+fi
+run_dir="$project_root/intersuit/harness/artifacts/m4_ptpa_audio_dynamic_selector_v3/$run_name"
 plan="$run_dir/matrix_plan.jsonl"
 p2_gpu="${P2_GPU:?必须显式设置 P2_GPU，例如 P2_GPU=2}"
 
@@ -49,7 +54,7 @@ conda run --no-capture-output -n M4 python -m intersuit.harness.runners.run_pred
   --plan "$plan" \
   --backend model \
   --device cuda:0 \
-  --max_new_tokens 64 \
+  --max_new_tokens 128 \
   --dump_diagnostics \
   --debug_dir "$run_dir/debug" \
   --resume

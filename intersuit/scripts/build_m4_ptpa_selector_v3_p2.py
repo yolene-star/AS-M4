@@ -29,6 +29,7 @@ EXPECTED_INPUT_SHA256 = {
 }
 CONTROL_SEED = 20260720
 SAMPLE_COUNT = 2
+MAX_NEW_TOKENS = 128
 
 
 def parse_args() -> argparse.Namespace:
@@ -115,6 +116,7 @@ def base_sample(row: dict[str, Any]) -> dict[str, Any]:
         "scene_audio_window_sec": 1.0,
         "scene_audio_hop_sec": 1.0,
         "scene_audio_expected_duration_sec": float(row["duration_sec"]),
+        "audio_sha256": row["physical_media_sha256"],
         "physical_media_id": f"sha256:{row['physical_media_sha256']}",
         "source_dataset": "LongVALE_V3_PILOT_DIAGNOSTIC",
         "task_type": "sparse_event_caption",
@@ -250,6 +252,7 @@ def main() -> None:
         "condition_order": [condition for condition, _ in conditions],
         "random_seed": CONTROL_SEED,
         "top_k": 8,
+        "max_new_tokens": MAX_NEW_TOKENS,
         "gpu_count": 1,
         "gpu_physical_id": "must_be_recorded_by_preflight",
         "confirm_accessed": False,

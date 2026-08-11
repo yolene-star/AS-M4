@@ -393,14 +393,18 @@ def apply_audio_condition(
         result["scene_audio"] = source.get("scene_audio")
         result["scene_audio_timestamps"] = source.get("scene_audio_timestamps")
         if source.get("scene_audio_path"):
-            result["scene_audio_path"] = source["scene_audio_path"]
+            # Path-backed audio metadata is one atomic source identity.  Copy
+            # every duration/decoding field, including explicit None, so no
+            # target-sample value can leak into a mismatched source.
             for key in (
+                "scene_audio_path",
                 "scene_audio_sample_rate",
                 "scene_audio_window_sec",
                 "scene_audio_hop_sec",
+                "scene_audio_expected_duration_sec",
+                "audio_sha256",
             ):
-                if source.get(key) is not None:
-                    result[key] = source[key]
+                result[key] = source.get(key)
         else:
             result["scene_audio_path"] = None
         result["mismatch_source_id"] = source.get("sample_id") or source.get("id")
