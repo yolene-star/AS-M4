@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""构建并锁定 Dynamic Selector V3 的 P3 LongVALE 20-sample canary。"""
+"""构建并锁定 Dynamic Selector V3 的 P3 LongVALE canary/full 矩阵。"""
 
 from __future__ import annotations
 
@@ -17,12 +17,14 @@ V3_ROOT = ARTIFACT_ROOT / "m4_ptpa_audio_dynamic_selector_v3"
 P1_MANIFEST = V3_ROOT / "p1_offline/pilot_one_sparse_event.jsonl"
 P1_LOCK = V3_ROOT / "p1_offline/p1_lock.json"
 P2_REVIEW = V3_ROOT / "p2_smoke_rerun1/p2_review.json"
+P3_CANARY_REVIEW = V3_ROOT / "p3_longvale_canary20/official_metrics/p3_canary_review.json"
 V2_PREFLIGHT = ARTIFACT_ROOT / "dynamic_selector_v2_v2/preflight"
 MISMATCH_MAPPINGS = V2_PREFLIGHT / "oracle_pilot_mismatch_mappings.json"
 MEDIA_AUDIT = V2_PREFLIGHT / "oracle_pilot_media_audit.json"
 MEDIA_ROOT = PROJECT_ROOT / "intersuit/datasets/LongVALE_V2/oracle_pilot_media"
 MODEL_PATH = PROJECT_ROOT / "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1"
 DEFAULT_OUTPUT = V3_ROOT / "p3_longvale_canary20"
+FULL_OUTPUT = V3_ROOT / "p3_longvale_frozen100"
 
 EXPECTED_SHA256 = {
     P1_LOCK: "caccb8193386dce3362439191708275624397210fc1248108f48e99ec7cb2e52",
@@ -30,6 +32,7 @@ EXPECTED_SHA256 = {
     MISMATCH_MAPPINGS: "9005e6ba2294b979fe6490e7098375dde5b8506d14b03d4149fffffdb9d909ee",
     MEDIA_AUDIT: "68114ba9a26ed7659d939ba30ac56edd10d9acd3dccc90526d017ff6e0091e9a",
 }
+EXPECTED_CANARY_REVIEW_SHA256 = "c1b01b2cf268c122650f62d78c132e00d3c30e1adeaf44afa256f1fc9169dd42"
 CONTROL_SEEDS = (20260720, 20260721, 20260722, 20260723, 20260724)
 CANARY_COUNT = 20
 TOP_K = 8
@@ -40,7 +43,8 @@ CANARY_NAMESPACE = "m4-ptpa-dynamic-selector-v3-p3-canary20-20260812"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--scope", choices=("canary20", "frozen100"), default="canary20")
+    parser.add_argument("--output-dir", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -73,7 +77,7 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     )
 
 
-def verify_stage_locks() -> dict[str, str]:
+def verify_stage_locks(scope: str) -> dict[str, str]:
     actual = {}
     for path, expected in EXPECTED_SHA256.items():
         digest = sha256_file(path)
@@ -88,6 +92,19 @@ def verify_stage_locks() -> dict[str, str]:
         raise ValueError("P2 Review 未允许 P3")
     if p2.get("selector_training_allowed") is not False or p2.get("confirm_accessed") is not False:
         raise ValueError("P2 权限边界漂移")
+    if scope == "frozen100":
+        digest = sha256_file(P3_CANARY_REVIEW)
+        if digest != EXPECTED_CANARY_REVIEW_SHA256:
+            raise ValueError(
+                "P3 canary Review SHA 漂移: "
+                f"expected={EXPECTED_CANARY_REVIEW_SHA256}, actual={digest}"
+            )
+        review = read_json(P3_CANARY_REVIEW)
+        if review.get("p3_full_allowed") is not True or review.get("status") != "pass_to_frozen_100":
+            raise ValueError("P3 canary Review 未授权 frozen100")
+        if review.get("selector_training_allowed") is not False or review.get("confirm_accessed") is not False:
+            raise ValueError("P3 canary Review 权限边界漂移")
+        actual[str(P3_CANARY_REVIEW.relative_to(PROJECT_ROOT))] = digest
     return actual
 
 
@@ -101,6 +118,16 @@ def freeze_canary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             str(row["sample_id"]),
         ),
     )[:CANARY_COUNT]
+
+
+def select_scope_rows(scope: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if scope == "canary20":
+        return freeze_canary(rows)
+    if scope == "frozen100":
+        if len(rows) != 100 or len({row["video_id"] for row in rows}) != 100:
+            raise ValueError("frozen100 必须使用 P1 的 100 个唯一视频")
+        return list(rows)
+    raise ValueError(f"未知 P3 scope: {scope}")
 
 
 def condition_names() -> list[str]:
@@ -200,12 +227,14 @@ def build_sample(
 
 def main() -> None:
     args = parse_args()
+    if args.output_dir is None:
+        args.output_dir = DEFAULT_OUTPUT if args.scope == "canary20" else FULL_OUTPUT
     args.output_dir = args.output_dir.resolve()
     args.output_dir.mkdir(parents=True, exist_ok=False)
-    input_hashes = verify_stage_locks()
+    input_hashes = verify_stage_locks(args.scope)
     all_rows = read_jsonl(P1_MANIFEST)
     by_video = {str(row["video_id"]): row for row in all_rows}
-    canary = freeze_canary(all_rows)
+    selected_rows = select_scope_rows(args.scope, all_rows)
     mappings = read_json(MISMATCH_MAPPINGS)
     audit_rows = read_json(MEDIA_AUDIT)["videos"]
     media_sha = {str(row["video_id"]): str(row["sha256"]) for row in audit_rows}
@@ -215,7 +244,7 @@ def main() -> None:
     mapping_signatures = set()
     for seed in CONTROL_SEEDS:
         mapping = mappings[str(seed)]
-        pairs = tuple((row["video_id"], mapping[row["video_id"]]) for row in canary)
+        pairs = tuple((row["video_id"], mapping[row["video_id"]]) for row in selected_rows)
         if any(target == source for target, source in pairs):
             raise ValueError(f"seed={seed} mismatch 出现物理自映射")
         signature = hashlib.sha256(json.dumps(pairs, sort_keys=True).encode()).hexdigest()
@@ -223,9 +252,9 @@ def main() -> None:
             raise ValueError("5-seed mismatch 在 canary 上出现重复 derangement")
         mapping_signatures.add(signature)
 
-    relevant_videos = {str(row["video_id"]) for row in canary}
+    relevant_videos = {str(row["video_id"]) for row in selected_rows}
     for seed in CONTROL_SEEDS:
-        relevant_videos.update(mappings[str(seed)][row["video_id"]] for row in canary)
+        relevant_videos.update(mappings[str(seed)][row["video_id"]] for row in selected_rows)
     for video_id in sorted(relevant_videos):
         path = MEDIA_ROOT / f"{video_id}.mp4"
         if not path.is_file() or sha256_file(path) != media_sha[video_id]:
@@ -239,7 +268,7 @@ def main() -> None:
         seed = int(condition.rsplit("_", 1)[-1]) if condition.startswith("oracle_mismatch_seed_") else None
         samples = []
         source_rows = []
-        for target in canary:
+        for target in selected_rows:
             source_video = mappings[str(seed)][target["video_id"]] if seed is not None else target["video_id"]
             source = by_video[source_video]
             samples.append(build_sample(condition, target, source, media_sha))
@@ -262,7 +291,7 @@ def main() -> None:
         plan.append({
             "id": condition,
             "dataset": "LongVALE_V3_PILOT_DIAGNOSTIC",
-            "split": "p3_canary20",
+            "split": f"p3_{args.scope}",
             "manifest": str(manifest),
             "manifest_sha256": manifest_hashes[condition],
             "scorer": "exact_match",
@@ -276,24 +305,28 @@ def main() -> None:
     write_jsonl(args.output_dir / "matrix_plan.jsonl", plan)
 
     annotation = {}
-    for row in canary:
+    for row in selected_rows:
         annotation[f"sha256:{media_sha[row['video_id']]}"] = {
             "duration": row["duration_sec"],
             "timestamps": [[row["event_start_sec"], row["event_end_sec"]]],
             "sentences": [row["caption"]],
         }
-    write_json(args.output_dir / "canary_annotation.json", annotation)
-    write_jsonl(args.output_dir / "canary_manifest.jsonl", canary)
+    annotation_name = "canary_annotation.json" if args.scope == "canary20" else "pilot_annotation.json"
+    manifest_name = "canary_manifest.jsonl" if args.scope == "canary20" else "pilot_manifest.jsonl"
+    lock_name = "p3_canary_lock.json" if args.scope == "canary20" else "p3_full_lock.json"
+    write_json(args.output_dir / annotation_name, annotation)
+    write_jsonl(args.output_dir / manifest_name, selected_rows)
     lock = {
-        "artifact_kind": "m4_ptpa_dynamic_selector_v3_p3_canary_lock",
+        "artifact_kind": f"m4_ptpa_dynamic_selector_v3_p3_{args.scope}_lock",
         "format_version": 1,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": "locked_not_run",
         "p2_fix_commit": "a6ab234",
         "input_hashes": input_hashes,
-        "canary_namespace": CANARY_NAMESPACE,
-        "sample_count": CANARY_COUNT,
-        "sample_ids": [row["sample_id"] for row in canary],
+        "scope": args.scope,
+        "sample_namespace": CANARY_NAMESPACE if args.scope == "canary20" else "p1_frozen_one_sparse_event_all100",
+        "sample_count": len(selected_rows),
+        "sample_ids": [row["sample_id"] for row in selected_rows],
         "conditions": conditions,
         "condition_count": len(conditions),
         "control_seeds": list(CONTROL_SEEDS),
@@ -305,11 +338,13 @@ def main() -> None:
         "manifest_hashes": manifest_hashes,
         "source_mapping_hashes": source_mapping_hashes,
         "relevant_media_count": len(relevant_videos),
+        "full_execution_authorized_by_canary": args.scope == "frozen100",
+        "final_oracle_gate_pending": args.scope == "frozen100",
         "p3_full_allowed": False,
         "selector_training_allowed": False,
         "confirm_accessed": False,
     }
-    write_json(args.output_dir / "p3_canary_lock.json", lock)
+    write_json(args.output_dir / lock_name, lock)
     print(json.dumps(lock, ensure_ascii=False, indent=2, sort_keys=True))
 
 

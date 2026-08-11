@@ -48,6 +48,15 @@ def test_canary_freeze_is_order_independent_and_unique():
     assert len({item["video_id"] for item in first}) == 20
 
 
+def test_frozen100_scope_preserves_all_p1_rows_without_resampling():
+    rows = [row(f"v{index:03d}", 10.0, 1.0, 2.0) for index in range(100)]
+
+    selected = module.select_scope_rows("frozen100", rows)
+
+    assert selected == rows
+    assert selected is not rows
+
+
 def test_mismatch_sample_uses_source_identity_and_mapped_interval():
     target = row("target", 10.0, 2.0, 4.0)
     source = row("source", 20.0, 0.0, 1.0)
