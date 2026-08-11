@@ -212,6 +212,20 @@ def test_scene_audio_branch_activation_contract():
     assert not model.scene_audio_branch_is_active(audio)
 
 
+def test_external_selection_cannot_be_silently_ignored_by_disabled_audio_branch():
+    model = _DisabledSceneAudioRoutingModel()
+    audio = torch.zeros(1, 2, 16)
+
+    with pytest.raises(ValueError, match="enabled audio branch"):
+        model.scene_audio_branch_is_active(audio, "external_pre_encoder")
+    model.config.enable_scene_audio = True
+    model.config.scene_audio_window_mode = "disabled"
+    with pytest.raises(ValueError, match="window mode disabled"):
+        model.scene_audio_branch_is_active(audio, "external_pre_encoder")
+    with pytest.raises(ValueError, match="Unsupported"):
+        model.scene_audio_branch_is_active(audio, "made_up_stage")
+
+
 def test_scene_audio_branch_rejects_ambiguous_legacy_dynamic_mode():
     model = _DisabledSceneAudioRoutingModel()
     model.config.enable_scene_audio = True
@@ -286,3 +300,30 @@ def test_question_conditioned_mode_requires_query_and_reaches_trainable_selector
     assert output.feature_kind == "question_conditioned_selected"
     assert output.mask.sum().item() == 4
     assert model._last_dynamic_window_selector_mode == "question_conditioned"
+
+
+def test_external_selection_override_bypasses_internal_micro_selector_without_mutating_config():
+    model = _SceneAudioEncodingModel()
+    model.config.scene_audio_window_mode = "micro_window"
+    windows = torch.arange(3 * 32, dtype=torch.float32).reshape(1, 3, 32) / 100.0
+    mask = torch.ones(1, 3, dtype=torch.bool)
+    timestamps = torch.tensor([[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]])
+
+    class _ForbiddenSelector(nn.Module):
+        def forward(self, *args, **kwargs):
+            raise AssertionError("external selection must bypass the internal selector")
+
+    model.streaming_av_module.dynamic_window_selector = _ForbiddenSelector()
+    model._last_dynamic_window_selector_output = object()
+    output = model.encode_scene_audio(
+        windows,
+        mask,
+        timestamps,
+        window_mode_override="fixed",
+    )
+
+    assert output.mask.sum().item() == 3
+    assert output.feature_kind == "dummy_waveform_statistics"
+    assert model.config.scene_audio_window_mode == "micro_window"
+    assert model._last_dynamic_window_selector_output is None
+    assert model._last_dynamic_window_selector_mode == "fixed"

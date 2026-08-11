@@ -25,6 +25,10 @@ if is_datasets_available():
     import datasets
 
 from intersuit.utils import rank0_print
+from intersuit.train.trainable_parts import (
+    SCENE_AUDIO_SELECTOR_ONLY_ALIAS,
+    assert_selector_only_optimizer,
+)
 
 
 def maybe_zero_3(param, ignore_status=False, name=None):
@@ -475,6 +479,10 @@ class LLaVATrainer(Trainer):
             optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+            tunable_parts = str(getattr(self.args, "mm_tunable_parts", "") or "")
+            if tunable_parts == SCENE_AUDIO_SELECTOR_ONLY_ALIAS:
+                audited_names = assert_selector_only_optimizer(self.optimizer, opt_model)
+                rank0_print(f"selector-only optimizer audit passed: {audited_names}")
             if optimizer_cls.__name__ == "Adam8bit":
                 import bitsandbytes
 

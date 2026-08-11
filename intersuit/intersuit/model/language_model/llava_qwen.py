@@ -229,6 +229,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         scene_audios: Optional[torch.FloatTensor] = None,
         scene_audio_mask: Optional[torch.Tensor] = None,
         scene_audio_timestamps: Optional[torch.Tensor] = None,
+        scene_audio_selection_stage: Optional[str] = None,
         scene_audio_negatives: Optional[torch.FloatTensor] = None,
         scene_audio_negative_mask: Optional[torch.Tensor] = None,
         scene_audio_negative_timestamps: Optional[torch.Tensor] = None,
@@ -239,7 +240,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         semantic_labels = labels
         contrastive_loss = None
         if inputs_embeds is None:
-            if self.scene_audio_branch_is_active(scene_audios):
+            if self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
                 (input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels) = self.prepare_inputs_labels_for_streaming_av(
                     input_ids,
                     position_ids,
@@ -254,6 +255,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     scene_audios=scene_audios,
                     scene_audio_mask=scene_audio_mask,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps,
                 )
                 contrastive_loss = self._scene_audio_contrastive_loss(
@@ -380,6 +382,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         scene_audios: Optional[torch.FloatTensor] = None,
         scene_audio_mask: Optional[torch.Tensor] = None,
         scene_audio_timestamps: Optional[torch.Tensor] = None,
+        scene_audio_selection_stage: Optional[str] = None,
         frame_timestamps: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
@@ -390,7 +393,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
         original_inputs = inputs
         if images is not None:
-            if self.scene_audio_branch_is_active(scene_audios):
+            if self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
                 (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_streaming_av(
                     inputs,
                     position_ids,
@@ -405,6 +408,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     scene_audios=scene_audios,
                     scene_audio_mask=scene_audio_mask,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps,
                 )
             elif speeches is None:
@@ -435,6 +439,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         scene_audios: Optional[torch.FloatTensor] = None,
         scene_audio_mask: Optional[torch.Tensor] = None,
         scene_audio_timestamps: Optional[torch.Tensor] = None,
+        scene_audio_selection_stage: Optional[str] = None,
         frame_timestamps: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
@@ -447,7 +452,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
         original_inputs = inputs
         if images is not None:
-            if self.scene_audio_branch_is_active(scene_audios):
+            if self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
                 (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_streaming_av(
                     inputs,
                     position_ids,
@@ -462,6 +467,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     scene_audios=scene_audios,
                     scene_audio_mask=scene_audio_mask,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps,
                 )
             elif speeches is None:
@@ -685,6 +691,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         scene_audios: Optional[torch.FloatTensor] = None,
         scene_audio_mask: Optional[torch.Tensor] = None,
         scene_audio_timestamps: Optional[torch.Tensor] = None,
+        scene_audio_selection_stage: Optional[str] = None,
         frame_timestamps: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
@@ -695,7 +702,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             raise NotImplementedError("`inputs_embeds` is not supported")
         
         if images is not None:
-            if self.scene_audio_branch_is_active(scene_audios):
+            if self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
                 (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_streaming_av(
                     inputs,
                     position_ids,
@@ -710,6 +717,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     scene_audios=scene_audios,
                     scene_audio_mask=scene_audio_mask,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps,
                 )
             elif speeches is None:

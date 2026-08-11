@@ -38,6 +38,17 @@ from .question_conditioned_window_selector import (
     QuestionConditionedWindowSelector,
 )
 from .temporal_aligner import CausalTemporalAligner, TemporalAlignerOutput
+from .selection_contract import (
+    DEFAULT_SELECTION_POLICY_REGISTRY,
+    DIAGNOSTIC_ORACLE_POLICIES,
+    EXTERNAL_PRE_ENCODER_STAGE,
+    INTERNAL_MODEL_STAGE,
+    SelectionPolicyRegistry,
+    SelectionRequest,
+    SelectionResult,
+    build_default_selection_policy_registry,
+    selection_results_from_model_output,
+)
 
 __all__ = [
     "StreamingAVModule",
@@ -70,4 +81,13 @@ __all__ = [
     "GatedAVFusion",
     "CausalTemporalAligner",
     "TemporalAlignerOutput",
+    "DEFAULT_SELECTION_POLICY_REGISTRY",
+    "DIAGNOSTIC_ORACLE_POLICIES",
+    "EXTERNAL_PRE_ENCODER_STAGE",
+    "INTERNAL_MODEL_STAGE",
+    "SelectionPolicyRegistry",
+    "SelectionRequest",
+    "SelectionResult",
+    "build_default_selection_policy_registry",
+    "selection_results_from_model_output",
 ]

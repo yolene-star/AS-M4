@@ -42,6 +42,10 @@ from torch.utils.data import Dataset
 from intersuit.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
 from intersuit.constants import SPEECH_TOKEN_INDEX, DEFAULT_SPEECH_TOKEN
 from intersuit.train.llava_trainer import LLaVATrainer
+from intersuit.train.trainable_parts import (
+    SCENE_AUDIO_SELECTOR_ONLY_ALIAS,
+    enable_scene_audio_selector_only,
+)
 
 from intersuit import conversation as conversation_lib
 from intersuit.model import *
@@ -62,7 +66,7 @@ class ModelArguments:
     model_class_name: Optional[str] = field(default=None, metadata={"help": "Used to init model class, format is XXXXForCausalLM. e.g. currently XXXX is chosen from LlavaLlama, LlavaMixtral, LlavaMistral, Llama"})
 
     mm_tunable_parts: Optional[str] = field(
-        default=None, metadata={"help": 'Could be "mm_mlp_adapter", "mm_vision_resampler", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_mlp_adapter,mm_language_model"'}
+        default=None, metadata={"help": '可包含 mm_mlp_adapter、mm_vision_resampler、mm_vision_tower、mm_language_model、scene_audio_branch；精确 selector-only 使用 scene_audio_selector，且不得与其他项组合。'}
     )
     # deciding which part of the multimodal model to tune, will overwrite other previous settings
 
@@ -2114,7 +2118,14 @@ def train(attn_implementation=None):
                 if model.get_streaming_av_module() is not None:
                     model.get_streaming_av_module().requires_grad_(False)
             # Parse the mm_tunable_parts to decide which parts to unfreeze
-            tunable_parts = model_args.mm_tunable_parts.split(",")
+            tunable_parts = [part.strip() for part in model_args.mm_tunable_parts.split(",") if part.strip()]
+            if SCENE_AUDIO_SELECTOR_ONLY_ALIAS in tunable_parts:
+                if tunable_parts != [SCENE_AUDIO_SELECTOR_ONLY_ALIAS]:
+                    raise ValueError("scene_audio_selector 是严格 selector-only 模式，不得与其他 tunable part 组合")
+                if not model_args.enable_scene_audio:
+                    raise ValueError("scene_audio_selector 要求 enable_scene_audio=true")
+                allowed_names = enable_scene_audio_selector_only(model)
+                rank0_print(f"scene_audio_selector trainable allowlist: {allowed_names}")
             if "mm_mlp_adapter" in tunable_parts:
                 for p in model.get_model().mm_projector.parameters():
                     p.requires_grad = True

@@ -32,6 +32,10 @@ from .streaming_av.builder import build_streaming_av_module
 from .streaming_av.audio_event_aligner import FrozenOffsetScorerInputs, compute_audio_event_features
 from .streaming_av.confidence_gate import AudioSignalFeatures, compute_audio_signal_features
 from .streaming_av.fusion import apply_audio_delta_ratio_cap
+from .streaming_av.selection_contract import (
+    EXTERNAL_PRE_ENCODER_STAGE,
+    selection_results_from_model_output,
+)
 
 from intersuit.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from intersuit.constants import SPEECH_TOKEN_INDEX, DEFAULT_SPEECH_TOKEN
@@ -534,7 +538,7 @@ class LlavaMetaForCausalLM(ABC):
     def get_streaming_av_module(self):
         return self.get_model().get_streaming_av_module()
 
-    def scene_audio_branch_is_active(self, scene_audios=None) -> bool:
+    def scene_audio_branch_is_active(self, scene_audios=None, selection_stage=None) -> bool:
         """Return whether the optional scene-audio side branch should run.
 
         The branch is deliberately routed outside the original M4 visual and
@@ -542,15 +546,21 @@ class LlavaMetaForCausalLM(ABC):
         rollback exact even when callers still provide cached audio tensors.
         """
 
-        if scene_audios is None or not bool(
-            getattr(self.config, "enable_scene_audio", False)
-        ):
+        if selection_stage not in {None, EXTERNAL_PRE_ENCODER_STAGE}:
+            raise ValueError(f"Unsupported scene_audio_selection_stage={selection_stage!r}")
+        enabled = bool(getattr(self.config, "enable_scene_audio", False))
+        if scene_audios is None or not enabled:
+            if selection_stage is not None:
+                raise ValueError("external scene-audio selection requires a non-empty enabled audio branch")
             return False
         window_mode = normalize_scene_audio_window_mode(
             getattr(self.config, "scene_audio_window_mode", "fixed"),
             allow_disabled=True,
         )
-        return window_mode != "disabled"
+        active = window_mode != "disabled"
+        if selection_stage is not None and not active:
+            raise ValueError("external scene-audio selection cannot run with window mode disabled")
+        return active
 
     def encode_scene_audio(
         self,
@@ -558,12 +568,15 @@ class LlavaMetaForCausalLM(ABC):
         scene_audio_mask=None,
         scene_audio_timestamps=None,
         question_features=None,
+        window_mode_override=None,
     ):
         scene_audio_encoder = self.get_scene_audio_encoder()
         if scene_audio_encoder is None:
             raise ValueError("Scene audio encoder is not initialized. Call initialize_scene_audio_modules first.")
         window_mode = normalize_scene_audio_window_mode(
-            getattr(self.config, "scene_audio_window_mode", "fixed")
+            window_mode_override
+            if window_mode_override is not None
+            else getattr(self.config, "scene_audio_window_mode", "fixed")
         )
         if window_mode in SCENE_AUDIO_SELECTOR_WINDOW_MODES:
             streaming_av_module = self.get_streaming_av_module()
@@ -619,6 +632,15 @@ class LlavaMetaForCausalLM(ABC):
                 projected = selected.selected_features
             self._last_dynamic_window_selector_output = selected
             self._last_dynamic_window_selector_mode = window_mode
+            policy_name = {
+                "micro_window": "current_micro_topk",
+                "legacy_multiscale_dynamic": "legacy_multiscale_dynamic",
+                "question_conditioned": "question_conditioned_topk",
+            }[window_mode]
+            self._last_selection_results = selection_results_from_model_output(
+                policy_name,
+                selected,
+            )
             return SceneAudioEncoderOutput(
                 features=projected.masked_fill(~selected.selection_mask.unsqueeze(-1), 0.0),
                 mask=selected.selection_mask,
@@ -630,6 +652,9 @@ class LlavaMetaForCausalLM(ABC):
             sample_mask=scene_audio_mask,
             timestamps=scene_audio_timestamps,
         )
+        self._last_dynamic_window_selector_output = None
+        self._last_dynamic_window_selector_mode = "fixed"
+        self._last_selection_results = ()
         return output
 
     def fuse_scene_audio_into_image_features(
@@ -1362,15 +1387,26 @@ class LlavaMetaForCausalLM(ABC):
         scene_audios=None,
         scene_audio_mask=None,
         scene_audio_timestamps=None,
+        scene_audio_selection_stage=None,
         frame_timestamps=None,
         **kwargs,
     ):
-        window_mode = normalize_scene_audio_window_mode(
+        configured_window_mode = normalize_scene_audio_window_mode(
             getattr(self.config, "scene_audio_window_mode", "fixed"),
             allow_disabled=True,
         )
+        if scene_audio_selection_stage is None:
+            window_mode = configured_window_mode
+            external_selection = False
+        elif scene_audio_selection_stage == EXTERNAL_PRE_ENCODER_STAGE:
+            window_mode = "fixed"
+            external_selection = True
+        else:
+            raise ValueError(
+                f"Unsupported scene_audio_selection_stage={scene_audio_selection_stage!r}"
+            )
         selector_mode = window_mode in SCENE_AUDIO_SELECTOR_WINDOW_MODES
-        if not self.scene_audio_branch_is_active(scene_audios):
+        if not self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
             if speeches is not None:
                 return self.prepare_inputs_labels_for_multimodal_av(
                     input_ids,
@@ -1459,6 +1495,7 @@ class LlavaMetaForCausalLM(ABC):
             scene_audio_mask=scene_audio_mask,
             scene_audio_timestamps=scene_audio_timestamps,
             question_features=question_features,
+            window_mode_override=window_mode,
         )
         self._last_scene_audio_output = scene_audio_output
         if selector_mode and scene_audio_signal_features is not None:
@@ -1522,6 +1559,19 @@ class LlavaMetaForCausalLM(ABC):
                         selector_output.eventness_cached_scores[idx].detach()
                     )
                     diagnostic["dynamic_window_thresholds"] = selector_output.dynamic_thresholds[idx].detach()
+        elif external_selection:
+            for diagnostic in self._last_streaming_av_diagnostics:
+                if diagnostic is None:
+                    continue
+                diagnostic.update(
+                    {
+                        "dynamic_window_enabled": False,
+                        "external_window_selection": True,
+                        "scene_audio_selection_stage": EXTERNAL_PRE_ENCODER_STAGE,
+                        "configured_window_mode": configured_window_mode,
+                        "effective_window_mode": "fixed",
+                    }
+                )
 
         mm_patch_merge_type = getattr(self.config, "mm_patch_merge_type", "flat")
         if mm_patch_merge_type == "flat":

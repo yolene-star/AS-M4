@@ -138,7 +138,56 @@ def test_load_scene_audio_applies_explicit_indices_and_reuses_cache(monkeypatch,
     assert metadata["waveform_num_samples"] == 40000
     assert metadata["decoded_waveform_num_samples"] == 48000
     assert metadata["selected_source_indices"] == [0, 2]
+    assert metadata["selection_stage"] == "external_pre_encoder"
+    assert metadata["selection_trace"]["policy_name"] == "external_indices"
     assert len(calls) == 1
+
+
+def test_load_scene_audio_fixed_all_is_true_all_and_auditable(monkeypatch, tmp_path):
+    from intersuit.streaming import audio_stream
+
+    monkeypatch.setattr(
+        audio_stream,
+        "load_scene_audio",
+        lambda path, sample_rate, mono: (torch.zeros(3 * 16000), 16000),
+    )
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    qa = {
+        "id": "all-windows",
+        "scene_audio_path": str(media),
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_selection_policy": "fixed_all",
+    }
+
+    samples, timestamps, metadata = runner._load_scene_audio_tensor(qa, audio_cache=OrderedDict())
+
+    assert samples.shape[0] == timestamps.shape[0] == 3
+    assert metadata["window_count"] == metadata["full_window_count"] == 3
+    assert metadata["selection_trace"]["selected_window_count"] == 3
+    assert metadata["selection_trace"]["selected_source_indices"] == [0, 1, 2]
+
+
+def test_runner_oracle_policy_is_diagnostic_only():
+    qa = {
+        "id": "oracle",
+        "scene_audio_selection_policy": "oracle_topk",
+        "scene_audio_selection_top_k": 1,
+        "scene_audio_target_intervals": [[1.0, 2.0]],
+    }
+    samples = torch.zeros(3, 16)
+    timestamps = torch.tensor([[0.0, 1.0], [1.0, 2.0], [2.0, 3.0]])
+
+    with pytest.raises(PermissionError, match="diagnostic inference"):
+        runner._apply_external_scene_audio_selection(qa, samples, timestamps)
+
+    qa["scene_audio_selection_diagnostic"] = True
+    selected, _, trace = runner._apply_external_scene_audio_selection(qa, samples, timestamps)
+    assert selected.shape[0] == 1
+    assert trace["selected_source_indices"] == [1]
+    assert trace["policy_metadata"]["uses_ground_truth"] is True
 
 
 @pytest.mark.parametrize("indices", [[1, 1], [2, 0], [0, 3], []])

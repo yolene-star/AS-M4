@@ -89,6 +89,12 @@ def iter_qa_samples(manifest: Path, limit: int | None = None) -> list[dict[str, 
                     "scene_audio_expected_duration_sec": sample.get("scene_audio_expected_duration_sec"),
                     "scene_audio_timestamps": sample.get("scene_audio_timestamps"),
                     "scene_audio_selected_indices": sample.get("scene_audio_selected_indices"),
+                    "scene_audio_selection_policy": sample.get("scene_audio_selection_policy"),
+                    "scene_audio_selection_top_k": sample.get("scene_audio_selection_top_k"),
+                    "scene_audio_selection_scores": sample.get("scene_audio_selection_scores"),
+                    "scene_audio_selection_seed": sample.get("scene_audio_selection_seed"),
+                    "scene_audio_selection_diagnostic": sample.get("scene_audio_selection_diagnostic", False),
+                    "scene_audio_target_intervals": sample.get("scene_audio_target_intervals"),
                     "frame_timestamps": sample.get("frame_timestamps"),
                     "physical_media_id": sample.get("physical_media_id"),
                     "source_dataset": sample.get("source_dataset"),
@@ -623,20 +629,11 @@ def _load_scene_audio_tensor(
         sample_rate = requested_sample_rate
         audio_cache.move_to_end(cache_key)
     full_window_count = int(samples.shape[0])
-    selected_indices = qa.get("scene_audio_selected_indices")
-    if selected_indices is not None:
-        if not isinstance(selected_indices, list) or not selected_indices:
-            raise ValueError("scene_audio_selected_indices 必须是非空列表")
-        selected_indices = [int(value) for value in selected_indices]
-        if selected_indices != sorted(set(selected_indices)):
-            raise ValueError("scene_audio_selected_indices 必须唯一且按时间递增")
-        if selected_indices[0] < 0 or selected_indices[-1] >= full_window_count:
-            raise ValueError(
-                f"scene_audio_selected_indices 越界：{selected_indices[0]}..{selected_indices[-1]} / {full_window_count}"
-            )
-        index_tensor = torch.tensor(selected_indices, dtype=torch.long)
-        samples = samples.index_select(0, index_tensor)
-        timestamps = timestamps.index_select(0, index_tensor)
+    samples, timestamps, selection_trace = _apply_external_scene_audio_selection(
+        qa,
+        samples,
+        timestamps,
+    )
     if samples.numel() == 0:
         raise ValueError(f"Scene audio decoded to zero samples: {path}")
     if not torch.isfinite(samples).all() or not torch.isfinite(timestamps).all():
@@ -652,11 +649,97 @@ def _load_scene_audio_tensor(
         "expected_duration_sec": expected_duration,
         "window_count": int(samples.shape[0]),
         "full_window_count": full_window_count,
-        "selected_source_indices": selected_indices,
+        "selected_source_indices": (
+            selection_trace["selected_source_indices"] if selection_trace is not None else None
+        ),
+        "selection_stage": (
+            selection_trace["selection_stage"] if selection_trace is not None else None
+        ),
+        "selection_trace": selection_trace,
         "window_num_samples": int(samples.shape[-1]),
         "input_window_norm": float(samples.float().norm().item()),
     }
     return samples, timestamps, metadata
+
+
+def _apply_external_scene_audio_selection(
+    qa: dict[str, Any],
+    samples: torch.Tensor,
+    timestamps: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any] | None]:
+    """Apply one external policy before BEATs and return an auditable trace.
+
+    Absence of an external policy deliberately preserves the checkpoint's
+    internal selector. The historical ``scene_audio_selected_indices`` field is
+    normalized through the same contract instead of keeping a second path.
+    """
+
+    from intersuit.model.streaming_av.selection_contract import (
+        DEFAULT_SELECTION_POLICY_REGISTRY,
+        SelectionRequest,
+    )
+
+    policy_name = qa.get("scene_audio_selection_policy")
+    explicit_indices = qa.get("scene_audio_selected_indices")
+    if explicit_indices is not None:
+        if not isinstance(explicit_indices, list) or not explicit_indices:
+            raise ValueError("scene_audio_selected_indices 必须是非空列表")
+        normalized_indices = [int(value) for value in explicit_indices]
+        if normalized_indices != sorted(set(normalized_indices)):
+            raise ValueError("scene_audio_selected_indices 必须唯一且按时间递增")
+        if normalized_indices[0] < 0 or normalized_indices[-1] >= int(samples.shape[0]):
+            raise ValueError(
+                "scene_audio_selected_indices 越界："
+                f"{normalized_indices[0]}..{normalized_indices[-1]} / {int(samples.shape[0])}"
+            )
+        explicit_indices = normalized_indices
+    if policy_name is None and explicit_indices is not None:
+        policy_name = "external_indices"
+    if policy_name is None:
+        return samples, timestamps, None
+
+    policy_name = str(policy_name).strip().lower()
+    top_k = qa.get("scene_audio_selection_top_k")
+    if policy_name not in {"fixed_all", "external_indices"} and top_k is None:
+        raise ValueError(f"{policy_name} 必须显式提供 scene_audio_selection_top_k")
+    target_intervals = qa.get("scene_audio_target_intervals")
+    if target_intervals is None and qa.get("event_start_sec") is not None and qa.get("event_end_sec") is not None:
+        target_intervals = [[float(qa["event_start_sec"]), float(qa["event_end_sec"])]]
+    raw_scores = qa.get("scene_audio_selection_scores") or {}
+    if not isinstance(raw_scores, dict):
+        raise ValueError("scene_audio_selection_scores 必须是 score_name -> list 的对象")
+    request = SelectionRequest(
+        sample_id=str(qa.get("id") or qa.get("sample_id") or "unknown"),
+        source_indices=torch.arange(samples.shape[0], dtype=torch.long),
+        timestamps=timestamps,
+        valid_mask=torch.ones(samples.shape[0], dtype=torch.bool),
+        top_k=int(top_k) if top_k is not None else None,
+        raw_windows=samples,
+        scores={name: torch.as_tensor(values, dtype=torch.float32) for name, values in raw_scores.items()},
+        target_intervals=(
+            torch.as_tensor(target_intervals, dtype=torch.float32) if target_intervals is not None else None
+        ),
+        explicit_selected_source_indices=(
+            tuple(int(value) for value in explicit_indices) if explicit_indices is not None else None
+        ),
+        seed=(
+            int(qa["scene_audio_selection_seed"])
+            if qa.get("scene_audio_selection_seed") is not None
+            else None
+        ),
+        diagnostic=bool(qa.get("scene_audio_selection_diagnostic", False)),
+        training=False,
+        production=not bool(qa.get("scene_audio_selection_diagnostic", False)),
+    )
+    result = DEFAULT_SELECTION_POLICY_REGISTRY.select(policy_name, request)
+    if policy_name == "fixed_all" and result.selected_window_count != int(samples.shape[0]):
+        raise RuntimeError("fixed_all 未保留全部有效窗口")
+    positions = result.selected_positions.to(device=samples.device)
+    return (
+        samples.index_select(0, positions),
+        timestamps.index_select(0, positions.to(device=timestamps.device)),
+        result.to_trace(),
+    )
 
 
 def _first_token_logits_debug(scores: torch.Tensor, tokenizer: Any) -> dict[str, Any]:
@@ -787,11 +870,30 @@ def model_prediction(
 
     scene_audios = None
     scene_audio_timestamps = None
+    scene_audio_selection_stage = None
     audio_input_debug = None
     if exp.get("env", {}).get("AS_M4_ENABLE_SCENE_AUDIO") == "1" and qa.get("scene_audio") is not None:
-        scene_audios = torch.as_tensor(qa["scene_audio"], dtype=model_dtype, device=device).unsqueeze(0)
-        if qa.get("scene_audio_timestamps") is not None:
-            scene_audio_timestamps = torch.as_tensor(qa["scene_audio_timestamps"], dtype=torch.float32, device=device).unsqueeze(0)
+        inline_audio = torch.as_tensor(qa["scene_audio"], dtype=model_dtype, device=device)
+        if qa.get("scene_audio_timestamps") is None:
+            if qa.get("scene_audio_selection_policy") is not None or qa.get("scene_audio_selected_indices") is not None:
+                raise ValueError("外部选窗的 inline scene_audio 必须提供 scene_audio_timestamps")
+            inline_timestamps = None
+            selection_trace = None
+        else:
+            inline_timestamps = torch.as_tensor(
+                qa["scene_audio_timestamps"], dtype=torch.float32, device=device
+            )
+            inline_audio, inline_timestamps, selection_trace = _apply_external_scene_audio_selection(
+                qa,
+                inline_audio,
+                inline_timestamps,
+            )
+        scene_audios = inline_audio.unsqueeze(0)
+        if inline_timestamps is not None:
+            scene_audio_timestamps = inline_timestamps.unsqueeze(0)
+        if selection_trace is not None:
+            scene_audio_selection_stage = selection_trace["selection_stage"]
+            audio_input_debug = {"selection_trace": selection_trace, **selection_trace}
     elif exp.get("env", {}).get("AS_M4_ENABLE_SCENE_AUDIO") == "1" and qa.get("scene_audio_path"):
         debug_env = exp.get("env", {})
         loaded_audio, loaded_timestamps, audio_input_debug = _load_scene_audio_tensor(
@@ -804,6 +906,8 @@ def model_prediction(
         if loaded_audio is not None:
             scene_audios = loaded_audio.to(device=device, dtype=model_dtype).unsqueeze(0)
             scene_audio_timestamps = loaded_timestamps.to(device=device, dtype=torch.float32).unsqueeze(0)
+            if audio_input_debug and audio_input_debug.get("selection_stage"):
+                scene_audio_selection_stage = audio_input_debug["selection_stage"]
     elif using_video_feature and getattr(model.config, "enable_scene_audio", False):
         # Precomputed video_feature inputs are only packed by the streaming AV
         # path. For muted/behavior rollback experiments, feed a tiny zero audio
@@ -919,6 +1023,7 @@ def model_prediction(
                     modalities=modalities,
                     scene_audios=scene_audios,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps_arg,
                     use_cache=True,
                     new_query=new_query_ids,
@@ -940,6 +1045,7 @@ def model_prediction(
                     modalities=modalities,
                     scene_audios=scene_audios,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps_arg,
                     do_sample=False,
                     temperature=0,
