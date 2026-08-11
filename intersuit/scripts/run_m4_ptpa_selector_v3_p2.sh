@@ -20,6 +20,7 @@ if [[ ! -f "$plan" ]]; then
 fi
 
 mkdir -p "$run_dir/logs" "$run_dir/debug" "$run_dir/predictions"
+exec > >(tee "$run_dir/logs/launcher.log") 2>&1
 start_time="$(date -Is)"
 printf '%s\n' "$start_time" > "$run_dir/logs/start_time.txt"
 printf '%s\n' "$p2_gpu" > "$run_dir/logs/physical_gpu.txt"
