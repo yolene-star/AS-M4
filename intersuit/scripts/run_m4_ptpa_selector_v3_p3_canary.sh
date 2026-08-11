@@ -2,9 +2,18 @@
 set -euo pipefail
 
 project_root="/home/yjm/M4-main"
-run_dir="$project_root/intersuit/harness/artifacts/m4_ptpa_audio_dynamic_selector_v3/p3_longvale_canary20"
+run_name="${P3_RUN_NAME:-p3_longvale_canary20}"
+if [[ "$run_name" != "p3_longvale_canary20" && "$run_name" != "p3_longvale_frozen100" ]]; then
+  echo "P3_RUN_NAME 非法：$run_name" >&2
+  exit 2
+fi
+run_dir="$project_root/intersuit/harness/artifacts/m4_ptpa_audio_dynamic_selector_v3/$run_name"
 plan="$run_dir/matrix_plan.jsonl"
 p3_gpu="${P3_GPU:?必须显式设置 P3_GPU，例如 P3_GPU=2}"
+lock_name="p3_canary_lock.json"
+if [[ "$run_name" == "p3_longvale_frozen100" ]]; then
+  lock_name="p3_full_lock.json"
+fi
 
 if [[ ! "$p3_gpu" =~ ^[0-4]$ ]]; then
   echo "P3_GPU 必须是 0..4 的单个物理 GPU 编号" >&2
@@ -14,8 +23,8 @@ if [[ "$p3_gpu" == "1" ]]; then
   echo "P3 默认不使用多卡可疑的物理 GPU 1" >&2
   exit 2
 fi
-if [[ ! -f "$plan" || ! -f "$run_dir/p3_canary_lock.json" ]]; then
-  echo "P3 canary plan/lock 不完整" >&2
+if [[ ! -f "$plan" || ! -f "$run_dir/$lock_name" ]]; then
+  echo "P3 plan/lock 不完整：$run_name" >&2
   exit 2
 fi
 
