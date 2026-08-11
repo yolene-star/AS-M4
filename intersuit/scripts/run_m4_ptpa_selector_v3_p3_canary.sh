@@ -53,14 +53,4 @@ conda run --no-capture-output -n M4 python -m intersuit.harness.runners.run_pred
   --debug_dir "$run_dir/debug" \
   --resume
 
-while IFS= read -r condition; do
-  line_count="$(wc -l < "$run_dir/predictions/$condition.jsonl")"
-  if [[ "$line_count" != "20" ]]; then
-    echo "$condition 输出行数异常：$line_count，expected=20" >&2
-    exit 3
-  fi
-done < <(
-  conda run -n M4 python -c \
-    'import json,sys; lock=json.load(open(sys.argv[1])); print("\n".join(lock["conditions"]))' \
-    "$run_dir/p3_canary_lock.json"
-)
+bash "$project_root/intersuit/scripts/check_m4_ptpa_selector_v3_p3_outputs.sh"
