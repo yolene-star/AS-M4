@@ -5,6 +5,8 @@ import pytest
 
 from intersuit.harness.dynamic_selector_v2_metrics import (
     assert_golden_results,
+    run_longvale_golden,
+    run_longvale_meteor_per_sample,
     validate_longvale_fixture,
     validate_unav_fixture,
 )
@@ -57,3 +59,26 @@ def test_normalized_golden_contract_requires_rouge_l_and_full_tiou_grid():
     broken = dict(longvale, **{"ROUGE-L": 0.9})
     with pytest.raises(AssertionError, match="ROUGE-L"):
         assert_golden_results(broken, unav)
+
+
+def test_official_longvale_per_sample_meteor_matches_aggregate():
+    project_root = Path(__file__).resolve().parents[2]
+    official_repo = project_root / "intersuit/datasets/LongVALE_V2/official_repo"
+    annotation_path = FIXTURES / "longvale_seg_caption_golden.json"
+    predictions_path = FIXTURES / "longvale_seg_caption_predictions.json"
+
+    official = run_longvale_golden(
+        official_repo=official_repo,
+        annotation_path=annotation_path,
+        predictions_path=predictions_path,
+    )
+    paired = run_longvale_meteor_per_sample(
+        official_repo=official_repo,
+        annotation_path=annotation_path,
+        predictions_path=predictions_path,
+    )
+
+    assert paired["METEOR"] == pytest.approx(official["METEOR"], abs=1e-12)
+    assert paired["per_sample_mean"] == pytest.approx(official["METEOR"], abs=1e-12)
+    assert len(paired["per_sample"]) == len(_load("longvale_seg_caption_predictions.json"))
+    assert all(0.0 <= row["score"] <= 1.0 for row in paired["per_sample"])

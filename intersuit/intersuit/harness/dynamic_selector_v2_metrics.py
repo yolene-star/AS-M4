@@ -92,6 +92,80 @@ def run_longvale_golden(
     return normalized
 
 
+def run_longvale_meteor_per_sample(
+    *,
+    official_repo: Path,
+    annotation_path: Path,
+    predictions_path: Path,
+    pycocoevalcap_root: Path | None = None,
+) -> dict:
+    """Return the official METEOR aggregate and its paired per-sample scores.
+
+    LongVALE's frozen implementation discards the second value returned by
+    ``Meteor.compute_score``.  The second value is needed for a paired physical
+    video bootstrap, so this adapter preserves it while using the same frozen
+    source contract, PTB tokenizer, dependency versions and pycocoevalcap
+    scorer as ``run_longvale_golden``.
+    """
+
+    metric_path = official_repo / "longvalellm/eval/metric.py"
+    _require_frozen_source(metric_path, LONGVALE_METRIC_SHA256)
+    if pycocoevalcap_root is not None:
+        sys.path.insert(0, str(pycocoevalcap_root))
+    if importlib.util.find_spec("pycocoevalcap") is None:
+        raise RuntimeError("缺少 pycocoevalcap；LongVALE 正式 metric gate 不允许 skip")
+    _require_metric_dependency_versions()
+
+    from pycocoevalcap.meteor.meteor import Meteor
+    from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
+
+    annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
+    predictions = json.loads(predictions_path.read_text(encoding="utf-8"))
+    validate_longvale_fixture(annotation, predictions)
+    _install_writable_ptb_tokenizer()
+
+    ground_truth = {}
+    predicted = {}
+    sample_keys = []
+    for row in predictions:
+        video_id = str(row["video_id"])
+        sentence_id = int(row["info"]["sentence_id"])
+        sample_key = f"{video_id}_{sentence_id}"
+        if sample_key in ground_truth:
+            raise ValueError(f"LongVALE prediction pair duplicated: {sample_key}")
+        ground_truth[sample_key] = [{
+            "image_id": sample_key,
+            "caption": str(annotation[video_id]["sentences"][sentence_id]),
+        }]
+        predicted[sample_key] = [{
+            "image_id": sample_key,
+            "caption": str(row["answer"]),
+        }]
+        sample_keys.append((video_id, sentence_id, sample_key))
+
+    tokenizer = PTBTokenizer()
+    ground_truth = tokenizer.tokenize(ground_truth)
+    predicted = tokenizer.tokenize(predicted)
+    aggregate, scores = Meteor().compute_score(ground_truth, predicted)
+    score_values = [float(value) for value in scores]
+    if len(score_values) != len(sample_keys):
+        raise ValueError("LongVALE METEOR per-sample score count drift")
+    per_sample_mean = float(np.mean(score_values))
+    if not np.isclose(float(aggregate), per_sample_mean, rtol=0.0, atol=1e-12):
+        raise ValueError(
+            "LongVALE METEOR aggregate/per-sample mean drift: "
+            f"aggregate={aggregate}, per_sample_mean={per_sample_mean}"
+        )
+    return {
+        "METEOR": float(aggregate),
+        "per_sample_mean": per_sample_mean,
+        "per_sample": [
+            {"video_id": video_id, "sentence_id": sentence_id, "score": score}
+            for (video_id, sentence_id, _), score in zip(sample_keys, score_values)
+        ],
+    }
+
+
 def run_unav_golden(
     *,
     official_repo: Path,
