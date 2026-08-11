@@ -5,13 +5,15 @@ from __future__ import annotations
 
 import argparse
 from collections import OrderedDict
+from contextlib import contextmanager
 import hashlib
 import json
 import math
 import os
 import re
 from pathlib import Path
-from typing import Any
+import time
+from typing import Any, Iterator
 
 import torch
 
@@ -52,6 +54,23 @@ def verify_manifest_lock(exp: dict[str, Any], manifest: Path) -> None:
         raise RuntimeError(
             f"{exp['id']} manifest SHA256 不匹配：expected={expected}, actual={actual}"
         )
+
+
+@contextmanager
+def temporary_environment(overrides: dict[str, Any]) -> Iterator[None]:
+    """Apply one experiment's environment without leaking into the next one."""
+
+    normalized = {str(key): str(value) for key, value in overrides.items()}
+    previous = {key: os.environ.get(key) for key in normalized}
+    os.environ.update(normalized)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def iter_qa_samples(manifest: Path, limit: int | None = None) -> list[dict[str, Any]]:
@@ -232,6 +251,36 @@ def jsonable_diagnostics(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [jsonable_diagnostics(item) for item in value]
     return value
+
+
+def begin_runtime_observation(device: str) -> tuple[float, torch.device | None]:
+    """Start one sample's wall-time and CUDA peak-memory observation."""
+
+    cuda_device = None
+    if str(device).startswith("cuda") and torch.cuda.is_available():
+        cuda_device = torch.device(device)
+        torch.cuda.synchronize(cuda_device)
+        torch.cuda.reset_peak_memory_stats(cuda_device)
+    return time.perf_counter(), cuda_device
+
+
+def finish_runtime_observation(
+    started_at: float,
+    cuda_device: torch.device | None,
+) -> dict[str, Any]:
+    if cuda_device is not None:
+        torch.cuda.synchronize(cuda_device)
+    elapsed = time.perf_counter() - started_at
+    return {
+        "runtime_seconds": elapsed,
+        "cuda_device": str(cuda_device) if cuda_device is not None else None,
+        "cuda_peak_memory_allocated_bytes": (
+            int(torch.cuda.max_memory_allocated(cuda_device)) if cuda_device is not None else None
+        ),
+        "cuda_peak_memory_reserved_bytes": (
+            int(torch.cuda.max_memory_reserved(cuda_device)) if cuda_device is not None else None
+        ),
+    }
 
 
 def first_diagnostic_scalar(diagnostics: Any, key: str) -> float | None:
@@ -1152,30 +1201,33 @@ def run_predictions(
             if actual_prefix != expected_prefix or any(row.get("experiment_id") != exp_id for row in existing_rows):
                 raise ValueError(f"{exp_id} resume 输出前缀与冻结 manifest 不一致")
             samples = samples[len(existing_rows) :]
-        env = os.environ.copy()
-        env.update({str(k): str(v) for k, v in (exp.get("env") or {}).items()})
+        env = {str(k): str(v) for k, v in (exp.get("env") or {}).items()}
         output_mode = "a" if resume and existing_rows else "w"
         output_handle = output_jsonl.open(output_mode, encoding="utf-8")
         for sample_index, qa in enumerate(samples, start=skip + len(existing_rows)):
             qa = apply_audio_condition(qa, exp, all_samples, sample_index)
-            if backend == "oracle":
-                prediction = oracle_prediction(str(qa["answer"]), str(exp["id"]), qa.get("id"))
-                diagnostics = None
-                generation_debug = None
-            elif backend == "model":
-                os.environ.update(env)
-                prediction, diagnostics, generation_debug = model_prediction(
-                    qa,
-                    exp,
-                    model_cache,
-                    feature_root,
-                    device,
-                    max_new_tokens,
-                    model_name_override=model_name_override,
-                    dump_diagnostics=dump_diagnostics,
-                )
-            else:
-                raise ValueError(f"Unknown backend: {backend}")
+            started_at, observed_cuda_device = begin_runtime_observation(device)
+            try:
+                if backend == "oracle":
+                    prediction = oracle_prediction(str(qa["answer"]), str(exp["id"]), qa.get("id"))
+                    diagnostics = None
+                    generation_debug = None
+                elif backend == "model":
+                    with temporary_environment(env):
+                        prediction, diagnostics, generation_debug = model_prediction(
+                            qa,
+                            exp,
+                            model_cache,
+                            feature_root,
+                            device,
+                            max_new_tokens,
+                            model_name_override=model_name_override,
+                            dump_diagnostics=dump_diagnostics,
+                        )
+                else:
+                    raise ValueError(f"Unknown backend: {backend}")
+            finally:
+                runtime_observation = finish_runtime_observation(started_at, observed_cuda_device)
             correct = prediction_correct(
                 prediction,
                 qa,
@@ -1203,6 +1255,7 @@ def run_predictions(
                 "event_end_sec": qa.get("event_end_sec"),
                 "is_sparse": qa.get("is_sparse"),
                 "selector_strategy": qa.get("selector_strategy"),
+                **runtime_observation,
             }
             if dump_diagnostics:
                 row["as_m4_diagnostics"] = diagnostics

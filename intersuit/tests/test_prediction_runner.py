@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -762,4 +763,80 @@ def test_prediction_writer_does_not_drop_text(tmp_path, monkeypatch):
 
     runner.run_predictions(plan, backend="model", limit=1, feature_root=tmp_path, device="cpu", max_new_tokens=4)
 
-    assert json.loads(prediction_path.read_text(encoding="utf-8"))["prediction"] == "kept text"
+    row = json.loads(prediction_path.read_text(encoding="utf-8"))
+    assert row["prediction"] == "kept text"
+    assert row["runtime_seconds"] >= 0
+    assert row["cuda_device"] is None
+    assert row["cuda_peak_memory_allocated_bytes"] is None
+    assert row["cuda_peak_memory_reserved_bytes"] is None
+
+
+def test_runtime_observation_reads_cuda_peak_memory(monkeypatch):
+    calls = []
+    monkeypatch.setattr(runner.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(runner.torch.cuda, "synchronize", lambda device: calls.append(("sync", str(device))))
+    monkeypatch.setattr(runner.torch.cuda, "reset_peak_memory_stats", lambda device: calls.append(("reset", str(device))))
+    monkeypatch.setattr(runner.torch.cuda, "max_memory_allocated", lambda device: 123)
+    monkeypatch.setattr(runner.torch.cuda, "max_memory_reserved", lambda device: 456)
+
+    started_at, device = runner.begin_runtime_observation("cuda:0")
+    observation = runner.finish_runtime_observation(started_at, device)
+
+    assert calls == [("sync", "cuda:0"), ("reset", "cuda:0"), ("sync", "cuda:0")]
+    assert observation["runtime_seconds"] >= 0
+    assert observation["cuda_device"] == "cuda:0"
+    assert observation["cuda_peak_memory_allocated_bytes"] == 123
+    assert observation["cuda_peak_memory_reserved_bytes"] == 456
+
+
+def test_model_backend_restores_experiment_environment(tmp_path, monkeypatch):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [{"id": "s0", "conversations": [{"from": "human", "value": "Q"}, {"from": "gpt", "value": "A"}]}],
+    )
+    plan = tmp_path / "plan.jsonl"
+    observed = []
+    rows = [
+        {"id": "gate0", "env": {"AS_M4_FORCE_AUDIO_GATE": "0"}},
+        {"id": "oracle", "env": {"AS_M4_ENABLE_SCENE_AUDIO": "1"}},
+    ]
+    plan.write_text(
+        "".join(
+            json.dumps(
+                {
+                    **row,
+                    "manifest": str(manifest),
+                    "model_path": "unused",
+                    "output_jsonl": str(tmp_path / f"{row['id']}.jsonl"),
+                }
+            )
+            + "\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_prediction(*args, **kwargs):
+        observed.append(
+            {
+                "force_gate": os.environ.get("AS_M4_FORCE_AUDIO_GATE"),
+                "enable_audio": os.environ.get("AS_M4_ENABLE_SCENE_AUDIO"),
+            }
+        )
+        return "A", None, {"prompt": {}, "tokens": {}}
+
+    monkeypatch.delenv("AS_M4_FORCE_AUDIO_GATE", raising=False)
+    monkeypatch.delenv("AS_M4_ENABLE_SCENE_AUDIO", raising=False)
+    monkeypatch.setattr(runner, "model_prediction", fake_prediction)
+
+    runner.run_predictions(
+        plan, backend="model", limit=1, feature_root=tmp_path, device="cpu", max_new_tokens=4
+    )
+
+    assert observed == [
+        {"force_gate": "0", "enable_audio": None},
+        {"force_gate": None, "enable_audio": "1"},
+    ]
+    assert "AS_M4_FORCE_AUDIO_GATE" not in os.environ
+    assert "AS_M4_ENABLE_SCENE_AUDIO" not in os.environ
