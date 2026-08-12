@@ -216,6 +216,8 @@ def main() -> None:
     if any(lock.get(name) is not False for name in ("p3_full_allowed", "selector_training_allowed", "confirm_accessed")):
         raise ValueError("P3 full 初始权限锁漂移")
     conditions = [str(value) for value in lock["conditions"]]
+    annotation = json.loads((args.run_root / "pilot_annotation.json").read_text(encoding="utf-8"))
+    annotation_video_ids = list(annotation)
     rows_by_condition = {
         condition: read_jsonl(args.run_root / "predictions" / f"{condition}.jsonl")
         for condition in conditions
@@ -234,7 +236,12 @@ def main() -> None:
     for condition in conditions:
         input_path = input_dir / f"{condition}.json"
         input_path.write_text(
-            json.dumps(official_predictions(rows_by_condition[condition]), ensure_ascii=False, indent=2) + "\n",
+            json.dumps(
+                official_predictions(rows_by_condition[condition], annotation_video_ids),
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
         metrics[condition] = run_longvale_golden(
@@ -253,7 +260,7 @@ def main() -> None:
             rtol=0.0,
             atol=1e-12,
         ))
-        expected_video_ids = [str(row["physical_media_id"]) for row in rows_by_condition[condition]]
+        expected_video_ids = annotation_video_ids
         statistics[condition] = statistics_matrix(per_sample_payloads[condition], expected_video_ids)
         anomalies[condition] = anomaly_counts(rows_by_condition[condition], int(lock["max_new_tokens"]))
     if not all(aggregate_consistency.values()):

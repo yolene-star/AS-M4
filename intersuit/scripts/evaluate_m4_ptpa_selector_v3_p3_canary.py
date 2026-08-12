@@ -34,6 +34,8 @@ def main() -> None:
     args = parse_args()
     lock = json.loads((args.run_root / "p3_canary_lock.json").read_text(encoding="utf-8"))
     conditions = [str(value) for value in lock["conditions"]]
+    annotation = json.loads((args.run_root / "canary_annotation.json").read_text(encoding="utf-8"))
+    annotation_video_ids = list(annotation)
     if lock.get("p3_full_allowed") is not False or lock.get("selector_training_allowed") is not False:
         raise ValueError("P3 canary 初始权限锁漂移")
     rows_by_condition = {
@@ -51,7 +53,12 @@ def main() -> None:
     for condition in conditions:
         input_path = input_dir / f"{condition}.json"
         input_path.write_text(
-            json.dumps(official_predictions(rows_by_condition[condition]), ensure_ascii=False, indent=2) + "\n",
+            json.dumps(
+                official_predictions(rows_by_condition[condition], annotation_video_ids),
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
         metrics[condition] = run_longvale_golden(

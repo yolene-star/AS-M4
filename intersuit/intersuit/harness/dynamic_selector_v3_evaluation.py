@@ -38,10 +38,18 @@ def has_degenerate_repetition(text: str) -> bool:
     return len(spans) != len(set(spans))
 
 
-def official_predictions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Map each frozen one-event video to its local annotation index zero."""
+def official_predictions(
+    rows: list[dict[str, Any]],
+    annotation_video_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Map one-event rows to the ordering contract assumed by LongVALE.
 
-    return [
+    The frozen official metric assigns integer slots to predictions and ground
+    truths independently, so callers must submit predictions in annotation
+    dictionary order.  It does not join the two sides by ``video_id``.
+    """
+
+    converted = [
         {
             "video_id": str(row["physical_media_id"]),
             "task": "seg_captioning",
@@ -51,6 +59,14 @@ def official_predictions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+    if annotation_video_ids is None:
+        return converted
+    by_video = {row["video_id"]: row for row in converted}
+    if len(by_video) != len(converted):
+        raise ValueError("LongVALE official predictions physical video 重复")
+    if set(by_video) != set(annotation_video_ids):
+        raise ValueError("LongVALE official predictions 与 annotation 视频集合漂移")
+    return [by_video[video_id] for video_id in annotation_video_ids]
 
 
 def anomaly_counts(rows: list[dict[str, Any]], max_new_tokens: int) -> dict[str, int]:

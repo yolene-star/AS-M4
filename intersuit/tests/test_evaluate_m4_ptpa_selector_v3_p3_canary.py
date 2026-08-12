@@ -24,6 +24,25 @@ def test_official_predictions_use_local_one_event_index_zero():
     assert converted[0]["info"]["sentence_id"] == 0
 
 
+def test_official_predictions_follow_annotation_dictionary_order():
+    rows = [
+        {"physical_media_id": "video-b", "prediction": "b"},
+        {"physical_media_id": "video-a", "prediction": "a"},
+    ]
+
+    converted = module.official_predictions(rows, ["video-a", "video-b"])
+
+    assert [row["video_id"] for row in converted] == ["video-a", "video-b"]
+    assert [row["answer"] for row in converted] == ["a", "b"]
+
+
+def test_official_predictions_reject_annotation_set_drift():
+    rows = [{"physical_media_id": "video-a", "prediction": "a"}]
+
+    with pytest.raises(ValueError, match="集合漂移"):
+        module.official_predictions(rows, ["video-b"])
+
+
 def test_metric_summary_uses_five_seed_means_and_all_core_comparisons():
     metrics = {
         "behavior_off": {"METEOR": 0.10},
