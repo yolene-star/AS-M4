@@ -10,8 +10,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from intersuit.harness.dynamic_selector_v2_localization import cluster_bootstrap_delta
 from intersuit.harness.dynamic_selector_v2_metrics import (
+    OfficialMeteorCorpusScorer,
     run_longvale_golden,
     run_longvale_meteor_per_sample,
 )
@@ -44,57 +44,79 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def score_map(payload: Mapping[str, Any], expected_video_ids: list[str]) -> dict[str, float]:
+def statistics_matrix(payload: Mapping[str, Any], expected_video_ids: list[str]) -> np.ndarray:
     rows = list(payload["per_sample"])
     if any(int(row["sentence_id"]) != 0 for row in rows):
         raise ValueError("frozen-100 METEOR 必须使用局部 sentence_id=0")
-    result = {str(row["video_id"]): float(row["score"]) for row in rows}
-    if len(result) != len(rows):
-        raise ValueError("METEOR per-sample physical video 重复")
-    if list(result) != expected_video_ids:
+    video_ids = [str(row["video_id"]) for row in rows]
+    if len(set(video_ids)) != len(rows):
+        raise ValueError("METEOR sufficient statistics physical video 重复")
+    if video_ids != expected_video_ids:
         raise ValueError("METEOR per-sample 视频顺序/集合漂移")
-    if not all(np.isfinite(value) for value in result.values()):
-        raise ValueError("METEOR per-sample 出现 nonfinite")
-    return result
-
-
-def mean_score_map(score_maps: list[dict[str, float]]) -> dict[str, float]:
-    if not score_maps:
-        raise ValueError("seed score map 不能为空")
-    keys = list(score_maps[0])
-    if any(list(values) != keys for values in score_maps[1:]):
-        raise ValueError("seed score map 视频顺序/集合漂移")
-    return {key: float(np.mean([values[key] for values in score_maps])) for key in keys}
+    matrix = np.asarray([row["sufficient_statistics"] for row in rows], dtype=np.float64)
+    if matrix.shape != (len(rows), 23) or not np.all(np.isfinite(matrix)):
+        raise ValueError("METEOR sufficient statistics 必须是有限 N×23 矩阵")
+    return matrix
 
 
 def paired_bootstrap_comparisons(
-    score_maps: dict[str, dict[str, float]],
+    statistics: dict[str, np.ndarray],
+    official_aggregates: Mapping[str, float],
     *,
     repeats: int,
     seed: int,
+    scorer: OfficialMeteorCorpusScorer,
 ) -> dict[str, dict[str, float]]:
-    random_names = sorted(name for name in score_maps if name.startswith(RANDOM_PREFIX))
-    mismatch_names = sorted(name for name in score_maps if name.startswith(MISMATCH_PREFIX))
+    if repeats <= 0:
+        raise ValueError("bootstrap repeats 必须为正数")
+    if set(statistics) != set(official_aggregates):
+        raise ValueError("METEOR statistics 与 official aggregates 条件集合漂移")
+    random_names = sorted(name for name in statistics if name.startswith(RANDOM_PREFIX))
+    mismatch_names = sorted(name for name in statistics if name.startswith(MISMATCH_PREFIX))
     if len(random_names) != 5 or len(mismatch_names) != 5:
-        raise ValueError("Random/mismatch score map 必须各有五个 seed")
-    oracle = score_maps["oracle_top8"]
-    controls = {
-        "fixed_all": score_maps["fixed_all"],
-        "random_mean": mean_score_map([score_maps[name] for name in random_names]),
-        "current_micro_top8": score_maps["current_micro_top8"],
-        "mismatch_mean": mean_score_map([score_maps[name] for name in mismatch_names]),
-        "behavior_off": score_maps["behavior_off"],
+        raise ValueError("Random/mismatch statistics 必须各有五个 seed")
+    shapes = {values.shape for values in statistics.values()}
+    if len(shapes) != 1:
+        raise ValueError("各条件 METEOR statistics shape 漂移")
+    sample_count, width = next(iter(shapes))
+    if sample_count == 0 or width != 23:
+        raise ValueError("METEOR statistics 必须是非空 N×23")
+
+    observed_controls = {
+        "fixed_all": float(official_aggregates["fixed_all"]),
+        "random_mean": float(np.mean([official_aggregates[name] for name in random_names])),
+        "current_micro_top8": float(official_aggregates["current_micro_top8"]),
+        "mismatch_mean": float(np.mean([official_aggregates[name] for name in mismatch_names])),
+        "behavior_off": float(official_aggregates["behavior_off"]),
     }
-    sample_to_video = {video_id: video_id for video_id in oracle}
+    observed_oracle = float(official_aggregates["oracle_top8"])
+    deltas = {name: np.empty(repeats, dtype=np.float64) for name in observed_controls}
+    rng = np.random.default_rng(seed)
+    for repeat in range(repeats):
+        indices = rng.integers(0, sample_count, size=sample_count)
+        replicate_scores = {
+            name: scorer.score_corpus(values[indices]) for name, values in statistics.items()
+        }
+        oracle_score = replicate_scores["oracle_top8"]
+        controls = {
+            "fixed_all": replicate_scores["fixed_all"],
+            "random_mean": float(np.mean([replicate_scores[name] for name in random_names])),
+            "current_micro_top8": replicate_scores["current_micro_top8"],
+            "mismatch_mean": float(np.mean([replicate_scores[name] for name in mismatch_names])),
+            "behavior_off": replicate_scores["behavior_off"],
+        }
+        for name, control in controls.items():
+            deltas[name][repeat] = oracle_score - control
     return {
-        f"oracle_minus_{name}": cluster_bootstrap_delta(
-            oracle,
-            control,
-            sample_to_video,
-            repeats=repeats,
-            seed=seed,
-        )
-        for name, control in controls.items()
+        f"oracle_minus_{name}": {
+            "delta": observed_oracle - control,
+            "ci95_lower": float(np.quantile(deltas[name], 0.025)),
+            "ci95_upper": float(np.quantile(deltas[name], 0.975)),
+            "bootstrap_repeats": repeats,
+            "bootstrap_seed": seed,
+            "scoring_protocol": "official_meteor_corpus_eval_from_resampled_sufficient_statistics",
+        }
+        for name, control in observed_controls.items()
     }
 
 
@@ -206,7 +228,7 @@ def main() -> None:
     input_dir.mkdir(parents=True, exist_ok=True)
     metrics = {}
     anomalies = {}
-    score_maps = {}
+    statistics = {}
     per_sample_payloads = {}
     aggregate_consistency = {}
     for condition in conditions:
@@ -227,20 +249,22 @@ def main() -> None:
         )
         aggregate_consistency[condition] = bool(np.isclose(
             metrics[condition]["METEOR"],
-            per_sample_payloads[condition]["per_sample_mean"],
+            per_sample_payloads[condition]["METEOR"],
             rtol=0.0,
             atol=1e-12,
         ))
         expected_video_ids = [str(row["physical_media_id"]) for row in rows_by_condition[condition]]
-        score_maps[condition] = score_map(per_sample_payloads[condition], expected_video_ids)
+        statistics[condition] = statistics_matrix(per_sample_payloads[condition], expected_video_ids)
         anomalies[condition] = anomaly_counts(rows_by_condition[condition], int(lock["max_new_tokens"]))
     if not all(aggregate_consistency.values()):
         raise ValueError("official aggregate 与 per-sample METEOR scorer 不一致")
 
     comparisons = paired_bootstrap_comparisons(
-        score_maps,
+        statistics,
+        {name: values["METEOR"] for name, values in metrics.items()},
         repeats=BOOTSTRAP_REPEATS,
         seed=int(lock["bootstrap_seed"]),
+        scorer=OfficialMeteorCorpusScorer(official_repo=args.official_repo),
     )
     anomaly_checks = anomaly_gate(anomalies)
     gate_checks = oracle_gate(comparisons, anomaly_checks, operational)
@@ -256,7 +280,8 @@ def main() -> None:
         "paired_cluster_bootstrap": comparisons,
         "bootstrap_repeats": BOOTSTRAP_REPEATS,
         "bootstrap_seed": int(lock["bootstrap_seed"]),
-        "official_aggregate_per_sample_consistency": aggregate_consistency,
+        "official_aggregate_statistics_adapter_consistency": aggregate_consistency,
+        "bootstrap_scoring_protocol": "official_meteor_corpus_eval_from_resampled_sufficient_statistics",
         "anomalies": anomalies,
         "operational_checks": operational,
         "oracle_gate_checks": gate_checks,

@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from intersuit.harness.dynamic_selector_v2_metrics import (
+    OfficialMeteorCorpusScorer,
     assert_golden_results,
     run_longvale_golden,
     run_longvale_meteor_per_sample,
@@ -82,3 +84,26 @@ def test_official_longvale_per_sample_meteor_matches_aggregate():
     assert paired["per_sample_mean"] == pytest.approx(official["METEOR"], abs=1e-12)
     assert len(paired["per_sample"]) == len(_load("longvale_seg_caption_predictions.json"))
     assert all(0.0 <= row["score"] <= 1.0 for row in paired["per_sample"])
+    assert all(len(row["sufficient_statistics"]) == 23 for row in paired["per_sample"])
+
+
+def test_official_meteor_corpus_scorer_reproduces_nonperfect_aggregate(tmp_path):
+    project_root = Path(__file__).resolve().parents[2]
+    official_repo = project_root / "intersuit/datasets/LongVALE_V2/official_repo"
+    predictions = _load("longvale_seg_caption_predictions.json")
+    predictions[1]["answer"] = "A completely unrelated event occurs."
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(predictions), encoding="utf-8")
+
+    payload = run_longvale_meteor_per_sample(
+        official_repo=official_repo,
+        annotation_path=FIXTURES / "longvale_seg_caption_golden.json",
+        predictions_path=predictions_path,
+    )
+    statistics = np.asarray(
+        [row["sufficient_statistics"] for row in payload["per_sample"]], dtype=np.float64
+    )
+    reproduced = OfficialMeteorCorpusScorer(official_repo=official_repo).score_corpus(statistics)
+
+    assert reproduced == pytest.approx(payload["METEOR"], abs=1e-12)
+    assert payload["per_sample_mean"] != pytest.approx(payload["METEOR"], abs=1e-6)

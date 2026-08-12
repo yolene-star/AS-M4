@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import sys
 
+import numpy as np
 import pytest
 
 
@@ -15,53 +16,74 @@ sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
 
-def test_score_map_preserves_frozen_physical_video_order():
-    payload = {
+def payload(video_ids):
+    return {
         "per_sample": [
-            {"video_id": "sha256:a", "sentence_id": 0, "score": 0.2},
-            {"video_id": "sha256:b", "sentence_id": 0, "score": 0.4},
+            {
+                "video_id": video_id,
+                "sentence_id": 0,
+                "score": 0.2,
+                "sufficient_statistics": [float(index)] * 23,
+            }
+            for index, video_id in enumerate(video_ids, start=1)
         ]
     }
 
-    result = module.score_map(payload, ["sha256:a", "sha256:b"])
 
-    assert result == {"sha256:a": 0.2, "sha256:b": 0.4}
+def test_statistics_matrix_preserves_frozen_physical_video_order():
+    result = module.statistics_matrix(payload(["sha256:a", "sha256:b"]), ["sha256:a", "sha256:b"])
+
+    assert result.shape == (2, 23)
+    assert result[:, 0].tolist() == [1.0, 2.0]
 
 
-def test_score_map_rejects_order_drift():
-    payload = {
-        "per_sample": [
-            {"video_id": "sha256:b", "sentence_id": 0, "score": 0.4},
-            {"video_id": "sha256:a", "sentence_id": 0, "score": 0.2},
-        ]
-    }
-
+def test_statistics_matrix_rejects_order_drift():
     with pytest.raises(ValueError, match="顺序/集合漂移"):
-        module.score_map(payload, ["sha256:a", "sha256:b"])
+        module.statistics_matrix(payload(["sha256:b", "sha256:a"]), ["sha256:a", "sha256:b"])
 
 
 def test_paired_bootstrap_uses_five_seed_means():
-    videos = [f"video-{index}" for index in range(10)]
-    score_maps = {
-        "oracle_top8": {video: 0.30 for video in videos},
-        "fixed_all": {video: 0.20 for video in videos},
-        "current_micro_top8": {video: 0.19 for video in videos},
-        "behavior_off": {video: 0.18 for video in videos},
-    }
-    score_maps.update({
-        f"random_top8_seed_{seed}": {video: 0.10 + seed * 0.01 for video in videos}
-        for seed in range(5)
-    })
-    score_maps.update({
-        f"oracle_mismatch_seed_{seed}": {video: 0.12 + seed * 0.01 for video in videos}
-        for seed in range(5)
-    })
+    class MeanFirstColumnScorer:
+        def score_corpus(self, statistics):
+            return float(np.mean(statistics[:, 0]))
 
-    result = module.paired_bootstrap_comparisons(score_maps, repeats=100, seed=20260724)
+    def matrix(value):
+        result = np.zeros((10, 23), dtype=np.float64)
+        result[:, 0] = value
+        return result
+
+    statistics = {
+        "oracle_top8": matrix(0.30),
+        "fixed_all": matrix(0.20),
+        "current_micro_top8": matrix(0.19),
+        "behavior_off": matrix(0.18),
+    }
+    statistics.update({
+        f"random_top8_seed_{seed}": matrix(0.10 + seed * 0.01)
+        for seed in range(5)
+    })
+    statistics.update({
+        f"oracle_mismatch_seed_{seed}": matrix(0.12 + seed * 0.01)
+        for seed in range(5)
+    })
+    aggregates = {name: float(values[0, 0]) for name, values in statistics.items()}
+
+    result = module.paired_bootstrap_comparisons(
+        statistics,
+        aggregates,
+        repeats=100,
+        seed=20260724,
+        scorer=MeanFirstColumnScorer(),
+    )
 
     assert result["oracle_minus_random_mean"]["delta"] == pytest.approx(0.18)
     assert result["oracle_minus_mismatch_mean"]["delta"] == pytest.approx(0.16)
     assert result["oracle_minus_fixed_all"]["ci95_lower"] == pytest.approx(0.10)
+
+
+def test_paired_bootstrap_rejects_nonpositive_repeats():
+    with pytest.raises(ValueError, match="必须为正数"):
+        module.paired_bootstrap_comparisons({}, {}, repeats=0, seed=1, scorer=object())
 
 
 def test_oracle_gate_fails_closed_when_current_gain_is_too_small():

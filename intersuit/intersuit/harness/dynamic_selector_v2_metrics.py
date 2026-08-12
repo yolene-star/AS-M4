@@ -99,13 +99,14 @@ def run_longvale_meteor_per_sample(
     predictions_path: Path,
     pycocoevalcap_root: Path | None = None,
 ) -> dict:
-    """Return the official METEOR aggregate and its paired per-sample scores.
+    """Return official METEOR aggregate, per-sample scores and sufficient stats.
 
     LongVALE's frozen implementation discards the second value returned by
     ``Meteor.compute_score``.  The second value is needed for a paired physical
     video bootstrap, so this adapter preserves it while using the same frozen
     source contract, PTB tokenizer, dependency versions and pycocoevalcap
-    scorer as ``run_longvale_golden``.
+    scorer as ``run_longvale_golden``.  Per-sample scores are descriptive only:
+    official corpus METEOR must be recomputed from the sufficient statistics.
     """
 
     metric_path = official_repo / "longvalellm/eval/metric.py"
@@ -146,24 +147,62 @@ def run_longvale_meteor_per_sample(
     tokenizer = PTBTokenizer()
     ground_truth = tokenizer.tokenize(ground_truth)
     predicted = tokenizer.tokenize(predicted)
-    aggregate, scores = Meteor().compute_score(ground_truth, predicted)
+    meteor = Meteor()
+    statistics = [meteor._stat(predicted[key][0], ground_truth[key]) for key in ground_truth]
+    meteor.meteor_p.stdin.write(("EVAL ||| " + " ||| ".join(statistics) + "\n").encode())
+    meteor.meteor_p.stdin.flush()
+    scores = [float(meteor.meteor_p.stdout.readline().strip()) for _ in statistics]
+    aggregate = float(meteor.meteor_p.stdout.readline().strip())
     score_values = [float(value) for value in scores]
     if len(score_values) != len(sample_keys):
         raise ValueError("LongVALE METEOR per-sample score count drift")
     per_sample_mean = float(np.mean(score_values))
-    if not np.isclose(float(aggregate), per_sample_mean, rtol=0.0, atol=1e-12):
-        raise ValueError(
-            "LongVALE METEOR aggregate/per-sample mean drift: "
-            f"aggregate={aggregate}, per_sample_mean={per_sample_mean}"
-        )
     return {
         "METEOR": float(aggregate),
         "per_sample_mean": per_sample_mean,
         "per_sample": [
-            {"video_id": video_id, "sentence_id": sentence_id, "score": score}
-            for (video_id, sentence_id, _), score in zip(sample_keys, score_values)
+            {
+                "video_id": video_id,
+                "sentence_id": sentence_id,
+                "score": score,
+                "sufficient_statistics": [float(value) for value in statistic.split()],
+            }
+            for (video_id, sentence_id, _), score, statistic in zip(
+                sample_keys, score_values, statistics
+            )
         ],
     }
+
+
+class OfficialMeteorCorpusScorer:
+    """Evaluate resampled METEOR sufficient statistics with the official JAR."""
+
+    def __init__(self, *, official_repo: Path) -> None:
+        metric_path = official_repo / "longvalellm/eval/metric.py"
+        _require_frozen_source(metric_path, LONGVALE_METRIC_SHA256)
+        if importlib.util.find_spec("pycocoevalcap") is None:
+            raise RuntimeError("缺少 pycocoevalcap；LongVALE 正式 metric gate 不允许 skip")
+        _require_metric_dependency_versions()
+        from pycocoevalcap.meteor.meteor import Meteor
+
+        self._meteor = Meteor()
+
+    def score_corpus(self, statistics: np.ndarray) -> float:
+        values = np.asarray(statistics, dtype=np.float64)
+        if values.ndim != 2 or values.shape[0] == 0 or values.shape[1] != 23:
+            raise ValueError("METEOR corpus sufficient statistics 必须为非空 N×23")
+        if not np.all(np.isfinite(values)):
+            raise ValueError("METEOR corpus sufficient statistics 包含 nonfinite")
+        encoded = [" ".join(str(value) for value in row) for row in values]
+        self._meteor.meteor_p.stdin.write(("EVAL ||| " + " ||| ".join(encoded) + "\n").encode())
+        self._meteor.meteor_p.stdin.flush()
+        sample_scores = [
+            float(self._meteor.meteor_p.stdout.readline().strip()) for _ in encoded
+        ]
+        corpus_score = float(self._meteor.meteor_p.stdout.readline().strip())
+        if not all(np.isfinite(value) for value in sample_scores) or not np.isfinite(corpus_score):
+            raise ValueError("METEOR official EVAL 返回 nonfinite")
+        return corpus_score
 
 
 def run_unav_golden(
