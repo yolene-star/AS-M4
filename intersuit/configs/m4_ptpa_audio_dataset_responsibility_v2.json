@@ -1,0 +1,182 @@
+{
+  "artifact_kind": "m4_ptpa_audio_dataset_responsibility_lock",
+  "format_version": 2,
+  "route": "audio_semantic_fusion_reconstruction_v1",
+  "status": "plan_locked_dataset_qualification_required",
+  "base_model": "M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+  "authoritative_plan": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_ZH.md",
+  "authoritative_review": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_REVIEW_ZH.md",
+  "stage_order": [
+    "s0_dataset_qualification",
+    "s1_llp_frozen_semantic_upper_bound",
+    "s2_clotho_aqa_answer_representation_upper_bound",
+    "s3a_avcaps_fusion_upper_bound",
+    "s3b_longvale_end_to_end_upper_bound",
+    "s4_single_module_training",
+    "s5_two_module_composition",
+    "s6_frozen_regression"
+  ],
+  "datasets": {
+    "llp": {
+      "primary_stage": "s1",
+      "responsibility": "audio_event_semantics_and_one_second_temporal_supervision",
+      "must_not_claim": [
+        "open_ended_audio_question_answering",
+        "long_video_generation"
+      ],
+      "official_source": "https://github.com/YapengTian/AVVP-ECCV20",
+      "local_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
+      "official_split_counts": {
+        "train": 10000,
+        "validation": 649,
+        "test": 1200
+      },
+      "known_ave_history_excluded_counts_prequalification": {
+        "train": 9811,
+        "validation": 636,
+        "test": 1183
+      },
+      "metadata_sha256": {
+        "AVVP_train.csv": "bbeb83e8af46a85075216b213d3464f92dd4ab71468c852ae454b82cc745c0a4",
+        "AVVP_val_pd.csv": "1811813b54c5f43c3be0a97bd0971cfb8a93818ca7b3ab96cdc7f4ac37ef37a6",
+        "AVVP_test_pd.csv": "3f7a2b040e3b67c15d08efef25002bf8c5b2320f11049eb99ae0eb2d62f8eb9b",
+        "AVVP_eval_audio.csv": "d5435664668bec6e7eafb39059d2f424ed2682f6b55395262fc3cb691b7d0778",
+        "AVVP_eval_visual.csv": "e2274af694f3f27e38b840e0cd91a9d8d9ac85280f193e90828d26b22db69abe"
+      },
+      "supervision": {
+        "train": "weak_clip_labels_do_not_promote_to_dense_windows",
+        "validation": "dense_audio_and_visual_event_annotations",
+        "test": "dense_audio_and_visual_event_annotations_sealed_until_candidate_freeze"
+      },
+      "qualification_blockers": [
+        "full_historical_physical_id_overlap_not_audited",
+        "raw_youtube_media_availability_not_audited",
+        "audio_track_decode_duration_and_sha_not_audited",
+        "raw_media_license_boundary_not_locked"
+      ]
+    },
+    "clotho_aqa": {
+      "primary_stage": "s2",
+      "responsibility": "question_conditioned_audio_answer_semantics",
+      "must_not_claim": [
+        "visual_fusion",
+        "long_video_understanding"
+      ],
+      "official_source": "https://doi.org/10.5281/zenodo.6473207",
+      "official_split_counts": {
+        "train": 1174,
+        "validation": 344,
+        "test": 473
+      },
+      "answer_strata_required": [
+        "yes_no",
+        "single_word"
+      ],
+      "qualification_blockers": [
+        "official_archive_checksums_not_locked",
+        "per_file_audio_license_ledger_not_locked",
+        "physical_split_disjointness_not_locally_reproduced",
+        "historical_audio_overlap_not_audited"
+      ]
+    },
+    "avcaps": {
+      "primary_stage": "s3a",
+      "responsibility": "audio_visual_modality_contribution_and_fusion_position",
+      "must_not_claim": [
+        "canonical_event_class_recognition",
+        "one_second_temporal_localization",
+        "long_video_generation"
+      ],
+      "official_source": "https://zenodo.org/records/14536325",
+      "hugging_face_source": "TUT-ARG/AVCaps",
+      "hugging_face_revision": "7a17eb6cfe7d7ef149384651c930cd4153ebcf43",
+      "license": "CC-BY-NC-4.0",
+      "official_split_counts": {
+        "train": 1661,
+        "validation": 200,
+        "test": 200
+      },
+      "video_archives": {
+        "train_videos.zip": {
+          "size_bytes": 8545052564,
+          "sha256": "f0f8964792637f9f6123b451429deb86444d7ce7eee3dbb345e9eb2571581021"
+        },
+        "val_videos.zip": {
+          "size_bytes": 1009483990,
+          "sha256": "9e93723d71c29906fa1eec308f63a4188cbce7fb91dc03e4abb5507c713d02cf"
+        },
+        "test_videos.zip": {
+          "size_bytes": 1066654395,
+          "sha256": "7e86a9b6f78042b4cca899781f7a93364236ae5f4efe4cc93a63bd095baf19ba"
+        }
+      },
+      "caption_modalities": [
+        "audio",
+        "visual",
+        "audio_visual"
+      ],
+      "qualification_blockers": [
+        "physical_split_disjointness_not_locally_reproduced",
+        "historical_media_overlap_not_audited",
+        "media_decode_audio_track_and_duration_not_audited",
+        "caption_schema_and_metric_contract_not_locked"
+      ]
+    },
+    "longvale": {
+      "primary_stages": [
+        "s3b",
+        "s6"
+      ],
+      "responsibility": "long_video_end_to_end_generation_and_frozen_regression",
+      "must_not_claim": [
+        "s1_semantic_target_selection",
+        "s2_answer_representation_selection"
+      ],
+      "official_source": "ttgeng233/LongVALE",
+      "revision": "18889b01886e30c36b0d1c650ac4439ad460ee73",
+      "authorized_archive": {
+        "path": "raw_videos_train/LongVALE_train_7240_part_19.zip",
+        "size_bytes": 5264455669,
+        "sha256": "1702842ef7daf86b699708bdb8bb44a702486a8b11374778c2a0173a058ca3bf",
+        "indexed_video_count": 198,
+        "eligible_candidate_count_prequalification": 186,
+        "minimum_required_candidate_count": 100
+      },
+      "qualification_blockers": [
+        "part19_download_not_yet_sha_crc_member_verified",
+        "final_candidate_historical_reserved_overlap_not_locked"
+      ]
+    },
+    "ave": {
+      "primary_stage": "historical_development_only",
+      "responsibility": "historical_negative_evidence_and_development_diagnostics",
+      "formal_confirm_allowed": false,
+      "reason": "untouched_pool_covers_only_21_of_28_classes_and_historical_test_effects_are_accessed"
+    }
+  },
+  "shared_gates": {
+    "physical_media_is_primary_unit": true,
+    "correct_must_exceed_mismatch": true,
+    "behavior_off_and_gate0_exact_rollback_required": true,
+    "paired_or_cluster_bootstrap_required": true,
+    "dataset_native_scores_must_not_be_averaged_across_datasets": true,
+    "upstream_pass_cannot_override_downstream_fail": true,
+    "development_can_select_candidates": true,
+    "test_effect_access_once_after_candidate_freeze": true
+  },
+  "permissions": {
+    "dataset_metadata_audit_allowed": true,
+    "longvale_part19_download_allowed_by_explicit_user_authorization": true,
+    "llp_pilot_download_allowed": false,
+    "llp_full_download_allowed": false,
+    "clotho_aqa_download_allowed": false,
+    "avcaps_download_allowed": false,
+    "feature_extraction_allowed": false,
+    "gpu_execution_allowed": false,
+    "training_allowed": false,
+    "confirm_effect_access_allowed": false,
+    "formal_test_effect_access_allowed": false
+  },
+  "next_stage": "s0_dataset_qualification_and_llp_pilot_plan_review",
+  "next_stage_allowed": false
+}
