@@ -69,6 +69,11 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    anonymous canary2 已运行并在媒体传输前 `0/2` 失败，两条均为 YouTube
    `The page needs to be reloaded`；未生成视频，临时目录已清理。该结果不允许改跑 pilot150，
    也不允许回退使用聊天中暴露的 cookie。
+   用户随后提供重新登录后导出的新 cookie 文件；脱敏比较确认文件不同、15/22 个同名 cookie
+   值变化并新增 3 项，权限 600、格式/过期检查通过。rotated-cookie canary2 再次 `0/2`：
+   两条均进入媒体 fragment 阶段后遭 HTTP 403，yt-dlp 报 YouTube 强制 SABR、最终
+   `The downloaded file is empty`；未生成视频。当前下载链还提示 base Python 3.9 支持已弃用，
+   在独立升级 Review 前不得重跑或进入 pilot150。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、
