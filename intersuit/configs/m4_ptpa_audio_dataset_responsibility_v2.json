@@ -108,7 +108,7 @@
         },
         "metadata_probe_allowed": true,
         "official_protocol_downloader": {
-          "status": "rotated_cookie_canary2_failed_sabr_http403",
+          "status": "stable_ytdlp_2026_08_19_canary2_failed_page_reload",
           "script_path": "intersuit/scripts/download_m4_ptpa_llp_pilot_v2.py",
           "official_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
           "download_format": "best",
@@ -144,6 +144,26 @@
             "results_sha256": "f4ac781d5df44db3607f41a50780da8553fbd8a718e0f207731e1c32fe2ed10d",
             "summary_sha256": "fcfb1613ebba894cf9e1c521b60d34ff47dc52e0bf5317cae3cc2603bafc077b"
           },
+          "stable_ytdlp_update": {
+            "conda_environment": "M4",
+            "python_version": "3.10.20",
+            "yt_dlp_version": "2026.08.19",
+            "yt_dlp_executable_sha256": "f782cc7bdbc998ca8a2ea58fa7f8f58c540379436321d95eb4530f54d618653a",
+            "yt_dlp_ejs_installed": true,
+            "websockets_restored_version": "11.0.3",
+            "gradio_client_import_ok": true,
+            "new_dependency_conflicts": 0,
+            "preexisting_pip_check_issue": "decord_0_6_0_not_supported_on_this_platform"
+          },
+          "stable_ytdlp_canary_result": {
+            "expected": 2,
+            "passed": 0,
+            "failed": 2,
+            "failure_class": "youtube_page_needs_reload_before_media_transfer",
+            "media_files_created": 0,
+            "results_sha256": "1720cb9882b22586bc0c4f43f445cb95ea3e08ae81935b2ff7b8e9554d341251",
+            "summary_sha256": "fcfb1613ebba894cf9e1c521b60d34ff47dc52e0bf5317cae3cc2603bafc077b"
+          },
           "canary2_download_allowed": false,
           "pilot150_download_allowed": false
         },
@@ -153,8 +173,8 @@
       },
       "qualification_blockers": [
         "youtube_per_item_metadata_probe_incomplete",
-        "official_protocol_rotated_cookie_canary2_failed_sabr_http403",
-        "current_ytdlp_download_chain_requires_independent_upgrade_review",
+        "stable_ytdlp_2026_08_19_canary2_failed_page_reload",
+        "nightly_or_client_protocol_requires_independent_review",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",
         "per_item_youtube_license_not_verified"

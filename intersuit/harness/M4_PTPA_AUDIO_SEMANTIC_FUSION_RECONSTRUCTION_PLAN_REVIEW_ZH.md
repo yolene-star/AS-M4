@@ -74,6 +74,14 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    两条均进入媒体 fragment 阶段后遭 HTTP 403，yt-dlp 报 YouTube 强制 SABR、最终
    `The downloaded file is empty`；未生成视频。当前下载链还提示 base Python 3.9 支持已弃用，
    在独立升级 Review 前不得重跑或进入 pilot150。
+   用户随后授权在既有 M4 环境更新 stable yt-dlp。已安装 `yt-dlp 2026.08.19` 与 EJS；
+   `[default]` 首次把 websockets 11.0.3 升到 16.1.1，触发既有 gradio-client `<12` 冲突，
+   已立即恢复 websockets 11.0.3并验证 gradio-client 导入。`pip check` 只剩升级前已有的
+   decord 平台提示。新 canary2 authorization 已绑定 M4 环境、yt-dlp 版本与可执行文件 SHA；
+   只允许再运行 canary2，pilot150 仍禁止。
+   stable `2026.08.19` canary2 已运行并再次 `0/2`，两条均在媒体传输前报
+   `The page needs to be reloaded`，生成视频数 0。stable 更新未关闭下载 blocker；nightly、
+   player client、JS runtime 或 PO token 属于下一层协议变更，必须独立 Review/授权，不能直接尝试。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、
