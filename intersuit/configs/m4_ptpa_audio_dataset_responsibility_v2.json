@@ -108,7 +108,7 @@
         },
         "metadata_probe_allowed": true,
         "official_protocol_downloader": {
-          "status": "stable_ytdlp_2026_08_19_canary2_failed_page_reload",
+          "status": "isolated_nightly_ytdlp_canary2_failed_page_reload",
           "script_path": "intersuit/scripts/download_m4_ptpa_llp_pilot_v2.py",
           "official_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
           "download_format": "best",
@@ -164,6 +164,30 @@
             "results_sha256": "1720cb9882b22586bc0c4f43f445cb95ea3e08ae81935b2ff7b8e9554d341251",
             "summary_sha256": "fcfb1613ebba894cf9e1c521b60d34ff47dc52e0bf5317cae3cc2603bafc077b"
           },
+          "isolated_download_environment": {
+            "conda_environment": "llp-download",
+            "environment_spec": "intersuit/configs/llp_download_environment.yml",
+            "python_version": "3.11.15",
+            "yt_dlp_channel": "nightly",
+            "yt_dlp_version": "2026.08.20.234504",
+            "yt_dlp_executable_sha256": "97fcb67e0ae01612678416e9a57cf7686eef93f55bb2bb78cb5d72e808602b55",
+            "yt_dlp_ejs_version": "0.8.0",
+            "ffmpeg_version": "8.1.2",
+            "ffmpeg_executable_sha256": "e65bb6371a4d323db0a4fdf120726d142df7e6dfc68db9ddd7c614e8bccd8a3f",
+            "node_version": "26.5.1",
+            "node_executable_sha256": "b4d395a8f18ada7c534f71d473438e09fd6062b3e0ff9db67aaf361b3182a250",
+            "pip_check": "pass_no_broken_requirements",
+            "m4_environment_used_for_download": false
+          },
+          "isolated_nightly_canary_result": {
+            "expected": 2,
+            "passed": 0,
+            "failed": 2,
+            "failure_class": "youtube_page_needs_reload_before_media_transfer",
+            "media_files_created": 0,
+            "results_sha256": "80f8aa43023c886fc65b3ccc40d0262bbb1aa1903780838d00c9b9b61fb19dbd",
+            "summary_sha256": "fcfb1613ebba894cf9e1c521b60d34ff47dc52e0bf5317cae3cc2603bafc077b"
+          },
           "canary2_download_allowed": false,
           "pilot150_download_allowed": false
         },
@@ -173,8 +197,8 @@
       },
       "qualification_blockers": [
         "youtube_per_item_metadata_probe_incomplete",
-        "stable_ytdlp_2026_08_19_canary2_failed_page_reload",
-        "nightly_or_client_protocol_requires_independent_review",
+        "isolated_nightly_ytdlp_canary2_failed_page_reload",
+        "youtube_client_or_po_token_protocol_unresolved",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",
         "per_item_youtube_license_not_verified"

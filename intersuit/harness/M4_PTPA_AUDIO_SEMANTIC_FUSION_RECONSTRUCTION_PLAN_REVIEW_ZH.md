@@ -82,6 +82,14 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    stable `2026.08.19` canary2 已运行并再次 `0/2`，两条均在媒体传输前报
    `The page needs to be reloaded`，生成视频数 0。stable 更新未关闭下载 blocker；nightly、
    player client、JS runtime 或 PO token 属于下一层协议变更，必须独立 Review/授权，不能直接尝试。
+   用户随后明确要求新建隔离下载环境。`llp-download` 已按 Python 3.11.15、nightly yt-dlp
+   `2026.08.20.234504`、EJS 0.8.0、FFmpeg 8.1.2、Node 26.5.1 建成，`pip check` 无损坏依赖；
+   环境 spec 与三个关键可执行 SHA 已冻结。首次 conda-forge 全量求解因 repodata 网络分块中断，
+   改用 defaults 两阶段创建；FFmpeg+Node 联装时 Node Content-Length 中断，拆分重试后均成功。
+   新 authorization 只允许该隔离环境重跑 canary2，M4 不再承担下载，pilot150 仍禁止。
+   隔离 nightly canary2 已运行并仍为 `0/2`，两条均在媒体传输前报 page reload，生成视频数 0。
+   该结果排除了 M4/base 依赖污染、Python 3.9和旧 stable 版本作为充分原因；剩余 client/PO-token/
+   账号-IP 协议问题未解决，必须停止，不得继续堆叠参数或运行 pilot150。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、

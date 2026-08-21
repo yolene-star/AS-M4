@@ -1,0 +1,20 @@
+name: llp-download
+channels:
+  - defaults
+dependencies:
+  - python=3.11.15
+  - pip=26.1.2
+  - ffmpeg=8.1.2
+  - nodejs=26.5.1
+  - pip:
+      - brotli==1.2.0
+      - certifi==2026.7.22
+      - charset-normalizer==3.5.1
+      - idna==3.19
+      - mutagen==1.48.1
+      - pycryptodomex==3.23.0
+      - requests==2.34.2
+      - urllib3==2.7.0
+      - websockets==17.0.1
+      - yt-dlp==2026.8.20.234504.dev0
+      - yt-dlp-ejs==0.8.0

@@ -108,7 +108,7 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert qualification["metadata_probe_full"]["qualification_complete"] is False
     assert qualification["pilot_media_download_allowed"] is False
     downloader = qualification["official_protocol_downloader"]
-    assert downloader["status"] == "stable_ytdlp_2026_08_19_canary2_failed_page_reload"
+    assert downloader["status"] == "isolated_nightly_ytdlp_canary2_failed_page_reload"
     assert downloader["official_repository_commit"] == "fde56118f2c2e7c19188dfefa2569a37b70054fe"
     assert downloader["download_format"] == "best"
     assert downloader["video_codec"] == "libx264"
@@ -130,9 +130,21 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert downloader["stable_ytdlp_canary_result"]["passed"] == 0
     assert downloader["stable_ytdlp_canary_result"]["failed"] == 2
     assert downloader["stable_ytdlp_canary_result"]["media_files_created"] == 0
+    isolated = downloader["isolated_download_environment"]
+    assert isolated["conda_environment"] == "llp-download"
+    assert isolated["python_version"] == "3.11.15"
+    assert isolated["yt_dlp_channel"] == "nightly"
+    assert isolated["yt_dlp_version"] == "2026.08.20.234504"
+    assert isolated["ffmpeg_version"] == "8.1.2"
+    assert isolated["node_version"] == "26.5.1"
+    assert isolated["pip_check"] == "pass_no_broken_requirements"
+    assert isolated["m4_environment_used_for_download"] is False
+    assert downloader["isolated_nightly_canary_result"]["passed"] == 0
+    assert downloader["isolated_nightly_canary_result"]["failed"] == 2
+    assert downloader["isolated_nightly_canary_result"]["media_files_created"] == 0
     assert downloader["canary2_download_allowed"] is False
     assert downloader["pilot150_download_allowed"] is False
-    assert "stable_ytdlp_2026_08_19_canary2_failed_page_reload" in llp["qualification_blockers"]
+    assert "isolated_nightly_ytdlp_canary2_failed_page_reload" in llp["qualification_blockers"]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
 
