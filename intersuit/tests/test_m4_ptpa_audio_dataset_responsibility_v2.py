@@ -97,6 +97,8 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert qualification["pilot_physical_video_count"] == 150
     assert qualification["pilot_historical_overlap_count"] == 0
     assert qualification["avqa_physical_id_inventory_available"] is False
+    assert qualification["avqa_official_source_audit"]["expected_physical_video_count"] == 57015
+    assert qualification["avqa_official_source_audit"]["third_party_incomplete_repack_accepted"] is False
     assert qualification["repository_license_applies_to_raw_youtube_media"] is False
     assert qualification["metadata_probe_smoke"]["metadata_available"] == 0
     assert qualification["pilot_media_download_allowed"] is False

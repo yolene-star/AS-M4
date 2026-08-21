@@ -26,6 +26,8 @@ def test_real_historical_ledger_has_zero_pilot_overlap_and_fails_closed_on_missi
     assert summary["m4_it_scope"]["row_count"] == 9963
     assert summary["m4_it_scope"]["youtube_alias_available"] is False
     assert summary["coverage_limitations"] == ["avqa_local_physical_id_inventory_missing"]
+    assert summary["avqa_scope"]["official_sources"]["expected_physical_video_count"] == 57015
+    assert summary["avqa_scope"]["third_party_incomplete_repack_not_accepted_as_full_history"] is True
     assert summary["full_history_closed"] is False
 
 

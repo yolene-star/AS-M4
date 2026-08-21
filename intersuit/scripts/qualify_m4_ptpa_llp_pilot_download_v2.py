@@ -43,6 +43,14 @@ OFFICIAL_LICENSE_REFERENCES = {
     "youtube_license_types": "https://support.google.com/youtube/answer/2797468?hl=en",
     "youtube_terms": "https://www.youtube.com/static?template=terms",
 }
+AVQA_OFFICIAL_SOURCES = {
+    "dataset_website": "https://mn.cs.tsinghua.edu.cn/avqa/",
+    "repository": "https://github.com/AlyssaYoung/AVQA",
+    "repository_commit": "a5056c1d82849aa0981f50fa4c5a57bd16658c52",
+    "repository_readme_blob": "62afd269a3460cb25a174d0d1b78bd9817db459e",
+    "expected_physical_video_count": 57015,
+    "source_corpus": "VGGSound",
+}
 
 
 def sha256(path: Path) -> str:
@@ -189,6 +197,10 @@ def build_historical_ledger(pilot: list[dict[str, Any]]) -> tuple[list[dict[str,
         "avqa_scope": {
             "local_file_count": len(avqa_files),
             "physical_id_inventory_available": bool(avqa_files),
+            "official_sources": AVQA_OFFICIAL_SOURCES,
+            "official_csv_contract": "youtube_id_start_seconds_train_test_split",
+            "official_sharepoint_anonymous_result": "redirected_to_microsoft_login",
+            "third_party_incomplete_repack_not_accepted_as_full_history": True,
         },
         "coverage_limitations": unresolved,
         "full_history_closed": not unresolved,

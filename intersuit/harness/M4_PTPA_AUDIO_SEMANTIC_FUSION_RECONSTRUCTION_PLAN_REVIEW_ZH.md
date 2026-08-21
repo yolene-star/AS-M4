@@ -52,6 +52,9 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    视频；逐条 availability/license probe 的 2 条 smoke 均因页面 reload/反机器人认证失败，
    未使用 cookies、未取得媒体、未解锁下载。metadata probe 与下载后 SHA/ffprobe/音轨/时长
    验收合同已实现，但正式媒体 downloader 尚未实现/Review，逐视频许可、存活率和媒体审计仍未完成。
+   AVQA 官方项目页已锁定 57,015 个 VGGSound 视频及 `YouTube ID/start/split` CSV 合同，固定
+   GitHub 提交不含 annotations，官方 OneDrive 匿名访问跳转 Microsoft 登录；不使用只有
+   56,666 个视频的第三方不完整重打包冒充全量官方清单。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、
