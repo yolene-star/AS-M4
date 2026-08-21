@@ -127,13 +127,21 @@ def verify_authorization(path: Path, scope: str) -> dict[str, Any]:
         or value.get("scope") != scope
         or value.get("row_count") != expected_count
         or value.get("pilot_sha256") != EXPECTED_PILOT_SHA256
-        or value.get("credentials_rotated_after_chat_exposure") is not True
         or value.get("internal_noncommercial_research_only") is not True
         or value.get("redistribution_allowed") is not False
         or value.get("feature_extraction_allowed") is not False
         or value.get("effect_access_allowed") is not False
     ):
         raise ValueError("LLP 媒体下载 authorization lock 不合格")
+    credential_mode = value.get("credential_mode")
+    if credential_mode == "rotated_cookie":
+        if value.get("credentials_rotated_after_chat_exposure") is not True:
+            raise ValueError("LLP rotated-cookie authorization 未证明凭据轮换")
+    elif credential_mode == "anonymous":
+        if value.get("compromised_credentials_used") is not False:
+            raise ValueError("LLP anonymous authorization 禁止使用泄露凭据")
+    else:
+        raise ValueError("LLP authorization credential_mode 非法")
     return value
 
 
@@ -291,9 +299,9 @@ def build_review(jobs: list[dict[str, Any]], scope: str) -> dict[str, Any]:
         },
         "execution_requirements": [
             "fresh authorization lock bound to pilot SHA and exact scope",
-            "credentials rotated after chat exposure",
+            "anonymous mode with no credentials, or rotated-cookie mode after credential rotation",
             "internal noncommercial research only and no redistribution",
-            "exactly one credential source supplied at runtime",
+            "anonymous mode supplies no credential; rotated-cookie mode supplies exactly one source",
             "canary2 must pass before pilot150 authorization",
         ],
         "next_stage_allowed": False,
@@ -324,9 +332,12 @@ def main() -> None:
         return
     if args.authorization_lock is None:
         raise ValueError("--execute 必须提供 --authorization-lock")
-    if (args.cookies_file is None) == (args.cookies_from_browser is None):
-        raise ValueError("--execute 必须且只能提供一个 credential source")
-    verify_authorization(args.authorization_lock, args.scope)
+    authorization = verify_authorization(args.authorization_lock, args.scope)
+    credential_count = int(args.cookies_file is not None) + int(args.cookies_from_browser is not None)
+    if authorization["credential_mode"] == "anonymous" and credential_count != 0:
+        raise ValueError("anonymous 模式禁止提供 credential source")
+    if authorization["credential_mode"] == "rotated_cookie" and credential_count != 1:
+        raise ValueError("rotated-cookie 模式必须且只能提供一个 credential source")
 
     results: list[dict[str, Any]] = []
     results_path = args.output_root / f"{args.scope}_download_results.jsonl"
@@ -357,7 +368,10 @@ def main() -> None:
         "expected": len(jobs),
         "passed": sum(row.get("status") == "pass" for row in results),
         "failed": sum(row.get("status") != "pass" for row in results),
-        "media_download_allowed": True,
+        "canary_execution_authorized": args.scope == "canary2",
+        "media_qualification_passed": all(row.get("status") == "pass" for row in results),
+        "next_stage_allowed": False,
+        "media_download_allowed": False,
         "feature_extraction_allowed": False,
         "effect_access_allowed": False,
     }

@@ -108,15 +108,20 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert qualification["metadata_probe_full"]["qualification_complete"] is False
     assert qualification["pilot_media_download_allowed"] is False
     downloader = qualification["official_protocol_downloader"]
-    assert downloader["status"] == "plan_ready_execution_locked"
+    assert downloader["status"] == "anonymous_canary2_failed"
     assert downloader["official_repository_commit"] == "fde56118f2c2e7c19188dfefa2569a37b70054fe"
     assert downloader["download_format"] == "best"
     assert downloader["video_codec"] == "libx264"
     assert downloader["audio_codec"] == "aac"
     assert downloader["credentials_rotated_after_chat_exposure"] is False
+    assert downloader["anonymous_canary_authorized_by_user"] is True
+    assert downloader["anonymous_canary_compromised_credentials_used"] is False
+    assert downloader["anonymous_canary_result"]["passed"] == 0
+    assert downloader["anonymous_canary_result"]["failed"] == 2
+    assert downloader["anonymous_canary_result"]["media_files_created"] == 0
     assert downloader["canary2_download_allowed"] is False
     assert downloader["pilot150_download_allowed"] is False
-    assert "credentials_not_rotated_after_chat_exposure" in llp["qualification_blockers"]
+    assert "official_protocol_anonymous_canary2_failed_page_reload" in llp["qualification_blockers"]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
 

@@ -38,6 +38,7 @@ def test_authorization_requires_rotated_credentials_and_fail_closed_permissions(
         "scope": "canary2",
         "row_count": 2,
         "pilot_sha256": module.EXPECTED_PILOT_SHA256,
+        "credential_mode": "rotated_cookie",
         "credentials_rotated_after_chat_exposure": False,
         "internal_noncommercial_research_only": True,
         "redistribution_allowed": False,
@@ -46,12 +47,35 @@ def test_authorization_requires_rotated_credentials_and_fail_closed_permissions(
     }
     path = tmp_path / "authorization.json"
     path.write_text(json.dumps(lock), encoding="utf-8")
-    with pytest.raises(ValueError, match="authorization lock"):
+    with pytest.raises(ValueError, match="未证明凭据轮换"):
         module.verify_authorization(path, "canary2")
 
     lock["credentials_rotated_after_chat_exposure"] = True
     path.write_text(json.dumps(lock), encoding="utf-8")
     assert module.verify_authorization(path, "canary2")["row_count"] == 2
+
+
+def test_anonymous_authorization_forbids_compromised_credentials(tmp_path):
+    lock = {
+        "status": "llp_pilot_media_download_authorized",
+        "scope": "canary2",
+        "row_count": 2,
+        "pilot_sha256": module.EXPECTED_PILOT_SHA256,
+        "credential_mode": "anonymous",
+        "compromised_credentials_used": False,
+        "internal_noncommercial_research_only": True,
+        "redistribution_allowed": False,
+        "feature_extraction_allowed": False,
+        "effect_access_allowed": False,
+    }
+    path = tmp_path / "anonymous.json"
+    path.write_text(json.dumps(lock), encoding="utf-8")
+    assert module.verify_authorization(path, "canary2")["credential_mode"] == "anonymous"
+
+    lock["compromised_credentials_used"] = True
+    path.write_text(json.dumps(lock), encoding="utf-8")
+    with pytest.raises(ValueError, match="泄露凭据"):
+        module.verify_authorization(path, "canary2")
 
 
 def test_media_validation_requires_official_codecs_audio_and_duration(tmp_path):
@@ -95,3 +119,21 @@ def test_plan_only_main_writes_locked_canary_without_credentials(tmp_path, monke
     assert review["permissions"]["media_download_allowed"] is False
     assert review["next_stage_allowed"] is False
     assert len(plan) == 2
+
+
+def test_failed_canary_summary_never_unlocks_media_or_next_stage():
+    results = [{"status": "fail"}, {"status": "fail"}]
+    summary = {
+        "passed": sum(row["status"] == "pass" for row in results),
+        "failed": sum(row["status"] != "pass" for row in results),
+        "media_qualification_passed": all(row["status"] == "pass" for row in results),
+        "next_stage_allowed": False,
+        "media_download_allowed": False,
+    }
+    assert summary == {
+        "passed": 0,
+        "failed": 2,
+        "media_qualification_passed": False,
+        "next_stage_allowed": False,
+        "media_download_allowed": False,
+    }

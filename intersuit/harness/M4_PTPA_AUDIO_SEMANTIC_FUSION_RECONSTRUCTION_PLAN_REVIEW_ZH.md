@@ -56,13 +56,19 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    结构完整，但只有 9 条取得 public metadata，141 条失败（reload 81、反机器人 49、
    unavailable 4、其他 7），且 150 条 license 字段全部为空。未输出 cookie、未取得媒体、
    未解锁下载。metadata probe 与下载后 SHA/ffprobe/音轨/时长
-   验收合同已实现，但正式媒体 downloader 尚未实现/Review，逐视频许可、存活率和媒体审计仍未完成。
+   验收合同与正式媒体 downloader 已实现/Review，逐视频许可、存活率和媒体审计仍未完成。
    AVQA 官方项目页、固定 GitHub 提交与 `YouTube ID/start/split` 合同继续作为主来源证据；
    Hugging Face 只承担 annotation 镜像传输，不承担视频媒体资格或正式结果来源。
    独立 official-protocol downloader 已实现并通过 plan-only Review：固定官方 commit、`best`
    源下载、精确 10 秒、`libx264+aac`、11 位 ID 兼容命名、逐条 resume、临时目录原子提交和
-   SHA/ffprobe/音轨/时长后验收。canary2 与 pilot150 计划已分别锁定 2/150 行；由于聊天中
-   暴露的 cookie 尚未确认轮换，两个执行权限仍为 false，禁止把已暴露 cookie 写盘或重放。
+   SHA/ffprobe/音轨/时长后验收。canary2 与 pilot150 计划已分别锁定 2/150 行；聊天中
+   暴露的 cookie 未确认轮换，禁止把已暴露 cookie 写盘或重放。
+   用户随后明确要求跳过账号轮换继续；该授权只转换为 `anonymous canary2`，不授权使用已暴露
+   cookie。匿名 canary 不携带任何凭据，登录/反机器人/不可用错误均按失败保留；pilot150
+   仍禁止，canary 未通过前不改变 metadata、特征、训练或效果权限。
+   anonymous canary2 已运行并在媒体传输前 `0/2` 失败，两条均为 YouTube
+   `The page needs to be reloaded`；未生成视频，临时目录已清理。该结果不允许改跑 pilot150，
+   也不允许回退使用聊天中暴露的 cookie。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、

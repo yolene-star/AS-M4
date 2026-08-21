@@ -108,7 +108,7 @@
         },
         "metadata_probe_allowed": true,
         "official_protocol_downloader": {
-          "status": "plan_ready_execution_locked",
+          "status": "anonymous_canary2_failed",
           "script_path": "intersuit/scripts/download_m4_ptpa_llp_pilot_v2.py",
           "official_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
           "download_format": "best",
@@ -123,6 +123,17 @@
           "sha_ffprobe_audio_duration_postcheck_required": true,
           "credential_material_persisted_in_artifacts": false,
           "credentials_rotated_after_chat_exposure": false,
+          "anonymous_canary_authorized_by_user": true,
+          "anonymous_canary_compromised_credentials_used": false,
+          "anonymous_canary_result": {
+            "expected": 2,
+            "passed": 0,
+            "failed": 2,
+            "failure_class": "youtube_page_needs_reload_before_media_transfer",
+            "media_files_created": 0,
+            "results_sha256": "500229eedd14675babb32ecd06228042b2741ad37ef36d2ce3a42f6e3fc6789c",
+            "summary_sha256": "17dc33e96615569d6cde2a84c526bdacf5dd5aea61a0e4ad78970122f242b197"
+          },
           "canary2_download_allowed": false,
           "pilot150_download_allowed": false
         },
@@ -132,8 +143,7 @@
       },
       "qualification_blockers": [
         "youtube_per_item_metadata_probe_incomplete",
-        "credentials_not_rotated_after_chat_exposure",
-        "official_protocol_canary2_not_authorized_or_run",
+        "official_protocol_anonymous_canary2_failed_page_reload",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",
         "per_item_youtube_license_not_verified"
