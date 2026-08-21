@@ -51,6 +51,14 @@ AVQA_OFFICIAL_SOURCES = {
     "expected_physical_video_count": 57015,
     "source_corpus": "VGGSound",
 }
+AVQA_ANNOTATION_MIRROR = {
+    "repository": "juyil/AVQA-videos",
+    "revision": "e9538b7abd3dcf018f85c9e431d51f542728c13b",
+    "files": {
+        "train_qa.json": "55ec202636c3e25f279995eb68ddd14264004cbe0d042d1f559b03662a8575ee",
+        "val_qa.json": "304acac38a254b4dc64b2e07b5202854ff22604d968585777f026010fc0be5bc",
+    },
+}
 
 
 def sha256(path: Path) -> str:
@@ -125,6 +133,8 @@ def verify_inputs() -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, str
         LONGVALE_SEALED,
         M4_IT,
         LLP_README,
+        INTERSUIT_ROOT / "datasets/AVQA_HF_ANNOTATIONS/train_qa.json",
+        INTERSUIT_ROOT / "datasets/AVQA_HF_ANNOTATIONS/val_qa.json",
         *STAGE2_MANIFESTS.values(),
     ]
     hashes = {str(path.relative_to(PROJECT_ROOT)): sha256(path) for path in paths}
@@ -153,6 +163,23 @@ def build_historical_ledger(pilot: list[dict[str, Any]]) -> tuple[list[dict[str,
         source_sets[name] = youtube_ids(read_json(path))
     source_sets["longvale_effect_locked"] = youtube_ids(read_jsonl(LONGVALE_SEALED))
 
+    avqa_root = INTERSUIT_ROOT / "datasets/AVQA_HF_ANNOTATIONS"
+    avqa_rows = {
+        "train": read_json(avqa_root / "train_qa.json"),
+        "validation": read_json(avqa_root / "val_qa.json"),
+    }
+    for filename, expected in AVQA_ANNOTATION_MIRROR["files"].items():
+        if sha256(avqa_root / filename) != expected:
+            raise ValueError(f"AVQA annotation mirror SHA 漂移: {filename}")
+    avqa_clips = {
+        split: {str(row.get("video_name", "")) for row in rows}
+        for split, rows in avqa_rows.items()
+    }
+    if sum(len(rows) for rows in avqa_rows.values()) != 57335 or len(set().union(*avqa_clips.values())) != 57015:
+        raise ValueError("AVQA annotation mirror 官方数量合同漂移")
+    avqa_youtube = {value[:11].casefold() for values in avqa_clips.values() for value in values}
+    source_sets["avqa_official_annotation_mirror"] = avqa_youtube
+
     all_history = set().union(*source_sets.values())
     memberships: dict[str, list[str]] = defaultdict(list)
     for source, values in source_sets.items():
@@ -175,11 +202,7 @@ def build_historical_ledger(pilot: list[dict[str, Any]]) -> tuple[list[dict[str,
 
     m4_rows = read_json(M4_IT)
     m4_ids = {str(row.get("id", "")).strip() for row in m4_rows if row.get("id")}
-    avqa_root = INTERSUIT_ROOT / "datasets/AVQA"
-    avqa_files = [path for path in avqa_root.rglob("*") if path.is_file()]
-    unresolved = []
-    if not avqa_files:
-        unresolved.append("avqa_local_physical_id_inventory_missing")
+    unresolved: list[str] = []
     summary = {
         "artifact_kind": "m4_ptpa_llp_full_historical_physical_id_ledger_v2",
         "source_counts": {name: len(values) for name, values in source_sets.items()},
@@ -195,12 +218,18 @@ def build_historical_ledger(pilot: list[dict[str, Any]]) -> tuple[list[dict[str,
             "comparison_conclusion": "M4-IT 本地清单是 image/speech instruction ID，不冒充 YouTube 物理视频 ID",
         },
         "avqa_scope": {
-            "local_file_count": len(avqa_files),
-            "physical_id_inventory_available": bool(avqa_files),
+            "local_file_count": 2,
+            "physical_id_inventory_available": True,
             "official_sources": AVQA_OFFICIAL_SOURCES,
+            "annotation_mirror": AVQA_ANNOTATION_MIRROR,
+            "qa_counts": {split: len(rows) for split, rows in avqa_rows.items()},
+            "unique_clip_count": len(set().union(*avqa_clips.values())),
+            "source_youtube_id_count": len(avqa_youtube),
+            "clip_split_overlap": len(avqa_clips["train"] & avqa_clips["validation"]),
             "official_csv_contract": "youtube_id_start_seconds_train_test_split",
             "official_sharepoint_anonymous_result": "redirected_to_microsoft_login",
-            "third_party_incomplete_repack_not_accepted_as_full_history": True,
+            "annotation_mirror_accepted_after_official_count_validation": True,
+            "third_party_video_subset_used": False,
         },
         "coverage_limitations": unresolved,
         "full_history_closed": not unresolved,
@@ -279,7 +308,9 @@ def reviewed_probe_rows(pilot: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
-def probe_metadata(row: dict[str, Any], ytdlp: str) -> dict[str, Any]:
+def probe_metadata(
+    row: dict[str, Any], ytdlp: str, cookies_from_browser: str | None = None
+) -> dict[str, Any]:
     command = [
         ytdlp,
         "--ignore-config",
@@ -289,6 +320,8 @@ def probe_metadata(row: dict[str, Any], ytdlp: str) -> dict[str, Any]:
         "--no-warnings",
         row["source_url"],
     ]
+    if cookies_from_browser:
+        command[1:1] = ["--cookies-from-browser", cookies_from_browser]
     result = subprocess.run(command, text=True, capture_output=True, check=False)
     if result.returncode != 0:
         return {
@@ -298,6 +331,7 @@ def probe_metadata(row: dict[str, Any], ytdlp: str) -> dict[str, Any]:
             "returncode": result.returncode,
             "error": result.stderr.strip()[-4000:],
             "media_download_allowed": False,
+            "authenticated_metadata_probe": bool(cookies_from_browser),
         }
     payload = json.loads(result.stdout)
     actual_id = str(payload.get("id") or "")
@@ -313,6 +347,7 @@ def probe_metadata(row: dict[str, Any], ytdlp: str) -> dict[str, Any]:
         "title": payload.get("title"),
         "channel_id": payload.get("channel_id"),
         "media_download_allowed": False,
+        "authenticated_metadata_probe": bool(cookies_from_browser),
     }
 
 
@@ -462,6 +497,15 @@ def main() -> None:
     parser.add_argument("--probe-metadata", action="store_true")
     parser.add_argument("--yt-dlp", default="yt-dlp")
     parser.add_argument("--probe-limit", type=int)
+    parser.add_argument(
+        "--resume-probes",
+        action="store_true",
+        help="复用同一冻结 plan 中 status=metadata_available 的结果；失败项会重试。",
+    )
+    parser.add_argument(
+        "--cookies-from-browser",
+        help="仅传给 yt-dlp 做 metadata probe；Review 不记录 profile 路径或 cookie 内容。",
+    )
     args = parser.parse_args()
 
     _, pilot, input_hashes = verify_inputs()
@@ -472,7 +516,20 @@ def main() -> None:
     probe_summary = None
     if args.probe_metadata:
         selected = probe_plan[: args.probe_limit] if args.probe_limit else probe_plan
-        probes = [probe_metadata(row, args.yt_dlp) for row in selected]
+        results_path = args.output_root / "llp_metadata_probe_results.jsonl"
+        reusable: dict[str, dict[str, Any]] = {}
+        if args.resume_probes and results_path.is_file():
+            reusable = {
+                row["sample_id"]: row
+                for row in read_jsonl(results_path)
+                if row.get("status") == "metadata_available"
+            }
+        for row in selected:
+            result = reusable.get(row["sample_id"])
+            if result is None:
+                result = probe_metadata(row, args.yt_dlp, args.cookies_from_browser)
+            probes.append(result)
+            write_jsonl(results_path, probes)
         probe_summary = summarize_probes(selected, probes)
 
     review = build_review(ledger_summary, boundary, probe_summary)
@@ -481,7 +538,6 @@ def main() -> None:
     write_json(args.output_root / "llp_license_boundary.json", boundary)
     write_jsonl(args.output_root / "llp_metadata_probe_plan_media_locked.jsonl", probe_plan)
     if probes:
-        write_jsonl(args.output_root / "llp_metadata_probe_results.jsonl", probes)
         write_json(args.output_root / "llp_metadata_probe_summary.json", probe_summary)
     review["input_hashes"] = input_hashes
     write_json(args.output_root / "llp_pilot_download_review.json", review)

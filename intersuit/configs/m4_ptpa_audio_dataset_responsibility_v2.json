@@ -49,14 +49,20 @@
         "test": "dense_audio_and_visual_event_annotations_sealed_until_candidate_freeze"
       },
       "pre_download_qualification": {
-        "status": "blocked_before_youtube_metadata_and_avqa_ledger",
+        "status": "historical_ledger_closed_blocked_before_youtube_metadata_and_downloader",
         "review_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/llp_pilot_download_qualification_v2/llp_pilot_download_review.json",
         "historical_ledger_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/llp_pilot_download_qualification_v2/llp_historical_physical_id_ledger.jsonl",
-        "canonical_youtube_history_count": 3712,
+        "canonical_youtube_history_count": 54664,
         "pilot_physical_video_count": 150,
         "pilot_historical_overlap_count": 0,
+        "pilot_manifest_sha256": "4df243662d9b98a049b80fd881052781ea4bbfa1f30ae1e420aafab84e5f3ff9",
+        "full_historical_clean_llp_counts": {
+          "train": 9468,
+          "validation": 615,
+          "test": 1137
+        },
         "m4_it_youtube_alias_available": false,
-        "avqa_physical_id_inventory_available": false,
+        "avqa_physical_id_inventory_available": true,
         "avqa_official_source_audit": {
           "dataset_website": "https://mn.cs.tsinghua.edu.cn/avqa/",
           "repository": "AlyssaYoung/AVQA",
@@ -66,16 +72,39 @@
           "source_corpus": "VGGSound",
           "csv_contract": "youtube_id_start_seconds_train_test_split",
           "official_sharepoint_anonymous_result": "redirected_to_microsoft_login",
-          "third_party_incomplete_repack_accepted": false
+          "annotation_mirror": {
+            "repository": "juyil/AVQA-videos",
+            "revision": "e9538b7abd3dcf018f85c9e431d51f542728c13b",
+            "train_qa_sha256": "55ec202636c3e25f279995eb68ddd14264004cbe0d042d1f559b03662a8575ee",
+            "val_qa_sha256": "304acac38a254b4dc64b2e07b5202854ff22604d968585777f026010fc0be5bc",
+            "qa_count": 57335,
+            "unique_clip_count": 57015,
+            "source_youtube_id_count": 51157,
+            "accepted_for_overlap_ledger": true,
+            "video_subset_used": false
+          }
         },
         "repository_license_applies_to_raw_youtube_media": false,
         "metadata_probe_contract_implemented": true,
         "post_download_media_audit_contract_implemented": true,
-        "metadata_probe_smoke": {
-          "attempted": 2,
-          "metadata_available": 0,
+        "metadata_probe_full": {
+          "attempted": 150,
+          "structural_complete": true,
+          "authenticated_metadata_probe": true,
+          "metadata_available": 9,
+          "public_metadata": 9,
+          "probe_failed": 141,
+          "license_nonempty": 0,
           "qualification_complete": false,
-          "blocker": "youtube_reload_or_bot_authentication_required_without_cookies"
+          "failure_classes": {
+            "page_reload": 81,
+            "bot_authentication": 49,
+            "unavailable": 4,
+            "other": 7
+          },
+          "results_sha256": "bdb808a6c4913aa31b7eed0e3018af2be9d2aa5f94d107138e231e6f3f149497",
+          "summary_sha256": "ccd38ab124766ef3177b6378fefa135fa0cf27db1c89450c07e9b658166f9bb1",
+          "blocker": "authenticated_youtube_metadata_access_insufficient_and_per_item_license_unknown"
         },
         "metadata_probe_allowed": true,
         "pilot_media_download_allowed": false,
@@ -83,7 +112,6 @@
         "effect_access_allowed": false
       },
       "qualification_blockers": [
-        "avqa_local_physical_id_inventory_missing",
         "youtube_per_item_metadata_probe_incomplete",
         "pilot_media_downloader_not_implemented_or_reviewed",
         "explicit_media_download_authorization_not_granted",

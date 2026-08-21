@@ -92,17 +92,22 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     llp = load_lock()["datasets"]["llp"]
     qualification = llp["pre_download_qualification"]
 
-    assert qualification["status"] == "blocked_before_youtube_metadata_and_avqa_ledger"
-    assert qualification["canonical_youtube_history_count"] == 3712
+    assert qualification["status"] == "historical_ledger_closed_blocked_before_youtube_metadata_and_downloader"
+    assert qualification["canonical_youtube_history_count"] == 54664
     assert qualification["pilot_physical_video_count"] == 150
     assert qualification["pilot_historical_overlap_count"] == 0
-    assert qualification["avqa_physical_id_inventory_available"] is False
+    assert qualification["avqa_physical_id_inventory_available"] is True
     assert qualification["avqa_official_source_audit"]["expected_physical_video_count"] == 57015
-    assert qualification["avqa_official_source_audit"]["third_party_incomplete_repack_accepted"] is False
+    assert qualification["avqa_official_source_audit"]["annotation_mirror"]["source_youtube_id_count"] == 51157
+    assert qualification["avqa_official_source_audit"]["annotation_mirror"]["video_subset_used"] is False
     assert qualification["repository_license_applies_to_raw_youtube_media"] is False
-    assert qualification["metadata_probe_smoke"]["metadata_available"] == 0
+    assert qualification["metadata_probe_full"]["attempted"] == 150
+    assert qualification["metadata_probe_full"]["metadata_available"] == 9
+    assert qualification["metadata_probe_full"]["probe_failed"] == 141
+    assert qualification["metadata_probe_full"]["license_nonempty"] == 0
+    assert qualification["metadata_probe_full"]["qualification_complete"] is False
     assert qualification["pilot_media_download_allowed"] is False
-    assert "avqa_local_physical_id_inventory_missing" in llp["qualification_blockers"]
+    assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
 
 

@@ -14,7 +14,7 @@ sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
 
-def test_real_historical_ledger_has_zero_pilot_overlap_and_fails_closed_on_missing_avqa():
+def test_real_historical_ledger_has_zero_pilot_overlap_and_closes_avqa_inventory():
     _, pilot, _ = module.verify_inputs()
     ledger, summary = module.build_historical_ledger(pilot)
 
@@ -25,10 +25,13 @@ def test_real_historical_ledger_has_zero_pilot_overlap_and_fails_closed_on_missi
     assert summary["source_counts"]["ave_historical_exposure"] == 2500
     assert summary["m4_it_scope"]["row_count"] == 9963
     assert summary["m4_it_scope"]["youtube_alias_available"] is False
-    assert summary["coverage_limitations"] == ["avqa_local_physical_id_inventory_missing"]
+    assert summary["canonical_youtube_union_count"] == 54664
+    assert summary["coverage_limitations"] == []
     assert summary["avqa_scope"]["official_sources"]["expected_physical_video_count"] == 57015
-    assert summary["avqa_scope"]["third_party_incomplete_repack_not_accepted_as_full_history"] is True
-    assert summary["full_history_closed"] is False
+    assert summary["avqa_scope"]["source_youtube_id_count"] == 51157
+    assert summary["avqa_scope"]["annotation_mirror_accepted_after_official_count_validation"] is True
+    assert summary["avqa_scope"]["third_party_video_subset_used"] is False
+    assert summary["full_history_closed"] is True
 
 
 def test_license_boundary_does_not_misapply_repository_gpl_to_youtube_media():
@@ -76,6 +79,57 @@ def test_probe_summary_detects_missing_duplicate_and_complete_contracts():
     assert duplicate["qualification_complete"] is False
     assert duplicate["duplicates"] == 1
     assert duplicate["missing_sample_ids"] == ["b"]
+
+
+def test_authenticated_probe_result_records_boolean_not_cookie_material(monkeypatch):
+    class Result:
+        returncode = 0
+        stdout = json.dumps(
+            {
+                "id": "abcdefghijk",
+                "availability": "public",
+                "duration": 10.0,
+                "license": "Creative Commons Attribution license",
+                "webpage_url": "https://www.youtube.com/watch?v=abcdefghijk",
+            }
+        )
+        stderr = ""
+
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return Result()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    row = {
+        "sample_id": "x",
+        "physical_media_id": "abcdefghijk",
+        "source_url": "https://www.youtube.com/watch?v=abcdefghijk",
+    }
+    result = module.probe_metadata(row, "yt-dlp", "firefox:/secret/profile")
+
+    assert captured["command"][1:3] == ["--cookies-from-browser", "firefox:/secret/profile"]
+    assert result["authenticated_metadata_probe"] is True
+    assert "cookie" not in json.dumps(result).casefold()
+
+
+def test_probe_resume_contract_only_reuses_successful_rows(tmp_path):
+    path = tmp_path / "results.jsonl"
+    module.write_jsonl(
+        path,
+        [
+            {"sample_id": "ok", "status": "metadata_available"},
+            {"sample_id": "retry", "status": "probe_failed"},
+        ],
+    )
+    reusable = {
+        row["sample_id"]: row
+        for row in module.read_jsonl(path)
+        if row.get("status") == "metadata_available"
+    }
+
+    assert set(reusable) == {"ok"}
 
 
 def test_post_download_audit_requires_video_audio_duration_and_sha(tmp_path):

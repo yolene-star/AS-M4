@@ -69,7 +69,18 @@ def test_build_outputs_excludes_test_and_remains_fail_closed():
     assert all(row["official_split"] != "test" for row in pilot)
     assert all(row["download_allowed"] is False for row in pilot)
     assert all(row["effect_access_allowed"] is False for row in pilot)
-    assert summary["known_ave_history_overlap"] == 0
+    assert summary["full_historical_overlap"] == 0
+    assert review["metadata_audit"]["full_historical_overlap"] == {
+        "train": 343,
+        "validation": 21,
+        "test": 46,
+    }
+    assert review["metadata_audit"]["full_historical_clean_rows"] == {
+        "train": 9468,
+        "validation": 615,
+        "test": 1137,
+    }
+    assert review["metadata_audit"]["full_historical_ledger"]["avqa_source_youtube_id_count"] == 51157
     assert review["status"] == "blocked_before_llp_pilot_download"
     assert review["permissions"]["pilot_manifest_frozen"] is True
     assert review["permissions"]["pilot_download_allowed"] is False

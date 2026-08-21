@@ -45,16 +45,20 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
 3. teacher 的许可证、来源模型和输入归一化尚未纳入新 lock；
 4. 新 internal confirm 尚未证明未被历史资产访问；找不到时必须停止，不能复用旧 confirm；
 5. S1 需要哪些冻结特征尚未由 manifest SHA 锁定。
-6. LLP 已将 112 份历史 manifest 快照、AVE、AS-M4 Stage2 和 LongVALE 归一为
-   3712 个 YouTube 物理 ID，冻结的 train 100 + validation 50 pilot 与该并集重叠为 0；
-   M4-IT 本地 9963 行是 image/speech instruction ID，不伪装成 YouTube ID。仍缺 AVQA
-   本地物理 ID 清单，因此不能声称全历史完全闭合。仓库 GPL-3.0 不外推到第三方 YouTube
-   视频；逐条 availability/license probe 的 2 条 smoke 均因页面 reload/反机器人认证失败，
-   未使用 cookies、未取得媒体、未解锁下载。metadata probe 与下载后 SHA/ffprobe/音轨/时长
+6. LLP 已将 112 份历史 manifest 快照、AVE、AS-M4 Stage2、LongVALE 和 AVQA 归一为
+   54,664 个保守 casefold YouTube 物理比较键。AVQA annotation-only 镜像固定 revision 后的
+   `40425+16910=57335` QA、57,015 唯一 clip 与官方数量完全一致，解析出 51,157 个源 YouTube ID；
+   未使用其 56,666 个第三方视频子集。旧 pilot 被发现与 AVQA 重叠 3 个视频，已作废；排除完整
+   历史后 LLP train/validation/test 候选为 `9468/615/1137`，重选的 train 100 + validation 50
+   pilot 与完整并集重叠为 0。M4-IT 本地 9963 行是 image/speech instruction ID，不伪装成
+   YouTube ID。仓库 GPL-3.0 不外推到第三方 YouTube
+   视频；经用户授权使用本机 Firefox profile 的 150 条 authenticated metadata-only probe
+   结构完整，但只有 9 条取得 public metadata，141 条失败（reload 81、反机器人 49、
+   unavailable 4、其他 7），且 150 条 license 字段全部为空。未输出 cookie、未取得媒体、
+   未解锁下载。metadata probe 与下载后 SHA/ffprobe/音轨/时长
    验收合同已实现，但正式媒体 downloader 尚未实现/Review，逐视频许可、存活率和媒体审计仍未完成。
-   AVQA 官方项目页已锁定 57,015 个 VGGSound 视频及 `YouTube ID/start/split` CSV 合同，固定
-   GitHub 提交不含 annotations，官方 OneDrive 匿名访问跳转 Microsoft 登录；不使用只有
-   56,666 个视频的第三方不完整重打包冒充全量官方清单。
+   AVQA 官方项目页、固定 GitHub 提交与 `YouTube ID/start/split` 合同继续作为主来源证据；
+   Hugging Face 只承担 annotation 镜像传输，不承担视频媒体资格或正式结果来源。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、

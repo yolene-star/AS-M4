@@ -23,6 +23,17 @@ AVE_HISTORY = (
     INTERSUIT_ROOT
     / "harness/artifacts/dynamic_selector_d1_ave_official/historical_exposure_inventory.json"
 )
+EXCLUSION_INVENTORY = INTERSUIT_ROOT / "datasets/NEW_AV_TRAIN/exclusion_inventory.json"
+AVQA_ROOT = INTERSUIT_ROOT / "datasets/AVQA_HF_ANNOTATIONS"
+AVQA_FILES = {
+    "train": AVQA_ROOT / "train_qa.json",
+    "validation": AVQA_ROOT / "val_qa.json",
+}
+AVQA_EXPECTED_SHA256 = {
+    "train": "55ec202636c3e25f279995eb68ddd14264004cbe0d042d1f559b03662a8575ee",
+    "validation": "304acac38a254b4dc64b2e07b5202854ff22604d968585777f026010fc0be5bc",
+}
+AVQA_EXPECTED_QA_COUNTS = {"train": 40425, "validation": 16910}
 DEFAULT_OUTPUT = (
     INTERSUIT_ROOT
     / "harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/llp_metadata_qualification_v2"
@@ -137,6 +148,47 @@ def known_ave_history_ids() -> set[str]:
     if len(ids) != int(payload.get("touched_physical_video_count", -1)):
         raise ValueError("AVE 历史暴露清单数量漂移")
     return ids
+
+
+def full_historical_youtube_ids() -> tuple[set[str], dict[str, Any]]:
+    """构建保守 casefold 历史并集；旧 inventory 已丢失 YouTube ID 大小写。"""
+    inventory = read_json(EXCLUSION_INVENTORY)
+    if inventory.get("status") != "PASS" or len(inventory.get("ids", [])) != inventory.get("id_count"):
+        raise ValueError("历史 exclusion inventory 合同漂移")
+    legacy = {
+        value.casefold()
+        for raw in inventory["ids"]
+        if len(value := str(raw).strip()) == 11
+        and all(character.isalnum() or character in "-_" for character in value)
+    }
+    avqa_ids: set[str] = set()
+    avqa_clips: dict[str, set[str]] = {}
+    for split, path in AVQA_FILES.items():
+        if sha256(path) != AVQA_EXPECTED_SHA256[split]:
+            raise ValueError(f"AVQA annotation mirror SHA 漂移: {split}")
+        rows = read_json(path)
+        if not isinstance(rows, list) or len(rows) != AVQA_EXPECTED_QA_COUNTS[split]:
+            raise ValueError(f"AVQA annotation mirror 行数漂移: {split}")
+        clips = {str(row.get("video_name", "")) for row in rows}
+        if any(len(value) != 18 or value[11] != "_" or not value[12:].isdigit() for value in clips):
+            raise ValueError(f"AVQA video_name 合同漂移: {split}")
+        avqa_clips[split] = clips
+        avqa_ids.update(value[:11].casefold() for value in clips)
+    if len(avqa_clips["train"] | avqa_clips["validation"]) != 57015:
+        raise ValueError("AVQA 唯一 clip 数与官方 57015 不一致")
+    ave = {value.casefold() for value in known_ave_history_ids()}
+    union = legacy | avqa_ids | ave
+    return union, {
+        "comparison_mode": "conservative_casefold_because_legacy_inventory_lost_original_case",
+        "legacy_snapshot_youtube_like_count": len(legacy),
+        "avqa_qa_counts": AVQA_EXPECTED_QA_COUNTS,
+        "avqa_unique_clip_count": len(avqa_clips["train"] | avqa_clips["validation"]),
+        "avqa_source_youtube_id_count": len(avqa_ids),
+        "avqa_clip_split_overlap": len(avqa_clips["train"] & avqa_clips["validation"]),
+        "historical_union_count": len(union),
+        "avqa_annotation_sha256": AVQA_EXPECTED_SHA256,
+        "avqa_mirror_revision": "e9538b7abd3dcf018f85c9e431d51f542728c13b",
+    }
 
 
 def audit_metadata(lock: dict[str, Any], exposure_ids: set[str]) -> tuple[dict[str, Any], dict[str, list[dict[str, str]]]]:
@@ -271,7 +323,24 @@ def pilot_row(row: dict[str, str], split: str) -> dict[str, Any]:
 def build_outputs() -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
     lock, input_hashes = verify_responsibility_lock()
     exposure_ids = known_ave_history_ids()
-    audit, clean_rows = audit_metadata(lock, exposure_ids)
+    audit, known_ave_clean_rows = audit_metadata(lock, exposure_ids)
+    full_history_ids, full_history_audit = full_historical_youtube_ids()
+    clean_rows = {
+        split: [
+            row
+            for row in values
+            if physical_id(row["filename"]).casefold() not in full_history_ids
+        ]
+        for split, values in known_ave_clean_rows.items()
+    }
+    audit["full_historical_overlap"] = {
+        split: len(known_ave_clean_rows[split]) - len(clean_rows[split])
+        for split in clean_rows
+    }
+    audit["full_historical_clean_rows"] = {
+        split: len(values) for split, values in clean_rows.items()
+    }
+    audit["full_historical_ledger"] = full_history_audit
     pilot: list[dict[str, Any]] = []
     for split in ("train", "validation"):
         chosen = select_balanced_pilot(
@@ -290,16 +359,15 @@ def build_outputs() -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any
         "counts": Counter(row["official_split"] for row in pilot),
         "minimum_per_label": PILOT_MIN_PER_LABEL,
         "test_rows": 0,
-        "known_ave_history_overlap": sum(
-            row["physical_media_id"] in exposure_ids for row in pilot
+        "full_historical_overlap": sum(
+            row["physical_media_id"].casefold() in full_history_ids for row in pilot
         ),
         "download_allowed": False,
         "feature_extraction_allowed": False,
         "effect_access_allowed": False,
     }
     blockers = [
-        "full_historical_physical_id_ledger_not_complete",
-        "raw_youtube_media_license_boundary_not_locked",
+        "youtube_per_item_metadata_probe_incomplete",
         "pilot_download_launcher_and_post_download_checks_not_reviewed",
     ]
     review = {
@@ -341,13 +409,16 @@ def render_review(review: dict[str, Any]) -> str:
             f"- 官方 train/validation/test：`{audit['official_rows']}`。",
             f"- 物理 split 交集：`{audit['official_split_physical_overlap']}`。",
             f"- 已知 AVE 历史重叠：`{audit['known_ave_history_overlap']}`。",
-            f"- 排除后候选：`{audit['known_ave_history_clean_rows_prequalification']}`，各 split 仍覆盖 25 类。",
+            f"- 仅排除已知 AVE 后候选：`{audit['known_ave_history_clean_rows_prequalification']}`。",
+            f"- 完整历史新增重叠：`{audit['full_historical_overlap']}`；最终候选：`{audit['full_historical_clean_rows']}`。",
+            f"- AVQA 镜像审计：`{audit['full_historical_ledger']}`。",
             f"- dense 标注覆盖：`{audit['dense_annotation_coverage']}`。",
             "",
             "## Pilot 计划",
             "",
             f"- 只含 train/validation：`{dict(summary['counts'])}`；test=0。",
             f"- 每类最小数量：`{summary['minimum_per_label']}`。",
+            f"- 完整历史物理重叠：`{summary['full_historical_overlap']}`。",
             "- download/feature/effect 权限全部为 false。",
             "",
             "## Blocker",
@@ -356,7 +427,7 @@ def render_review(review: dict[str, Any]) -> str:
             "",
             "## 人话结论",
             "",
-            "题目清单已经冻结，但还没有证明所有旧实验都没见过这些视频，也没有锁清原始 YouTube 媒体许可和下载后验收器。因此现在只能审查清单，不能开始下载或考试。",
+            "完整历史清单已用于重选题目，但逐视频 YouTube metadata 和正式下载器仍未通过。因此现在只能审查清单，不能开始下载或考试。",
             "",
         ]
     )
