@@ -188,6 +188,26 @@
             "results_sha256": "80f8aa43023c886fc65b3ccc40d0262bbb1aa1903780838d00c9b9b61fb19dbd",
             "summary_sha256": "fcfb1613ebba894cf9e1c521b60d34ff47dc52e0bf5317cae3cc2603bafc077b"
           },
+          "literal_official_reproduction": {
+            "status": "youtube_dl_canary2_failed_page_reload",
+            "environment": "llp-official-download",
+            "environment_spec": "intersuit/configs/llp_official_download_environment.yml",
+            "python_version": "3.8.20",
+            "youtube_dl_version": "2021.12.17",
+            "youtube_dl_executable_sha256": "62f8648fbbd329722981c7be5e70902c39c231bda78caefd4c44fec4cfe0dfc0",
+            "ffmpeg_version": "8.1.2",
+            "ffmpeg_executable_sha256": "e26dcc6ee9e5ab23de4e002cb8d724ccfc7f10ac9b8add8251291118b0daa208",
+            "command_contract": "youtube-dl --ignore-config URL -o <id>_full_video.mp4 -f best",
+            "cookies_used": false,
+            "client_or_po_token_args_used": false,
+            "expected": 2,
+            "passed": 0,
+            "failed": 2,
+            "failure_class": "youtube_page_and_api_json_needs_reload",
+            "source_media_files_created": 0,
+            "ffmpeg_clip_step_reached": false,
+            "full_wrapper_missing_noncausal_dependency": "pandas_0_24_1_for_csv_iteration"
+          },
           "canary2_download_allowed": false,
           "pilot150_download_allowed": false
         },
@@ -199,6 +219,7 @@
         "youtube_per_item_metadata_probe_incomplete",
         "isolated_nightly_ytdlp_canary2_failed_page_reload",
         "youtube_client_or_po_token_protocol_unresolved",
+        "literal_official_youtube_dl_canary2_failed_page_reload",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",
         "per_item_youtube_license_not_verified"

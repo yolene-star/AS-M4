@@ -90,6 +90,11 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    隔离 nightly canary2 已运行并仍为 `0/2`，两条均在媒体传输前报 page reload，生成视频数 0。
    该结果排除了 M4/base 依赖污染、Python 3.9和旧 stable 版本作为充分原因；剩余 client/PO-token/
    账号-IP 协议问题未解决，必须停止，不得继续堆叠参数或运行 pilot150。
+   为回答“是否严格执行官方原获取层”，另建 `llp-official-download`：Python 3.8.20、
+   youtube-dl 2021.12.17、FFmpeg 8.1.2。两条直接逐字执行官方
+   `youtube-dl --ignore-config URL -o <id>_full_video.mp4 -f best`，不使用 cookie/client/PO token，
+   均在 webpage/API JSON 阶段报 page reload，源媒体 0、FFmpeg 未到达。官方完整 wrapper 另需
+   pandas 0.24.1 读取 CSV，但该非因果依赖不能修复已直接复现的 YouTube 获取失败。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、

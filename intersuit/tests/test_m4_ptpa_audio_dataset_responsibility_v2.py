@@ -142,9 +142,19 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert downloader["isolated_nightly_canary_result"]["passed"] == 0
     assert downloader["isolated_nightly_canary_result"]["failed"] == 2
     assert downloader["isolated_nightly_canary_result"]["media_files_created"] == 0
+    literal = downloader["literal_official_reproduction"]
+    assert literal["status"] == "youtube_dl_canary2_failed_page_reload"
+    assert literal["youtube_dl_version"] == "2021.12.17"
+    assert literal["cookies_used"] is False
+    assert literal["client_or_po_token_args_used"] is False
+    assert literal["passed"] == 0
+    assert literal["failed"] == 2
+    assert literal["source_media_files_created"] == 0
+    assert literal["ffmpeg_clip_step_reached"] is False
     assert downloader["canary2_download_allowed"] is False
     assert downloader["pilot150_download_allowed"] is False
     assert "isolated_nightly_ytdlp_canary2_failed_page_reload" in llp["qualification_blockers"]
+    assert "literal_official_youtube_dl_canary2_failed_page_reload" in llp["qualification_blockers"]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
 
