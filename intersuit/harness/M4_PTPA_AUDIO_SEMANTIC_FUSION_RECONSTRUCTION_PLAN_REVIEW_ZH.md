@@ -45,8 +45,13 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
 3. teacher 的许可证、来源模型和输入归一化尚未纳入新 lock；
 4. 新 internal confirm 尚未证明未被历史资产访问；找不到时必须停止，不能复用旧 confirm；
 5. S1 需要哪些冻结特征尚未由 manifest SHA 锁定。
-6. LLP 只完成官方 metadata 和已知 AVE 历史重叠初审，未完成全历史物理 ID、
-   YouTube 媒体存活率、音轨、许可边界和 SHA 审计。
+6. LLP 已将 112 份历史 manifest 快照、AVE、AS-M4 Stage2 和 LongVALE 归一为
+   3712 个 YouTube 物理 ID，冻结的 train 100 + validation 50 pilot 与该并集重叠为 0；
+   M4-IT 本地 9963 行是 image/speech instruction ID，不伪装成 YouTube ID。仍缺 AVQA
+   本地物理 ID 清单，因此不能声称全历史完全闭合。仓库 GPL-3.0 不外推到第三方 YouTube
+   视频；逐条 availability/license probe 的 2 条 smoke 均因页面 reload/反机器人认证失败，
+   未使用 cookies、未取得媒体、未解锁下载。metadata probe 与下载后 SHA/ffprobe/音轨/时长
+   验收合同已实现，但正式媒体 downloader 尚未实现/Review，逐视频许可、存活率和媒体审计仍未完成。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、

@@ -88,6 +88,22 @@ def test_local_llp_metadata_matches_lock_and_official_splits_are_disjoint():
         assert sha256(LLP_DATA / filename) == llp["metadata_sha256"][filename]
 
 
+def test_llp_pre_download_review_records_partial_progress_without_unlocking_media():
+    llp = load_lock()["datasets"]["llp"]
+    qualification = llp["pre_download_qualification"]
+
+    assert qualification["status"] == "blocked_before_youtube_metadata_and_avqa_ledger"
+    assert qualification["canonical_youtube_history_count"] == 3712
+    assert qualification["pilot_physical_video_count"] == 150
+    assert qualification["pilot_historical_overlap_count"] == 0
+    assert qualification["avqa_physical_id_inventory_available"] is False
+    assert qualification["repository_license_applies_to_raw_youtube_media"] is False
+    assert qualification["metadata_probe_smoke"]["metadata_available"] == 0
+    assert qualification["pilot_media_download_allowed"] is False
+    assert "avqa_local_physical_id_inventory_missing" in llp["qualification_blockers"]
+    assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
+
+
 def test_longvale_exception_is_exactly_one_locked_archive():
     lock = load_lock()
     longvale = lock["datasets"]["longvale"]

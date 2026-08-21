@@ -48,11 +48,36 @@
         "validation": "dense_audio_and_visual_event_annotations",
         "test": "dense_audio_and_visual_event_annotations_sealed_until_candidate_freeze"
       },
+      "pre_download_qualification": {
+        "status": "blocked_before_youtube_metadata_and_avqa_ledger",
+        "review_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/llp_pilot_download_qualification_v2/llp_pilot_download_review.json",
+        "historical_ledger_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/llp_pilot_download_qualification_v2/llp_historical_physical_id_ledger.jsonl",
+        "canonical_youtube_history_count": 3712,
+        "pilot_physical_video_count": 150,
+        "pilot_historical_overlap_count": 0,
+        "m4_it_youtube_alias_available": false,
+        "avqa_physical_id_inventory_available": false,
+        "repository_license_applies_to_raw_youtube_media": false,
+        "metadata_probe_contract_implemented": true,
+        "post_download_media_audit_contract_implemented": true,
+        "metadata_probe_smoke": {
+          "attempted": 2,
+          "metadata_available": 0,
+          "qualification_complete": false,
+          "blocker": "youtube_reload_or_bot_authentication_required_without_cookies"
+        },
+        "metadata_probe_allowed": true,
+        "pilot_media_download_allowed": false,
+        "feature_extraction_allowed": false,
+        "effect_access_allowed": false
+      },
       "qualification_blockers": [
-        "full_historical_physical_id_overlap_not_audited",
-        "raw_youtube_media_availability_not_audited",
+        "avqa_local_physical_id_inventory_missing",
+        "youtube_per_item_metadata_probe_incomplete",
+        "pilot_media_downloader_not_implemented_or_reviewed",
+        "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",
-        "raw_media_license_boundary_not_locked"
+        "per_item_youtube_license_not_verified"
       ]
     },
     "clotho_aqa": {
