@@ -59,6 +59,10 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    验收合同已实现，但正式媒体 downloader 尚未实现/Review，逐视频许可、存活率和媒体审计仍未完成。
    AVQA 官方项目页、固定 GitHub 提交与 `YouTube ID/start/split` 合同继续作为主来源证据；
    Hugging Face 只承担 annotation 镜像传输，不承担视频媒体资格或正式结果来源。
+   独立 official-protocol downloader 已实现并通过 plan-only Review：固定官方 commit、`best`
+   源下载、精确 10 秒、`libx264+aac`、11 位 ID 兼容命名、逐条 resume、临时目录原子提交和
+   SHA/ffprobe/音轨/时长后验收。canary2 与 pilot150 计划已分别锁定 2/150 行；由于聊天中
+   暴露的 cookie 尚未确认轮换，两个执行权限仍为 false，禁止把已暴露 cookie 写盘或重放。
 7. Clotho-AQA 尚未锁定 Zenodo 实体、每文件许可证、官方 split 文件哈希和物理去重。
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、

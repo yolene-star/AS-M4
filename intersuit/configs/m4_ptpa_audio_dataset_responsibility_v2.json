@@ -107,13 +107,33 @@
           "blocker": "authenticated_youtube_metadata_access_insufficient_and_per_item_license_unknown"
         },
         "metadata_probe_allowed": true,
+        "official_protocol_downloader": {
+          "status": "plan_ready_execution_locked",
+          "script_path": "intersuit/scripts/download_m4_ptpa_llp_pilot_v2.py",
+          "official_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
+          "download_format": "best",
+          "clip_duration_sec": 10.0,
+          "video_codec": "libx264",
+          "audio_codec": "aac",
+          "output_name": "<11-char-youtube-id>.mp4",
+          "canary2_plan_sha256": "75e9f2cbca6a5a3c964846d149e97c46c530742c8854ccd0a595e08c602126fa",
+          "pilot150_plan_sha256": "9501559465d127a76e4639e04ba81fdf5a1e42751a10f3608a9473207eb9c7a9",
+          "supports_atomic_commit": true,
+          "supports_resume_with_revalidation": true,
+          "sha_ffprobe_audio_duration_postcheck_required": true,
+          "credential_material_persisted_in_artifacts": false,
+          "credentials_rotated_after_chat_exposure": false,
+          "canary2_download_allowed": false,
+          "pilot150_download_allowed": false
+        },
         "pilot_media_download_allowed": false,
         "feature_extraction_allowed": false,
         "effect_access_allowed": false
       },
       "qualification_blockers": [
         "youtube_per_item_metadata_probe_incomplete",
-        "pilot_media_downloader_not_implemented_or_reviewed",
+        "credentials_not_rotated_after_chat_exposure",
+        "official_protocol_canary2_not_authorized_or_run",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",
         "per_item_youtube_license_not_verified"
