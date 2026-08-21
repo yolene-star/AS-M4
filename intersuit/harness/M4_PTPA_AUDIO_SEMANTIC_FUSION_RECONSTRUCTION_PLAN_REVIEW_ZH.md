@@ -51,7 +51,11 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
 8. AVCaps 尚未锁定 Hugging Face revision/Zenodo MD5、物理 split 交集、历史暴露和媒体解码。
 9. LLP class、Clotho-AQA answer 和 AVCaps caption 属于不同监督空间，统一语义中介表示、
    数据集内指标和跨阶段不矛盾合同尚未由代码锁定。
-10. LongVALE `part_19` 尚在下载，未通过 exact size/SHA/ZIP CRC/member index 和最终候选重叠审计。
+
+LongVALE 原 blocker 已于 2026-08-21 关闭：`part_19` 大小/SHA/ZIP CRC/member index 通过，
+排除历史 6 和预留 6 后的 186 个物理视频已全部解压并通过逐文件
+CRC/size/SHA/ffprobe/音轨/事件解码/时长边界验收。该关闭只表示媒体合格，
+不解锁 LongVALE 效果访问。
 
 因此当前必须记录 `dataset_qualification_allowed=true`、
 `next_stage_allowed=false`；前者只允许 metadata/许可/物理去重/媒体 pilot 计划审计，
@@ -78,7 +82,9 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
 ### D-004：LongVALE 保留长视频职责
 
 通过。保留已冻结的官方 METEOR corpus 输入顺序、stats-list EVAL、
-物理媒体 paired bootstrap 和 `+0.01` 门禁。新下载只关闭媒体 blocker，不复活失败的 selector 路线。
+物理媒体 paired bootstrap 和 `+0.01` 门禁。媒体资格已以 186/186 PASS 关闭，
+封存 manifest 与 5 套 mismatch 映射已锁定；权限仍为 `qualified_effect_locked`，
+必须等待 S1/S2/S3a 前置门禁，不复活失败的 selector 路线。
 
 ### D-005：禁止跨数据集挑分
 

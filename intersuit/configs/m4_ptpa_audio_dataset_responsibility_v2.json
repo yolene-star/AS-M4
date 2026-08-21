@@ -142,10 +142,24 @@
         "eligible_candidate_count_prequalification": 186,
         "minimum_required_candidate_count": 100
       },
-      "qualification_blockers": [
-        "part19_download_not_yet_sha_crc_member_verified",
-        "final_candidate_historical_reserved_overlap_not_locked"
-      ]
+      "media_qualification": {
+        "status": "qualified_effect_locked",
+        "review_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/longvale_s05_media_qualification_v2/longvale_s05_media_review.json",
+        "sealed_manifest_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/longvale_s05_media_qualification_v2/longvale_confirm_sealed_effect_locked.jsonl",
+        "sealed_manifest_sha256": "2609157e9708b44038c0148c13ed42bb820b00da87c4e5e413f1db6e865ca9ff",
+        "mismatch_mappings_path": "intersuit/harness/artifacts/m4_ptpa_audio_semantic_fusion_v1/longvale_s05_media_qualification_v2/longvale_mismatch_mappings.json",
+        "mismatch_mappings_sha256": "79ec611fff1d4b0bee5f69249f078f31cb94410ebeb5651c61a4a284e1035981",
+        "selected_physical_video_count": 186,
+        "events_per_video": 1,
+        "passed_video_count": 186,
+        "failed_video_count": 0,
+        "total_media_bytes": 4567437512,
+        "event_selection_namespace": "m4-ptpa-audio-semantic-fusion-longvale-s05-event-v2-20260821",
+        "feature_extraction_allowed": false,
+        "model_inference_allowed": false,
+        "confirm_effect_access_allowed": false
+      },
+      "qualification_blockers": []
     },
     "ave": {
       "primary_stage": "historical_development_only",

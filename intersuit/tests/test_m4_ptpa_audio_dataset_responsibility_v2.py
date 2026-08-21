@@ -90,10 +90,19 @@ def test_local_llp_metadata_matches_lock_and_official_splits_are_disjoint():
 
 def test_longvale_exception_is_exactly_one_locked_archive():
     lock = load_lock()
-    archive = lock["datasets"]["longvale"]["authorized_archive"]
+    longvale = lock["datasets"]["longvale"]
+    archive = longvale["authorized_archive"]
 
     assert archive["path"].endswith("LongVALE_train_7240_part_19.zip")
     assert archive["size_bytes"] == 5264455669
     assert archive["sha256"] == "1702842ef7daf86b699708bdb8bb44a702486a8b11374778c2a0173a058ca3bf"
     assert archive["eligible_candidate_count_prequalification"] >= archive["minimum_required_candidate_count"]
+    qualification = longvale["media_qualification"]
+    assert qualification["status"] == "qualified_effect_locked"
+    assert qualification["selected_physical_video_count"] == 186
+    assert qualification["passed_video_count"] == 186
+    assert qualification["failed_video_count"] == 0
+    assert qualification["sealed_manifest_sha256"] == "2609157e9708b44038c0148c13ed42bb820b00da87c4e5e413f1db6e865ca9ff"
+    assert qualification["confirm_effect_access_allowed"] is False
+    assert longvale["qualification_blockers"] == []
     assert lock["next_stage_allowed"] is False
