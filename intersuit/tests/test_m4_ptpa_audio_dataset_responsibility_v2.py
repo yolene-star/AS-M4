@@ -239,6 +239,16 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert final_media["media_qualified"] is True
     assert final_media["feature_extraction_allowed"] is False
     assert final_media["effect_access_allowed"] is False
+    license_review = downloader["license_review"]
+    assert license_review["status"] == "blocked_pending_per_item_license_or_institutional_authorization"
+    assert license_review["rows"] == 150
+    assert license_review["media_qualified"] == 150
+    assert license_review["license_verified"] == 0
+    assert license_review["license_unverified"] == 150
+    assert license_review["youtube_data_api_key_available"] is False
+    assert license_review["institutional_authorization_recorded"] is False
+    assert license_review["feature_extraction_allowed"] is False
+    assert license_review["effect_access_allowed"] is False
     assert downloader["coverage_repair_download_allowed"] is False
     assert downloader["coverage_repair11_result"]["passed"] == 10
     assert downloader["coverage_repair11_result"]["failed"] == 1

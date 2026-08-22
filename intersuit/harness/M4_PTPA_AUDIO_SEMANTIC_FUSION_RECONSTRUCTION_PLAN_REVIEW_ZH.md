@@ -128,6 +128,11 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    `100/50`、25类、最低频次`4/2`、历史重叠0。逐文件H.264+A​​AC/44.1kHz/SHA/ffprobe通过，
    时长9.046009–10.064秒，总字节336,984,348。媒体状态为`qualified_effect_locked`；下载权限
    已消费并关闭，特征/效果/训练继续false。逐视频YouTube license仍无法验证，是剩余独立Review边界。
+   独立license ledger已覆盖最终150行：媒体合格150，逐视频license验证0，CC BY/标准YouTube
+   已验证均为0。本机无YouTube Data API key；LLP仓库GPL不传递给第三方YouTube媒体，公开视频/
+   成功下载也不证明训练或再分发权。当前状态为
+   `blocked_pending_per_item_license_or_institutional_authorization`；可通过API查询`status.license`、
+   机构/法务内部非商业研究授权记录，或重建CC BY子集来关闭。本Review不是法律意见。
    为回答“是否严格执行官方原获取层”，另建 `llp-official-download`：Python 3.8.20、
    youtube-dl 2021.12.17、FFmpeg 8.1.2。两条直接逐字执行官方
    `youtube-dl --ignore-config URL -o <id>_full_video.mp4 -f best`，不使用 cookie/client/PO token，
