@@ -108,7 +108,7 @@
         },
         "metadata_probe_allowed": true,
         "official_protocol_downloader": {
-          "status": "node_ejs_compat_canary2_passed_awaiting_canary20_authorization",
+          "status": "canary20_passed_pilot150_authorized",
           "script_path": "intersuit/scripts/download_m4_ptpa_llp_pilot_v2.py",
           "official_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
           "download_format": "best",
@@ -268,8 +268,41 @@
               }
             }
           },
+          "canary20_plan": {
+            "row_count": 20,
+            "plan_sha256": "8c4d698074729cd3325602bd8efa586bcbd3b27ca121bddd38aab2b87d6333b7",
+            "review_sha256": "80d31d834b813f3ea533c33acb103b3aa2886a39a6c1aa00fabacf1b2fbd5d76",
+            "sleep_interval_sec": 5.0,
+            "single_threaded": true,
+            "credential_scope": "llp_canary20_only",
+            "source_format": "bestvideo_mp4_plus_bestaudio_m4a_with_fallback",
+            "media_download_allowed": true,
+            "feature_extraction_allowed": false,
+            "effect_access_allowed": false
+          },
+          "canary20_result": {
+            "expected": 20,
+            "passed": 20,
+            "failed": 0,
+            "media_qualification_passed": true,
+            "reused": 2,
+            "downloaded": 18,
+            "total_bytes": 42586025,
+            "duration_min_sec": 10.0,
+            "duration_max_sec": 10.03434,
+            "duration_max_abs_delta_sec": 0.03434,
+            "video_codec_h264": 20,
+            "audio_codec_aac": 20,
+            "audio_sample_rate_44100": 20,
+            "audio_channels_mono": 2,
+            "audio_channels_stereo": 18,
+            "all_sha_match": true,
+            "results_sha256": "f924bb59c90b0b47379142b201186e086831c51222f09cab5f5d5f4c052ce066",
+            "summary_sha256": "83ea93c9d1015ad1f75f672d8e1b4d4fd2595cc0ef56c0e1a9eb7db8e345aaf6"
+          },
           "canary2_download_allowed": false,
-          "pilot150_download_allowed": false
+          "canary20_download_allowed": false,
+          "pilot150_download_allowed": true
         },
         "pilot_media_download_allowed": false,
         "feature_extraction_allowed": false,
@@ -277,7 +310,7 @@
       },
       "qualification_blockers": [
         "youtube_per_item_metadata_probe_incomplete",
-        "canary20_download_not_authorized",
+        "pilot150_download_not_run",
         "literal_official_youtube_dl_canary2_failed_page_reload",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",

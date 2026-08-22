@@ -105,6 +105,12 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    最终 Node+EJS+分离 MP4/M4A+静态 libx264 canary2 达到 `2/2`：两条均为精确 10.000s、
    H.264+A​​AC、44.1kHz 双声道，独立 SHA/ffprobe 复验通过，临时目录为空。canary2 权限已消费并
    关闭；用户 cookie 授权仅限 canary2，因此 canary20/pilot150 均不得自动启动。
+   用户于 2026-08-22 明确要求继续下载直到成功，按冻结顺序解释为先授权 canary20；20 行计划
+   SHA 已锁，单线程且每条间隔 5 秒，复用已有 2 条时仍重新验收。canary20 只允许媒体资格，
+   特征/效果/pilot150 仍为 false；任何系统性 reload/403/empty-file 必须停止。
+   canary20 已完成 `20/20`：复用 2、新下载 18、失败 0，总计 42,586,025 bytes；H.264+A​​AC
+   与 SHA 全通过，时长 10.000–10.03434 秒，18 条双声道、2 条单声道。声道保持源属性且不违反
+   官方合同。canary20 权限已关闭，pilot150 现仅开放媒体下载；特征/效果仍为 false。
    为回答“是否严格执行官方原获取层”，另建 `llp-official-download`：Python 3.8.20、
    youtube-dl 2021.12.17、FFmpeg 8.1.2。两条直接逐字执行官方
    `youtube-dl --ignore-config URL -o <id>_full_video.mp4 -f best`，不使用 cookie/client/PO token，

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 from typing import Any
 
 
@@ -96,7 +97,8 @@ def verify_plan_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:
 
 
 def build_jobs(rows: list[dict[str, Any]], output_root: Path, scope: str) -> list[dict[str, Any]]:
-    selected = rows[:2] if scope == "canary2" else rows
+    scope_counts = {"canary2": 2, "canary20": 20, "pilot150": 150}
+    selected = rows[: scope_counts[scope]]
     return [
         {
             "job_index": index,
@@ -121,7 +123,7 @@ def build_jobs(rows: list[dict[str, Any]], output_root: Path, scope: str) -> lis
 
 def verify_authorization(path: Path, scope: str) -> dict[str, Any]:
     value = read_json(path)
-    expected_count = 2 if scope == "canary2" else 150
+    expected_count = {"canary2": 2, "canary20": 20, "pilot150": 150}[scope]
     if (
         value.get("status") != "llp_pilot_media_download_authorized"
         or value.get("scope") != scope
@@ -318,7 +320,7 @@ def build_review(jobs: list[dict[str, Any]], scope: str) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--scope", choices=("canary2", "pilot150"), default="canary2")
+    parser.add_argument("--scope", choices=("canary2", "canary20", "pilot150"), default="canary2")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--authorization-lock", type=Path)
     parser.add_argument("--cookies-file", type=Path)
@@ -326,6 +328,7 @@ def main() -> None:
     parser.add_argument("--js-runtime")
     parser.add_argument("--source-format", default="best")
     parser.add_argument("--merge-output-format")
+    parser.add_argument("--sleep-interval-sec", type=float, default=0.0)
     parser.add_argument("--yt-dlp", default="yt-dlp")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
@@ -354,10 +357,14 @@ def main() -> None:
         raise ValueError("运行时 source format 与 authorization lock 不一致")
     if authorization.get("merge_output_format") != args.merge_output_format:
         raise ValueError("运行时 merge output format 与 authorization lock 不一致")
+    if float(authorization.get("sleep_interval_sec", 0.0)) != args.sleep_interval_sec:
+        raise ValueError("运行时请求间隔与 authorization lock 不一致")
 
     results: list[dict[str, Any]] = []
     results_path = args.output_root / f"{args.scope}_download_results.jsonl"
-    for frozen_job in jobs:
+    for job_position, frozen_job in enumerate(jobs):
+        if job_position and args.sleep_interval_sec > 0:
+            time.sleep(args.sleep_interval_sec)
         job = {
             **frozen_job,
             "execution_source_format": args.source_format,
@@ -393,7 +400,7 @@ def main() -> None:
         "expected": len(jobs),
         "passed": sum(row.get("status") == "pass" for row in results),
         "failed": sum(row.get("status") != "pass" for row in results),
-        "canary_execution_authorized": args.scope == "canary2",
+        "canary_execution_authorized": args.scope in {"canary2", "canary20"},
         "media_qualification_passed": all(row.get("status") == "pass" for row in results),
         "next_stage_allowed": False,
         "media_download_allowed": False,

@@ -108,7 +108,7 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert qualification["metadata_probe_full"]["qualification_complete"] is False
     assert qualification["pilot_media_download_allowed"] is False
     downloader = qualification["official_protocol_downloader"]
-    assert downloader["status"] == "node_ejs_compat_canary2_passed_awaiting_canary20_authorization"
+    assert downloader["status"] == "canary20_passed_pilot150_authorized"
     assert downloader["official_repository_commit"] == "fde56118f2c2e7c19188dfefa2569a37b70054fe"
     assert downloader["download_format"] == "best"
     assert downloader["video_codec"] == "libx264"
@@ -175,8 +175,18 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert all(value["video_codec"] == "h264" for value in media_canary["files"].values())
     assert all(value["audio_codec"] == "aac" for value in media_canary["files"].values())
     assert downloader["canary2_download_allowed"] is False
-    assert downloader["pilot150_download_allowed"] is False
-    assert "canary20_download_not_authorized" in llp["qualification_blockers"]
+    assert downloader["canary20_plan"]["row_count"] == 20
+    assert downloader["canary20_plan"]["sleep_interval_sec"] == 5.0
+    assert downloader["canary20_plan"]["single_threaded"] is True
+    canary20 = downloader["canary20_result"]
+    assert canary20["passed"] == 20
+    assert canary20["failed"] == 0
+    assert canary20["media_qualification_passed"] is True
+    assert canary20["all_sha_match"] is True
+    assert canary20["duration_max_abs_delta_sec"] < 0.1
+    assert downloader["canary20_download_allowed"] is False
+    assert downloader["pilot150_download_allowed"] is True
+    assert "pilot150_download_not_run" in llp["qualification_blockers"]
     assert "literal_official_youtube_dl_canary2_failed_page_reload" in llp["qualification_blockers"]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]

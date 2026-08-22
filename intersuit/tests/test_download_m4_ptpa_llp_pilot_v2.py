@@ -19,9 +19,11 @@ SPEC.loader.exec_module(module)
 def test_real_pilot_builds_official_compatible_canary_and_full_plans(tmp_path):
     _, rows = module.verify_plan_inputs()
     canary = module.build_jobs(rows, tmp_path, "canary2")
+    canary20 = module.build_jobs(rows, tmp_path, "canary20")
     full = module.build_jobs(rows, tmp_path, "pilot150")
 
     assert len(canary) == 2
+    assert len(canary20) == 20
     assert len(full) == 150
     assert len({row["physical_media_id"] for row in full}) == 150
     assert all(Path(row["output_path"]).name == f"{row['physical_media_id']}.mp4" for row in full)
