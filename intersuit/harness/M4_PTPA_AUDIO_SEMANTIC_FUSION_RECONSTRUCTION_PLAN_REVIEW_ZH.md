@@ -90,6 +90,21 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    隔离 nightly canary2 已运行并仍为 `0/2`，两条均在媒体传输前报 page reload，生成视频数 0。
    该结果排除了 M4/base 依赖污染、Python 3.9和旧 stable 版本作为充分原因；剩余 client/PO-token/
    账号-IP 协议问题未解决，必须停止，不得继续堆叠参数或运行 pilot150。
+   后续按官方 EJS 指南发现 Node 必须显式以 `--js-runtimes node:/path` 启用；此前只安装未启用，
+   因此“隔离 nightly 失败”不能代表 Node+EJS 失败。显式启用后 metadata-only canary2 达到
+   `2/2 metadata_available`、public 2、probe_failed 0，D2 门禁通过；license 字段仍为空。
+   authorization 已绑定相同 Node runtime，只允许再运行媒体 canary2，pilot150 仍禁止。
+   首次 Node+EJS 媒体 canary 因官方 `-f best` 不存在而 `0/2`；两条 `--list-formats` 均证明
+   MP4 video-only 与 M4A audio-only HTTPS 流存在。兼容路线因此冻结为
+   `bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio` 并合并 MP4；仅源获取选择改变，
+   官方 FFmpeg 10 秒、libx264+aac 与 ID 命名不变。新格式仍只允许 canary2。
+   兼容媒体 canary 随后已完成源下载/合并，但 defaults FFmpeg 因无 GPL `libx264` 报
+   `Encoder not found`。conda-forge 替换再次因 repodata `IncompleteRead`失败且环境未改变；
+   服务器已有静态 FFmpeg 3.1.3 经核验包含 libx264+A​​AC且无动态依赖，已复制进隔离环境并绑定
+   SHA。官方未锁 FFmpeg 版本，只锁编码器，因此该修复恢复而非放宽官方输出合同；仍只重跑 canary2。
+   最终 Node+EJS+分离 MP4/M4A+静态 libx264 canary2 达到 `2/2`：两条均为精确 10.000s、
+   H.264+A​​AC、44.1kHz 双声道，独立 SHA/ffprobe 复验通过，临时目录为空。canary2 权限已消费并
+   关闭；用户 cookie 授权仅限 canary2，因此 canary20/pilot150 均不得自动启动。
    为回答“是否严格执行官方原获取层”，另建 `llp-official-download`：Python 3.8.20、
    youtube-dl 2021.12.17、FFmpeg 8.1.2。两条直接逐字执行官方
    `youtube-dl --ignore-config URL -o <id>_full_video.mp4 -f best`，不使用 cookie/client/PO token，

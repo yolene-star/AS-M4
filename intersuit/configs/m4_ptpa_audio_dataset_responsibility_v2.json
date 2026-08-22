@@ -108,7 +108,7 @@
         },
         "metadata_probe_allowed": true,
         "official_protocol_downloader": {
-          "status": "isolated_nightly_ytdlp_canary2_failed_page_reload",
+          "status": "node_ejs_compat_canary2_passed_awaiting_canary20_authorization",
           "script_path": "intersuit/scripts/download_m4_ptpa_llp_pilot_v2.py",
           "official_repository_commit": "fde56118f2c2e7c19188dfefa2569a37b70054fe",
           "download_format": "best",
@@ -208,6 +208,66 @@
             "ffmpeg_clip_step_reached": false,
             "full_wrapper_missing_noncausal_dependency": "pandas_0_24_1_for_csv_iteration"
           },
+          "node_ejs_metadata_canary_result": {
+            "expected": 2,
+            "metadata_available": 2,
+            "probe_failed": 0,
+            "qualification_complete": true,
+            "availability_public": 2,
+            "license_nonempty": 0,
+            "js_runtime": "node_explicit",
+            "results_sha256": "49ff402e86e724f82a1ab8d7dba468113170626bef2d2e127f85c2beb441dde4",
+            "summary_sha256": "3fd21535919648c4f87ef28f6bb6ea6261254c4e9d81ee871ed3aa529db2e34a"
+          },
+          "node_ejs_format_review": {
+            "videos_reviewed": 2,
+            "premerged_best_available": false,
+            "mp4_video_only_available": true,
+            "m4a_audio_only_available": true,
+            "compat_source_format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio",
+            "merge_output_format": "mp4",
+            "official_postprocess_unchanged": "ffmpeg_10s_libx264_aac"
+          },
+          "x264_ffmpeg_repair": {
+            "conda_forge_install_result": "failed_repodata_incomplete_read_environment_unchanged",
+            "source": "/home/yjm/miniconda3/envs/package/bin/ffmpeg",
+            "target_name": "ffmpeg-official-static",
+            "version": "3.1.3-static",
+            "statically_linked": true,
+            "libx264_encoder_available": true,
+            "aac_encoder_available": true,
+            "sha256": "46faff7c77dfb033bb11c7a9a3b2b58da324d634bec22d146bb903918d7eb1f9",
+            "official_ffmpeg_codec_contract_restored": true
+          },
+          "node_ejs_compat_media_canary_result": {
+            "expected": 2,
+            "passed": 2,
+            "failed": 0,
+            "media_qualification_passed": true,
+            "media_files_created": 2,
+            "results_sha256": "f5d054a0bbd5ed9c3c3b5aefb2879b66645aac4187dacaea082d69b6be94e3d4",
+            "summary_sha256": "9969419d349e425875ae4591fec77a8a893b3e53971130206de21452159e5d3a",
+            "files": {
+              "6hoAXWdtJCY.mp4": {
+                "bytes": 5025226,
+                "sha256": "2f475a6215860f0992737cfd7f083ba3aa7afde40e0b24fa77d9ef6bd885bb10",
+                "duration_sec": 10.0,
+                "video_codec": "h264",
+                "audio_codec": "aac",
+                "sample_rate": 44100,
+                "channels": 2
+              },
+              "ON841bIPcOw.mp4": {
+                "bytes": 1502309,
+                "sha256": "e425a5c7823f4d9451e60436dc4a37d82f720d9dcd13d91e83f6aa5118ac9739",
+                "duration_sec": 10.0,
+                "video_codec": "h264",
+                "audio_codec": "aac",
+                "sample_rate": 44100,
+                "channels": 2
+              }
+            }
+          },
           "canary2_download_allowed": false,
           "pilot150_download_allowed": false
         },
@@ -217,8 +277,7 @@
       },
       "qualification_blockers": [
         "youtube_per_item_metadata_probe_incomplete",
-        "isolated_nightly_ytdlp_canary2_failed_page_reload",
-        "youtube_client_or_po_token_protocol_unresolved",
+        "canary20_download_not_authorized",
         "literal_official_youtube_dl_canary2_failed_page_reload",
         "explicit_media_download_authorization_not_granted",
         "audio_track_decode_duration_and_sha_not_audited",

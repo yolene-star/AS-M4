@@ -108,7 +108,7 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert qualification["metadata_probe_full"]["qualification_complete"] is False
     assert qualification["pilot_media_download_allowed"] is False
     downloader = qualification["official_protocol_downloader"]
-    assert downloader["status"] == "isolated_nightly_ytdlp_canary2_failed_page_reload"
+    assert downloader["status"] == "node_ejs_compat_canary2_passed_awaiting_canary20_authorization"
     assert downloader["official_repository_commit"] == "fde56118f2c2e7c19188dfefa2569a37b70054fe"
     assert downloader["download_format"] == "best"
     assert downloader["video_codec"] == "libx264"
@@ -151,9 +151,32 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert literal["failed"] == 2
     assert literal["source_media_files_created"] == 0
     assert literal["ffmpeg_clip_step_reached"] is False
+    node_metadata = downloader["node_ejs_metadata_canary_result"]
+    assert node_metadata["metadata_available"] == 2
+    assert node_metadata["probe_failed"] == 0
+    assert node_metadata["qualification_complete"] is True
+    assert node_metadata["js_runtime"] == "node_explicit"
+    format_review = downloader["node_ejs_format_review"]
+    assert format_review["premerged_best_available"] is False
+    assert format_review["mp4_video_only_available"] is True
+    assert format_review["m4a_audio_only_available"] is True
+    assert format_review["merge_output_format"] == "mp4"
+    ffmpeg_repair = downloader["x264_ffmpeg_repair"]
+    assert ffmpeg_repair["statically_linked"] is True
+    assert ffmpeg_repair["libx264_encoder_available"] is True
+    assert ffmpeg_repair["aac_encoder_available"] is True
+    assert ffmpeg_repair["official_ffmpeg_codec_contract_restored"] is True
+    media_canary = downloader["node_ejs_compat_media_canary_result"]
+    assert media_canary["passed"] == 2
+    assert media_canary["failed"] == 0
+    assert media_canary["media_qualification_passed"] is True
+    assert media_canary["media_files_created"] == 2
+    assert all(value["duration_sec"] == 10.0 for value in media_canary["files"].values())
+    assert all(value["video_codec"] == "h264" for value in media_canary["files"].values())
+    assert all(value["audio_codec"] == "aac" for value in media_canary["files"].values())
     assert downloader["canary2_download_allowed"] is False
     assert downloader["pilot150_download_allowed"] is False
-    assert "isolated_nightly_ytdlp_canary2_failed_page_reload" in llp["qualification_blockers"]
+    assert "canary20_download_not_authorized" in llp["qualification_blockers"]
     assert "literal_official_youtube_dl_canary2_failed_page_reload" in llp["qualification_blockers"]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]

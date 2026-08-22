@@ -309,7 +309,11 @@ def reviewed_probe_rows(pilot: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def probe_metadata(
-    row: dict[str, Any], ytdlp: str, cookies_from_browser: str | None = None
+    row: dict[str, Any],
+    ytdlp: str,
+    cookies_from_browser: str | None = None,
+    cookies_file: str | None = None,
+    js_runtime: str | None = None,
 ) -> dict[str, Any]:
     command = [
         ytdlp,
@@ -318,10 +322,14 @@ def probe_metadata(
         "--no-playlist",
         "--dump-single-json",
         "--no-warnings",
-        row["source_url"],
     ]
     if cookies_from_browser:
-        command[1:1] = ["--cookies-from-browser", cookies_from_browser]
+        command.extend(["--cookies-from-browser", cookies_from_browser])
+    elif cookies_file:
+        command.extend(["--cookies", cookies_file])
+    if js_runtime:
+        command.extend(["--js-runtimes", js_runtime])
+    command.append(row["source_url"])
     result = subprocess.run(command, text=True, capture_output=True, check=False)
     if result.returncode != 0:
         return {
@@ -332,6 +340,8 @@ def probe_metadata(
             "error": result.stderr.strip()[-4000:],
             "media_download_allowed": False,
             "authenticated_metadata_probe": bool(cookies_from_browser),
+            "cookie_file_metadata_probe": bool(cookies_file),
+            "js_runtime_enabled": bool(js_runtime),
         }
     payload = json.loads(result.stdout)
     actual_id = str(payload.get("id") or "")
@@ -348,6 +358,8 @@ def probe_metadata(
         "channel_id": payload.get("channel_id"),
         "media_download_allowed": False,
         "authenticated_metadata_probe": bool(cookies_from_browser),
+        "cookie_file_metadata_probe": bool(cookies_file),
+        "js_runtime_enabled": bool(js_runtime),
     }
 
 
@@ -506,6 +518,14 @@ def main() -> None:
         "--cookies-from-browser",
         help="仅传给 yt-dlp 做 metadata probe；Review 不记录 profile 路径或 cookie 内容。",
     )
+    parser.add_argument(
+        "--cookies-file",
+        help="仅传给 yt-dlp 做 metadata probe；Review 不记录文件路径或 cookie 内容。",
+    )
+    parser.add_argument(
+        "--js-runtime",
+        help="显式传给 yt-dlp 的 --js-runtimes 值；Review 只记录是否启用。",
+    )
     args = parser.parse_args()
 
     _, pilot, input_hashes = verify_inputs()
@@ -515,6 +535,8 @@ def main() -> None:
     probes: list[dict[str, Any]] = []
     probe_summary = None
     if args.probe_metadata:
+        if args.cookies_from_browser and args.cookies_file:
+            raise ValueError("metadata probe 的 credential source 必须二选一")
         selected = probe_plan[: args.probe_limit] if args.probe_limit else probe_plan
         results_path = args.output_root / "llp_metadata_probe_results.jsonl"
         reusable: dict[str, dict[str, Any]] = {}
@@ -527,7 +549,13 @@ def main() -> None:
         for row in selected:
             result = reusable.get(row["sample_id"])
             if result is None:
-                result = probe_metadata(row, args.yt_dlp, args.cookies_from_browser)
+                result = probe_metadata(
+                    row,
+                    args.yt_dlp,
+                    args.cookies_from_browser,
+                    args.cookies_file,
+                    args.js_runtime,
+                )
             probes.append(result)
             write_jsonl(results_path, probes)
         probe_summary = summarize_probes(selected, probes)

@@ -109,9 +109,56 @@ def test_authenticated_probe_result_records_boolean_not_cookie_material(monkeypa
     }
     result = module.probe_metadata(row, "yt-dlp", "firefox:/secret/profile")
 
-    assert captured["command"][1:3] == ["--cookies-from-browser", "firefox:/secret/profile"]
+    browser_index = captured["command"].index("--cookies-from-browser")
+    assert captured["command"][browser_index : browser_index + 2] == [
+        "--cookies-from-browser",
+        "firefox:/secret/profile",
+    ]
     assert result["authenticated_metadata_probe"] is True
-    assert "cookie" not in json.dumps(result).casefold()
+    assert "/secret/profile" not in json.dumps(result)
+
+
+def test_cookie_file_and_node_runtime_are_passed_but_not_persisted(monkeypatch):
+    class Result:
+        returncode = 0
+        stdout = json.dumps(
+            {
+                "id": "abcdefghijk",
+                "availability": "public",
+                "duration": 10.0,
+                "license": None,
+                "webpage_url": "https://www.youtube.com/watch?v=abcdefghijk",
+            }
+        )
+        stderr = ""
+
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return Result()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    row = {
+        "sample_id": "x",
+        "physical_media_id": "abcdefghijk",
+        "source_url": "https://www.youtube.com/watch?v=abcdefghijk",
+    }
+    result = module.probe_metadata(
+        row,
+        "/env/bin/yt-dlp",
+        cookies_file="/secret/cookies.txt",
+        js_runtime="node:/env/bin/node",
+    )
+
+    assert "--cookies" in captured["command"]
+    assert "/secret/cookies.txt" in captured["command"]
+    assert "--js-runtimes" in captured["command"]
+    assert "node:/env/bin/node" in captured["command"]
+    assert result["cookie_file_metadata_probe"] is True
+    assert result["js_runtime_enabled"] is True
+    assert "/secret" not in json.dumps(result)
+    assert "/env/bin" not in json.dumps(result)
 
 
 def test_probe_resume_contract_only_reuses_successful_rows(tmp_path):

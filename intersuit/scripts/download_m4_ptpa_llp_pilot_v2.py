@@ -217,6 +217,9 @@ def download_job(
     ffprobe_executable: str,
     cookies_file: Path | None,
     cookies_from_browser: str | None,
+    js_runtime: str | None,
+    source_format: str,
+    merge_output_format: str | None,
 ) -> dict[str, Any]:
     final_path = Path(job["output_path"])
     final_path.parent.mkdir(parents=True, exist_ok=True)
@@ -236,7 +239,7 @@ def download_job(
             "--ignore-config",
             "--no-playlist",
             "-f",
-            "best",
+            source_format,
             "-o",
             str(source_template),
             job["source_url"],
@@ -245,6 +248,10 @@ def download_job(
             command[1:1] = ["--cookies", str(cookies_file)]
         elif cookies_from_browser:
             command[1:1] = ["--cookies-from-browser", cookies_from_browser]
+        if js_runtime:
+            command[1:1] = ["--js-runtimes", js_runtime]
+        if merge_output_format:
+            command[1:1] = ["--merge-output-format", merge_output_format]
         run_checked(command)
         sources = [path for path in temp_dir.glob("source.*") if path.is_file()]
         if len(sources) != 1:
@@ -316,6 +323,9 @@ def main() -> None:
     parser.add_argument("--authorization-lock", type=Path)
     parser.add_argument("--cookies-file", type=Path)
     parser.add_argument("--cookies-from-browser")
+    parser.add_argument("--js-runtime")
+    parser.add_argument("--source-format", default="best")
+    parser.add_argument("--merge-output-format")
     parser.add_argument("--yt-dlp", default="yt-dlp")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
@@ -338,10 +348,22 @@ def main() -> None:
         raise ValueError("anonymous 模式禁止提供 credential source")
     if authorization["credential_mode"] == "rotated_cookie" and credential_count != 1:
         raise ValueError("rotated-cookie 模式必须且只能提供一个 credential source")
+    if authorization.get("js_runtime") != args.js_runtime:
+        raise ValueError("运行时 JS runtime 与 authorization lock 不一致")
+    if authorization.get("source_format") != args.source_format:
+        raise ValueError("运行时 source format 与 authorization lock 不一致")
+    if authorization.get("merge_output_format") != args.merge_output_format:
+        raise ValueError("运行时 merge output format 与 authorization lock 不一致")
 
     results: list[dict[str, Any]] = []
     results_path = args.output_root / f"{args.scope}_download_results.jsonl"
-    for job in jobs:
+    for frozen_job in jobs:
+        job = {
+            **frozen_job,
+            "execution_source_format": args.source_format,
+            "execution_merge_output_format": args.merge_output_format,
+            "execution_js_runtime_enabled": bool(args.js_runtime),
+        }
         try:
             result = download_job(
                 job,
@@ -351,6 +373,9 @@ def main() -> None:
                 ffprobe_executable=args.ffprobe,
                 cookies_file=args.cookies_file,
                 cookies_from_browser=args.cookies_from_browser,
+                js_runtime=args.js_runtime,
+                source_format=args.source_format,
+                merge_output_format=args.merge_output_format,
             )
         except Exception as exc:
             result = {

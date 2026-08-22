@@ -1,4 +1,8 @@
 name: llp-download
+# 创建后复制本机已验证的静态 FFmpeg：
+# install -m 755 /home/yjm/miniconda3/envs/package/bin/ffmpeg \
+#   /home/yjm/miniconda3/envs/llp-download/bin/ffmpeg-official-static
+# 期望 SHA256：46faff7c77dfb033bb11c7a9a3b2b58da324d634bec22d146bb903918d7eb1f9
 channels:
   - defaults
 dependencies:
