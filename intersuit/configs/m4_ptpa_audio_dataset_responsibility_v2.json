@@ -459,7 +459,7 @@
             "effect_access_allowed": false
           },
           "license_review": {
-            "status": "blocked_pending_per_item_license_or_institutional_authorization",
+            "status": "user_authorized_internal_noncommercial_feature_preparation_only",
             "ledger_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/license_review_v2/llp_pilot150_license_ledger.jsonl",
             "ledger_sha256": "b2e3d7b987eee7405ff44fda44b5c902cb4610c4d83180d79f87cb80b9276ecd",
             "review_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/license_review_v2/llp_pilot150_license_review.json",
@@ -472,9 +472,62 @@
             "standard_youtube_license_verified": 0,
             "youtube_data_api_key_available": false,
             "institutional_authorization_recorded": false,
-            "feature_extraction_allowed": false,
+            "user_scope_authorization": {
+              "recorded_at": "2026-08-22",
+              "authority": "user_as_project_operator",
+              "scope": "local_server_internal_noncommercial_research",
+              "allowed_operations": [
+                "decode_selected_llp_media_audio_to_16khz_mono",
+                "extract_frozen_beats_window_features_at_1s_window_1s_hop"
+              ],
+              "gpu_feature_extraction_allowed": true,
+              "not_authorized": [
+                "media_or_derived_asset_redistribution",
+                "model_training",
+                "effect_metric_access",
+                "formal_test_access",
+                "commercial_use"
+              ],
+              "per_item_youtube_license_verified": false,
+              "institutional_or_legal_approval_claimed": false
+            },
+            "feature_extraction_allowed": true,
             "effect_access_allowed": false,
             "training_allowed": false,
+            "redistribution_allowed": false
+          },
+          "s1_feature_preparation": {
+            "status": "pass_feature_preparation_only_effect_locked",
+            "output_root": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1",
+            "feature_manifest_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/llp_s1_beats_feature_manifest.jsonl",
+            "feature_manifest_sha256": "9a0f2ce1e0bbdaa5ce1201700fb7f1846c2dd93bad4c2da67cb717ebe39fd7d3",
+            "summary_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/summary.json",
+            "summary_sha256": "7d9a25a9f7c4f1ae4673dd70960e50a46dde34f24b9bd7a3d526b84e3a6c01cf",
+            "review_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/REVIEW_ZH.md",
+            "review_sha256": "8124bed958e96bb8d28b8d9a4a49271d807591db84b774ef60e224897f9fbc38",
+            "run_config_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/run_config.json",
+            "run_config_sha256": "03bf292a1cc1d92e871b68a60e049b32caaa452c7b79eddcc4903fbfdcd2be42",
+            "implementation_sha256": "73df2b2b9c70da3937befcb59da6468c584ada65b258f6001a67cd75e9d680dd",
+            "beats_source_sha256": "f5be4f13edf6a4154d422ee58f623b8c67e4d9dba565b2d04434b7151748cfc4",
+            "ffmpeg_sha256": "46faff7c77dfb033bb11c7a9a3b2b58da324d634bec22d146bb903918d7eb1f9",
+            "rows": 150,
+            "unique_physical_media": 150,
+            "split_counts": {
+              "train": 100,
+              "validation": 50
+            },
+            "audio_contract": "pcm_s16le_mono_16000hz_exact_official_10sec",
+            "window_sec": 1.0,
+            "hop_sec": 1.0,
+            "windows_per_sample": 10,
+            "total_windows": 1500,
+            "embedding_dim": 768,
+            "beats_checkpoint_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+            "all_finite": true,
+            "frozen_beats": true,
+            "training_performed": false,
+            "effect_accessed": false,
+            "formal_test_accessed": false,
             "redistribution_allowed": false
           },
           "canary2_download_allowed": false,
@@ -485,11 +538,11 @@
           "coverage_repair_download_allowed": false
         },
         "pilot_media_download_allowed": false,
-        "feature_extraction_allowed": false,
+        "feature_extraction_allowed": true,
         "effect_access_allowed": false
       },
       "qualification_blockers": [
-        "per_item_youtube_license_not_verified"
+        "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use"
       ]
     },
     "clotho_aqa": {
@@ -623,6 +676,8 @@
     "clotho_aqa_download_allowed": false,
     "avcaps_download_allowed": false,
     "feature_extraction_allowed": false,
+    "llp_s1_internal_noncommercial_feature_preparation_allowed": true,
+    "llp_s1_single_gpu_feature_extraction_allowed": true,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,

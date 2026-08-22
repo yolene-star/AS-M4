@@ -48,6 +48,8 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["clotho_aqa_download_allowed"] is False
     assert permissions["avcaps_download_allowed"] is False
     assert permissions["feature_extraction_allowed"] is False
+    assert permissions["llp_s1_internal_noncommercial_feature_preparation_allowed"] is True
+    assert permissions["llp_s1_single_gpu_feature_extraction_allowed"] is True
     assert permissions["gpu_execution_allowed"] is False
     assert permissions["training_allowed"] is False
     assert permissions["confirm_effect_access_allowed"] is False
@@ -240,15 +242,33 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert final_media["feature_extraction_allowed"] is False
     assert final_media["effect_access_allowed"] is False
     license_review = downloader["license_review"]
-    assert license_review["status"] == "blocked_pending_per_item_license_or_institutional_authorization"
+    assert license_review["status"] == "user_authorized_internal_noncommercial_feature_preparation_only"
     assert license_review["rows"] == 150
     assert license_review["media_qualified"] == 150
     assert license_review["license_verified"] == 0
     assert license_review["license_unverified"] == 150
     assert license_review["youtube_data_api_key_available"] is False
     assert license_review["institutional_authorization_recorded"] is False
-    assert license_review["feature_extraction_allowed"] is False
+    authorization = license_review["user_scope_authorization"]
+    assert authorization["scope"] == "local_server_internal_noncommercial_research"
+    assert authorization["per_item_youtube_license_verified"] is False
+    assert authorization["institutional_or_legal_approval_claimed"] is False
+    assert authorization["gpu_feature_extraction_allowed"] is True
+    assert license_review["feature_extraction_allowed"] is True
     assert license_review["effect_access_allowed"] is False
+    assert license_review["training_allowed"] is False
+    assert license_review["redistribution_allowed"] is False
+    feature_preparation = downloader["s1_feature_preparation"]
+    assert feature_preparation["status"] == "pass_feature_preparation_only_effect_locked"
+    assert feature_preparation["rows"] == 150
+    assert feature_preparation["unique_physical_media"] == 150
+    assert feature_preparation["split_counts"] == {"train": 100, "validation": 50}
+    assert feature_preparation["windows_per_sample"] == 10
+    assert feature_preparation["total_windows"] == 1500
+    assert feature_preparation["embedding_dim"] == 768
+    assert feature_preparation["frozen_beats"] is True
+    assert feature_preparation["training_performed"] is False
+    assert feature_preparation["effect_accessed"] is False
     assert downloader["coverage_repair_download_allowed"] is False
     assert downloader["coverage_repair11_result"]["passed"] == 10
     assert downloader["coverage_repair11_result"]["failed"] == 1
@@ -256,9 +276,11 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert coverage2["existing_reusable"] == 10
     assert coverage2["new_downloads"] == 1
     assert coverage2["new_candidate_label"] == "Blender"
-    assert llp["qualification_blockers"] == ["per_item_youtube_license_not_verified"]
+    assert llp["qualification_blockers"] == [
+        "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use"
+    ]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
-    assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
+    assert any("per_item_youtube_license_not_verified" in item for item in llp["qualification_blockers"])
 
 
 def test_longvale_exception_is_exactly_one_locked_archive():
