@@ -108,7 +108,7 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert qualification["metadata_probe_full"]["qualification_complete"] is False
     assert qualification["pilot_media_download_allowed"] is False
     downloader = qualification["official_protocol_downloader"]
-    assert downloader["status"] == "canary20_passed_pilot150_authorized"
+    assert downloader["status"] == "pilot150_media_qualified_effect_locked"
     assert downloader["official_repository_commit"] == "fde56118f2c2e7c19188dfefa2569a37b70054fe"
     assert downloader["download_format"] == "best"
     assert downloader["video_codec"] == "libx264"
@@ -185,9 +185,68 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert canary20["all_sha_match"] is True
     assert canary20["duration_max_abs_delta_sec"] < 0.1
     assert downloader["canary20_download_allowed"] is False
-    assert downloader["pilot150_download_allowed"] is True
-    assert "pilot150_download_not_run" in llp["qualification_blockers"]
-    assert "literal_official_youtube_dl_canary2_failed_page_reload" in llp["qualification_blockers"]
+    pilot150 = downloader["pilot150_result"]
+    assert pilot150["qualified_original_media"] == 139
+    assert pilot150["permanent_missing"] == 11
+    assert pilot150["failure_classes"] == {
+        "private": 6,
+        "unavailable": 4,
+        "age_restricted": 1,
+    }
+    assert pilot150["qualified_split_counts"] == {"train": 93, "validation": 46}
+    backfill = downloader["backfill11_plan"]
+    assert backfill["row_count"] == 11
+    assert backfill["train"] == 7
+    assert backfill["validation"] == 4
+    assert backfill["historical_overlap"] == 0
+    assert backfill["original_pilot_overlap"] == 0
+    assert backfill["selection_is_content_or_effect_based"] is False
+    assert downloader["pilot150_download_allowed"] is False
+    assert downloader["backfill11_result"]["passed"] == 8
+    assert downloader["backfill11_result"]["failed"] == 3
+    replacement = downloader["replacement3_plan"]
+    assert replacement["row_count"] == 3
+    assert replacement["train"] == 2
+    assert replacement["validation"] == 1
+    assert replacement["historical_overlap"] == 0
+    assert replacement["prior_plan_overlap"] == 0
+    assert replacement["selection_is_content_or_effect_based"] is False
+    assert downloader["backfill11_download_allowed"] is False
+    assert downloader["replacement3_result"]["passed"] == 3
+    assert downloader["replacement3_result"]["failed"] == 0
+    coverage = downloader["coverage_repair11_plan"]
+    assert coverage["row_count"] == 11
+    assert coverage["existing_reusable"] == 4
+    assert coverage["new_downloads"] == 7
+    assert coverage["projected_train_min_per_label"] == 4
+    assert coverage["projected_validation_min_per_label"] == 2
+    assert coverage["projected_below_required"] == 0
+    assert coverage["selection_is_content_or_effect_based"] is False
+    assert downloader["replacement_download_allowed"] is False
+    assert downloader["coverage_repair_round2_result"]["passed"] == 11
+    assert downloader["coverage_repair_round2_result"]["failed"] == 0
+    final_media = downloader["final_media_qualification"]
+    assert final_media["status"] == "media_qualified_effect_locked"
+    assert final_media["rows"] == 150
+    assert final_media["unique_physical_media"] == 150
+    assert final_media["train"] == 100
+    assert final_media["validation"] == 50
+    assert final_media["train_min_per_label"] == 4
+    assert final_media["validation_min_per_label"] == 2
+    assert final_media["historical_overlap"] == 0
+    assert final_media["video_codec_h264"] == 150
+    assert final_media["audio_codec_aac"] == 150
+    assert final_media["media_qualified"] is True
+    assert final_media["feature_extraction_allowed"] is False
+    assert final_media["effect_access_allowed"] is False
+    assert downloader["coverage_repair_download_allowed"] is False
+    assert downloader["coverage_repair11_result"]["passed"] == 10
+    assert downloader["coverage_repair11_result"]["failed"] == 1
+    coverage2 = downloader["coverage_repair_round2_plan"]
+    assert coverage2["existing_reusable"] == 10
+    assert coverage2["new_downloads"] == 1
+    assert coverage2["new_candidate_label"] == "Blender"
+    assert llp["qualification_blockers"] == ["per_item_youtube_license_not_verified"]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert "per_item_youtube_license_not_verified" in llp["qualification_blockers"]
 

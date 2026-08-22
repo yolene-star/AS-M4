@@ -69,24 +69,36 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     )
 
 
-def verify_plan_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    if sha256(PILOT) != EXPECTED_PILOT_SHA256:
+def verify_plan_inputs(
+    plan_path: Path = PILOT, expected_plan_sha256: str = EXPECTED_PILOT_SHA256
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    if sha256(plan_path) != expected_plan_sha256:
         raise ValueError("LLP 冻结 pilot SHA 漂移")
     lock = read_json(RESPONSIBILITY_LOCK)
     qualification = lock.get("datasets", {}).get("llp", {}).get("pre_download_qualification", {})
+    downloader_lock = qualification.get("official_protocol_downloader", {})
+    if plan_path == PILOT:
+        lock_plan_sha = qualification.get("pilot_manifest_sha256")
+    else:
+        locked_plan_shas = {
+            value.get("plan_sha256")
+            for value in downloader_lock.values()
+            if isinstance(value, dict) and value.get("plan_sha256")
+        }
+        lock_plan_sha = expected_plan_sha256 if expected_plan_sha256 in locked_plan_shas else None
     if (
         lock.get("permissions", {}).get("llp_pilot_download_allowed") is not False
-        or qualification.get("pilot_manifest_sha256") != EXPECTED_PILOT_SHA256
+        or lock_plan_sha != expected_plan_sha256
         or qualification.get("pilot_media_download_allowed") is not False
         or lock.get("permissions", {}).get("feature_extraction_allowed") is not False
         or lock.get("permissions", {}).get("training_allowed") is not False
     ):
         raise ValueError("LLP 下载前责任锁合同漂移")
-    rows = read_jsonl(PILOT)
+    rows = read_jsonl(plan_path)
     ids = [str(row.get("physical_media_id", "")) for row in rows]
     if (
-        len(rows) != 150
-        or len(set(ids)) != 150
+        not rows
+        or len(set(ids)) != len(rows)
         or any(len(value) != 11 for value in ids)
         or any(row.get("official_split") not in {"train", "validation"} for row in rows)
         or any(row.get("download_allowed") is not False for row in rows)
@@ -96,9 +108,11 @@ def verify_plan_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return lock, rows
 
 
-def build_jobs(rows: list[dict[str, Any]], output_root: Path, scope: str) -> list[dict[str, Any]]:
-    scope_counts = {"canary2": 2, "canary20": 20, "pilot150": 150}
-    selected = rows[: scope_counts[scope]]
+def build_jobs(
+    rows: list[dict[str, Any]], output_root: Path, scope: str, plan_sha256: str = EXPECTED_PILOT_SHA256
+) -> list[dict[str, Any]]:
+    scope_counts = {"canary2": 2, "canary20": 20, "pilot150": 150, "backfill11": 11}
+    selected = rows if scope == "replacement" else rows[: scope_counts[scope]]
     return [
         {
             "job_index": index,
@@ -111,7 +125,7 @@ def build_jobs(rows: list[dict[str, Any]], output_root: Path, scope: str) -> lis
             "end_sec": float(row["end_sec"]),
             "expected_duration_sec": 10.0,
             "output_path": str(output_root / "video" / f"{row['physical_media_id']}.mp4"),
-            "pilot_sha256": EXPECTED_PILOT_SHA256,
+            "pilot_sha256": plan_sha256,
             "official_protocol": OFFICIAL_PROTOCOL,
             "media_download_allowed": False,
             "feature_extraction_allowed": False,
@@ -121,14 +135,34 @@ def build_jobs(rows: list[dict[str, Any]], output_root: Path, scope: str) -> lis
     ]
 
 
-def verify_authorization(path: Path, scope: str) -> dict[str, Any]:
+def filter_jobs(jobs: list[dict[str, Any]], sample_ids: list[str] | None) -> list[dict[str, Any]]:
+    if not sample_ids:
+        return jobs
+    requested = set(sample_ids)
+    selected = [job for job in jobs if job["sample_id"] in requested]
+    missing = sorted(requested - {job["sample_id"] for job in selected})
+    if missing:
+        raise ValueError(f"指定 retry sample 不在当前 scope: {missing}")
+    return selected
+
+
+def verify_authorization(
+    path: Path,
+    scope: str,
+    expected_plan_sha256: str = EXPECTED_PILOT_SHA256,
+    expected_row_count: int | None = None,
+) -> dict[str, Any]:
     value = read_json(path)
-    expected_count = {"canary2": 2, "canary20": 20, "pilot150": 150}[scope]
+    expected_count = (
+        expected_row_count
+        if scope == "replacement"
+        else {"canary2": 2, "canary20": 20, "pilot150": 150, "backfill11": 11}[scope]
+    )
     if (
         value.get("status") != "llp_pilot_media_download_authorized"
         or value.get("scope") != scope
         or value.get("row_count") != expected_count
-        or value.get("pilot_sha256") != EXPECTED_PILOT_SHA256
+        or value.get("pilot_sha256") != expected_plan_sha256
         or value.get("internal_noncommercial_research_only") is not True
         or value.get("redistribution_allowed") is not False
         or value.get("feature_extraction_allowed") is not False
@@ -320,7 +354,13 @@ def build_review(jobs: list[dict[str, Any]], scope: str) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--scope", choices=("canary2", "canary20", "pilot150"), default="canary2")
+    parser.add_argument(
+        "--scope",
+        choices=("canary2", "canary20", "pilot150", "backfill11", "replacement"),
+        default="canary2",
+    )
+    parser.add_argument("--input-plan", type=Path, default=PILOT)
+    parser.add_argument("--expected-plan-sha256", default=EXPECTED_PILOT_SHA256)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--authorization-lock", type=Path)
     parser.add_argument("--cookies-file", type=Path)
@@ -329,23 +369,30 @@ def main() -> None:
     parser.add_argument("--source-format", default="best")
     parser.add_argument("--merge-output-format")
     parser.add_argument("--sleep-interval-sec", type=float, default=0.0)
+    parser.add_argument("--only-sample-id", action="append")
+    parser.add_argument("--results-label")
     parser.add_argument("--yt-dlp", default="yt-dlp")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
     args = parser.parse_args()
 
-    _, rows = verify_plan_inputs()
-    jobs = build_jobs(rows, args.output_root, args.scope)
+    _, rows = verify_plan_inputs(args.input_plan, args.expected_plan_sha256)
+    jobs = filter_jobs(
+        build_jobs(rows, args.output_root, args.scope, args.expected_plan_sha256), args.only_sample_id
+    )
+    results_label = args.results_label or args.scope
     review = build_review(jobs, args.scope)
-    write_jsonl(args.output_root / f"{args.scope}_download_plan_locked.jsonl", jobs)
-    write_json(args.output_root / f"{args.scope}_download_review.json", review)
+    write_jsonl(args.output_root / f"{results_label}_download_plan_locked.jsonl", jobs)
+    write_json(args.output_root / f"{results_label}_download_review.json", review)
 
     if not args.execute:
         print(json.dumps({"status": review["status"], "scope": args.scope, "rows": len(jobs)}, ensure_ascii=False))
         return
     if args.authorization_lock is None:
         raise ValueError("--execute 必须提供 --authorization-lock")
-    authorization = verify_authorization(args.authorization_lock, args.scope)
+    authorization = verify_authorization(
+        args.authorization_lock, args.scope, args.expected_plan_sha256, len(rows)
+    )
     credential_count = int(args.cookies_file is not None) + int(args.cookies_from_browser is not None)
     if authorization["credential_mode"] == "anonymous" and credential_count != 0:
         raise ValueError("anonymous 模式禁止提供 credential source")
@@ -361,7 +408,7 @@ def main() -> None:
         raise ValueError("运行时请求间隔与 authorization lock 不一致")
 
     results: list[dict[str, Any]] = []
-    results_path = args.output_root / f"{args.scope}_download_results.jsonl"
+    results_path = args.output_root / f"{results_label}_download_results.jsonl"
     for job_position, frozen_job in enumerate(jobs):
         if job_position and args.sleep_interval_sec > 0:
             time.sleep(args.sleep_interval_sec)
@@ -397,6 +444,7 @@ def main() -> None:
     summary = {
         "artifact_kind": "m4_ptpa_llp_official_protocol_download_results_v2",
         "scope": args.scope,
+        "results_label": results_label,
         "expected": len(jobs),
         "passed": sum(row.get("status") == "pass" for row in results),
         "failed": sum(row.get("status") != "pass" for row in results),
@@ -407,7 +455,7 @@ def main() -> None:
         "feature_extraction_allowed": False,
         "effect_access_allowed": False,
     }
-    write_json(args.output_root / f"{args.scope}_download_summary.json", summary)
+    write_json(args.output_root / f"{results_label}_download_summary.json", summary)
     print(json.dumps(summary, ensure_ascii=False))
 
 

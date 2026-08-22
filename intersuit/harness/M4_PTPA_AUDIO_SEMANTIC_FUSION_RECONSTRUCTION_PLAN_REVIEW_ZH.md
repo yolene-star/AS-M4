@@ -111,6 +111,23 @@ LongVALE 必须按 annotation 字典顺序提交 predictions，并使用官方 M
    canary20 已完成 `20/20`：复用 2、新下载 18、失败 0，总计 42,586,025 bytes；H.264+A​​AC
    与 SHA 全通过，时长 10.000–10.03434 秒，18 条双声道、2 条单声道。声道保持源属性且不违反
    官方合同。canary20 权限已关闭，pilot150 现仅开放媒体下载；特征/效果仍为 false。
+   pilot150 首轮为 137/150；SSL 与 decoder 两项分别通过同格式重试和 avc1源格式重试恢复，
+   得到 139 个合格媒体。剩余 11 个为永久缺失（Private 6、unavailable 4、age-restricted 1），
+   train/validation合格数 93/46。全部139条为H.264+A​​AC，时长9.130998–10.064秒且在±1秒门禁内。
+   在效果访问前按原 stable-key、同 split、排除完整历史与原pilot生成7 train+4 validation backfill；
+   计划11行、历史/原pilot重叠0、非内容/效果选择。只开放backfill11媒体下载，pilot150权限关闭。
+   backfill11 首轮8/11，3个替补均因上传账号终止而 unavailable；合格总数达到147。按相同规则
+   继续排除原pilot与首轮11行，生成round2 3行（train2/validation1），历史/先前计划重叠0、
+   非内容/效果选择。只开放replacement3媒体下载，所有特征/效果权限仍为false。
+   replacement3 已 `3/3`，可访问媒体总数达到150；但直接拼接后的标签最低频次降为train3/
+   validation1，不满足原4/2门槛。最终覆盖修复以139个固定原媒体为基数，先最大化未满足标签、
+   stable-key打破平局，再填满7+4；11行中复用4、新下载7，预计最低频次恢复4/2，全部缺口清零，
+   历史/原pilot/已知失效backfill重叠0。只开放coverage-repair媒体下载。
+   coverage-repair首轮10/11，唯一Blender候选unavailable；round2排除该候选后复用10并新增1条，
+   达到11/11。最终manifest为原pilot合格139+覆盖修复11，共150个唯一物理媒体，train/validation
+   `100/50`、25类、最低频次`4/2`、历史重叠0。逐文件H.264+A​​AC/44.1kHz/SHA/ffprobe通过，
+   时长9.046009–10.064秒，总字节336,984,348。媒体状态为`qualified_effect_locked`；下载权限
+   已消费并关闭，特征/效果/训练继续false。逐视频YouTube license仍无法验证，是剩余独立Review边界。
    为回答“是否严格执行官方原获取层”，另建 `llp-official-download`：Python 3.8.20、
    youtube-dl 2021.12.17、FFmpeg 8.1.2。两条直接逐字执行官方
    `youtube-dl --ignore-config URL -o <id>_full_video.mp4 -f best`，不使用 cookie/client/PO token，

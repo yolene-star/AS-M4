@@ -33,6 +33,27 @@ def test_real_pilot_builds_official_compatible_canary_and_full_plans(tmp_path):
     assert all(row["official_protocol"]["audio_codec"] == "aac" for row in full)
     assert all(row["media_download_allowed"] is False for row in full)
 
+    selected = module.filter_jobs(full, [full[7]["sample_id"], full[2]["sample_id"]])
+    assert [row["sample_id"] for row in selected] == [full[2]["sample_id"], full[7]["sample_id"]]
+
+    with pytest.raises(ValueError, match="不在当前 scope"):
+        module.filter_jobs(full, ["llp:missing"])
+
+    assert len(module.build_jobs(full[:3], tmp_path, "replacement")) == 3
+
+
+def test_registered_round2_plan_is_accepted_and_unknown_sha_is_rejected():
+    plan = (
+        module.INTERSUIT_ROOT
+        / "datasets/LLP_PILOT_MEDIA_V2/backfill_v2/llp_pilot_backfill_round2_plan_locked.jsonl"
+    )
+    digest = "8eb5eb15511fa9ec8c11381661f9af069abe042de5292078a3b32af64485266d"
+    _, rows = module.verify_plan_inputs(plan, digest)
+    assert len(rows) == 3
+
+    with pytest.raises(ValueError, match="pilot SHA 漂移"):
+        module.verify_plan_inputs(plan, "0" * 64)
+
 
 def test_authorization_requires_rotated_credentials_and_fail_closed_permissions(tmp_path):
     lock = {
