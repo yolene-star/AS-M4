@@ -50,6 +50,7 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["feature_extraction_allowed"] is False
     assert permissions["llp_s1_internal_noncommercial_feature_preparation_allowed"] is True
     assert permissions["llp_s1_single_gpu_feature_extraction_allowed"] is True
+    assert permissions["llp_s1_internal_validation_effect_evaluation_allowed"] is False
     assert permissions["gpu_execution_allowed"] is False
     assert permissions["training_allowed"] is False
     assert permissions["confirm_effect_access_allowed"] is False
@@ -269,6 +270,16 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert feature_preparation["frozen_beats"] is True
     assert feature_preparation["training_performed"] is False
     assert feature_preparation["effect_accessed"] is False
+    effect = downloader["s1_effect_evaluation"]
+    assert effect["status"] == "FAIL"
+    assert effect["independent_audit_status"] == "PASS"
+    assert effect["validation_video_label_queries"] == 99
+    assert effect["selected_representation"] is None
+    assert effect["best_failing_representation"] == "dense_target_window_mean"
+    assert effect["macro_recall_gate_passed_all_representations"] is True
+    assert effect["semantic_margin_gate_passed_any_representation"] is False
+    assert effect["formal_test_accessed"] is False
+    assert effect["training_performed"] is False
     assert downloader["coverage_repair_download_allowed"] is False
     assert downloader["coverage_repair11_result"]["passed"] == 10
     assert downloader["coverage_repair11_result"]["failed"] == 1
@@ -277,7 +288,8 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert coverage2["new_downloads"] == 1
     assert coverage2["new_candidate_label"] == "Blender"
     assert llp["qualification_blockers"] == [
-        "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use"
+        "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use",
+        "s1_frozen_beats_semantic_margin_gate_failed",
     ]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert any("per_item_youtube_license_not_verified" in item for item in llp["qualification_blockers"])

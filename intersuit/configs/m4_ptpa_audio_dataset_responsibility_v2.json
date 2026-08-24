@@ -491,6 +491,28 @@
               "per_item_youtube_license_verified": false,
               "institutional_or_legal_approval_claimed": false
             },
+            "s1_effect_evaluation_authorization": {
+              "recorded_at": "2026-08-24",
+              "consumed_at": "2026-08-25",
+              "status": "consumed_and_closed_after_single_frozen_validation_run",
+              "authority": "user_as_project_operator",
+              "scope": "local_server_internal_noncommercial_llp_validation_only",
+              "allowed_operations": [
+                "build_train_prototypes_from_weak_clip_labels",
+                "read_validation_dense_audio_annotations",
+                "evaluate_frozen_beats_correct_mismatch_same_video_and_acoustic_hard_negatives",
+                "compute_three_seed_physical_video_bootstrap_metrics"
+              ],
+              "not_authorized": [
+                "llp_formal_test_access",
+                "model_or_projector_training",
+                "media_or_derived_asset_redistribution",
+                "commercial_use"
+              ],
+              "training_allowed": false,
+              "formal_test_allowed": false,
+              "redistribution_allowed": false
+            },
             "feature_extraction_allowed": true,
             "effect_access_allowed": false,
             "training_allowed": false,
@@ -530,6 +552,42 @@
             "formal_test_accessed": false,
             "redistribution_allowed": false
           },
+          "s1_effect_evaluation": {
+            "status": "FAIL",
+            "decision": "stop_before_s2_s3_s4_and_any_downstream_training",
+            "contract_path": "intersuit/configs/m4_ptpa_llp_s1_effect_eval_v1.json",
+            "contract_sha256": "251c20dea1ccbea3d81b3cad154c39d1dd5e741d8c17a05f9a4b7b4dc2c621bf",
+            "output_root": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1",
+            "metrics_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1/metrics.json",
+            "metrics_sha256": "2a74e202b790d9c8457b4d2ee45b464c5c2f5f2e20cb7b538083448c32340d39",
+            "per_query_sha256": "e5434204bc1c6f7789030ec1dac6ea481b5e8fc57e92996a3f1db421136346d8",
+            "detailed_report_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1/DETAILED_REPORT_ZH.md",
+            "detailed_report_sha256": "ab370c832493653020f1a801d7bcd103f458ae029affc76c80778f7fe25682ed",
+            "committed_report_path": "intersuit/harness/M4_PTPA_LLP_S1_EFFECT_RESULT_V1_ZH.md",
+            "committed_report_sha256": "65eb1e0ee60a6dab7bdf1b2f75f14c7e667cf9bd20443f9e5d308c0644e2e094",
+            "independent_audit_path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1/independent_audit.json",
+            "independent_audit_sha256": "4c8b228c149207294b21255c1c8f9a7660b0a4522c1559384b5314a693a3c4c2",
+            "independent_audit_status": "PASS",
+            "train_physical_videos": 100,
+            "validation_physical_videos": 50,
+            "validation_video_label_queries": 99,
+            "label_count": 25,
+            "representations_evaluated": 4,
+            "fixed_seeds": [17, 29, 43],
+            "bootstrap_replicates_per_metric_seed": 10000,
+            "selected_representation": null,
+            "best_failing_representation": "dense_target_window_mean",
+            "best_failing_macro_recall_at_1_mean": 0.4226293183940243,
+            "best_failing_macro_recall_at_1_worst_seed": 0.3814453781512605,
+            "best_failing_semantic_margin_mean": -0.005295561956034766,
+            "best_failing_semantic_margin_ci95_lower_worst_seed": -0.013349844115475813,
+            "macro_recall_gate_passed_all_representations": true,
+            "correct_above_mismatch_gate_passed_all_representations": true,
+            "semantic_margin_gate_passed_any_representation": false,
+            "formal_test_accessed": false,
+            "training_performed": false,
+            "redistribution_allowed": false
+          },
           "canary2_download_allowed": false,
           "canary20_download_allowed": false,
           "pilot150_download_allowed": false,
@@ -542,7 +600,8 @@
         "effect_access_allowed": false
       },
       "qualification_blockers": [
-        "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use"
+        "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use",
+        "s1_frozen_beats_semantic_margin_gate_failed"
       ]
     },
     "clotho_aqa": {
@@ -678,11 +737,12 @@
     "feature_extraction_allowed": false,
     "llp_s1_internal_noncommercial_feature_preparation_allowed": true,
     "llp_s1_single_gpu_feature_extraction_allowed": true,
+    "llp_s1_internal_validation_effect_evaluation_allowed": false,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s0_dataset_qualification_and_llp_pilot_plan_review",
+  "next_stage": "s1_failure_analysis_only_no_downstream_training",
   "next_stage_allowed": false
 }

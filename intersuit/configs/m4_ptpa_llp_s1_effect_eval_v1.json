@@ -1,0 +1,125 @@
+{
+  "artifact_kind": "m4_ptpa_llp_s1_effect_evaluation_contract",
+  "format_version": 1,
+  "scope": "internal_noncommercial_llp_train_validation_only",
+  "inputs": {
+    "feature_manifest": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/llp_s1_beats_feature_manifest.jsonl",
+      "sha256": "9a0f2ce1e0bbdaa5ce1201700fb7f1846c2dd93bad4c2da67cb717ebe39fd7d3"
+    },
+    "train_weak_labels": {
+      "path": "intersuit/datasets/LLP/data/AVVP_train.csv",
+      "sha256": "bbeb83e8af46a85075216b213d3464f92dd4ab71468c852ae454b82cc745c0a4"
+    },
+    "validation_weak_labels": {
+      "path": "intersuit/datasets/LLP/data/AVVP_val_pd.csv",
+      "sha256": "1811813b54c5f43c3be0a97bd0971cfb8a93818ca7b3ab96cdc7f4ac37ef37a6"
+    },
+    "validation_dense_audio": {
+      "path": "intersuit/datasets/LLP/data/AVVP_eval_audio.csv",
+      "sha256": "d5435664668bec6e7eafb39059d2f424ed2682f6b55395262fc3cb691b7d0778"
+    },
+    "validation_dense_visual_audit_only": {
+      "path": "intersuit/datasets/LLP/data/AVVP_eval_visual.csv",
+      "sha256": "e2274af694f3f27e38b840e0cd91a9d8d9ac85280f193e90828d26b22db69abe"
+    },
+    "beats_checkpoint_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34"
+  },
+  "expected": {
+    "train_physical_videos": 100,
+    "validation_physical_videos": 50,
+    "labels": 25,
+    "validation_video_label_queries": 99,
+    "windows_per_video": 10,
+    "embedding_dim": 768,
+    "formal_test_rows": 0
+  },
+  "annotation_parsing": {
+    "interval_semantics": "half_open_onset_offset_seconds",
+    "nonpositive_interval_policy": "skip_and_audit_matching_existing_official_parser",
+    "expected_full_file_nonpositive_intervals": 6,
+    "expected_selected_validation_overlap": 0
+  },
+  "prototype_sampling": {
+    "fixed_seeds": [17, 29, 43],
+    "per_label_fraction": 0.75,
+    "minimum_per_label": 3,
+    "method": "stable_sha256_order_without_replacement",
+    "unit": "physical_video",
+    "train_supervision": "weak_clip_label_only_no_dense_window_labels"
+  },
+  "representations": {
+    "clip_mean": {
+      "train_prototype_pooling": "mean_all_10_windows",
+      "validation_query_pooling": "mean_all_10_windows",
+      "target_conditioned": false
+    },
+    "rms_top5": {
+      "train_prototype_pooling": "mean_top5_window_rms",
+      "validation_query_pooling": "mean_top5_window_rms",
+      "target_conditioned": false
+    },
+    "dense_event_union_mean": {
+      "train_prototype_pooling": "mean_all_10_windows_due_to_weak_train_supervision",
+      "validation_query_pooling": "mean_windows_active_for_any_dense_audio_event",
+      "target_conditioned": false,
+      "oracle": true
+    },
+    "dense_target_window_mean": {
+      "train_prototype_pooling": "mean_all_10_windows_due_to_weak_train_supervision",
+      "validation_query_pooling": "mean_windows_active_for_the_query_dense_audio_label",
+      "target_conditioned": true,
+      "oracle": true
+    }
+  },
+  "negatives": {
+    "same_video": "highest_rms_window_not_active_for_query_label",
+    "cross_video_same_class": "different_validation_physical_video_with_same_dense_audio_label",
+    "acoustic_hard_negative": "most_cosine_similar_validation_video_excluding_all_videos_containing_query_label",
+    "mismatch": "seeded_stable_hash_validation_video_excluding_all_videos_containing_query_label"
+  },
+  "metrics": {
+    "primary": [
+      "macro_recall_at_1",
+      "balanced_accuracy",
+      "rank_first",
+      "positive_minus_hardest_wrong_label_margin",
+      "correct_minus_mismatch_target_score"
+    ],
+    "secondary": [
+      "micro_accuracy",
+      "mean_reciprocal_rank",
+      "same_video_positive_minus_high_rms_negative",
+      "correct_minus_acoustic_hard_negative",
+      "cross_video_same_class_cosine"
+    ],
+    "bootstrap": {
+      "unit": "physical_video",
+      "replicates": 10000,
+      "confidence": 0.95,
+      "seed_offset": 100000
+    }
+  },
+  "gates": {
+    "macro_recall_at_1_minus_random_min": 0.2,
+    "balanced_accuracy_minus_random_min": 0.2,
+    "margin_mean_strictly_positive": true,
+    "margin_ci95_lower_strictly_positive": true,
+    "correct_target_score_strictly_above_mismatch": true,
+    "correct_recall_at_1_strictly_above_mismatch": true,
+    "all_three_seeds_same_positive_direction": true,
+    "formal_test_must_remain_unaccessed": true
+  },
+  "candidate_selection": {
+    "eligible_only_if_all_gates_pass": true,
+    "order": "highest_worst_seed_macro_recall_at_1_then_highest_worst_seed_margin_ci_lower_then_fixed_representation_name",
+    "validation_is_development_selection": true,
+    "internal_confirm_accessed": false
+  },
+  "permissions": {
+    "training_allowed": false,
+    "projector_or_fusion_changes_allowed": false,
+    "formal_test_allowed": false,
+    "redistribution_allowed": false
+  }
+}
