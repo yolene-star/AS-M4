@@ -51,6 +51,7 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["llp_s1_internal_noncommercial_feature_preparation_allowed"] is True
     assert permissions["llp_s1_single_gpu_feature_extraction_allowed"] is True
     assert permissions["llp_s1_internal_validation_effect_evaluation_allowed"] is False
+    assert permissions["llp_s1_internal_failure_analysis_allowed"] is False
     assert permissions["gpu_execution_allowed"] is False
     assert permissions["training_allowed"] is False
     assert permissions["confirm_effect_access_allowed"] is False
@@ -280,6 +281,17 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert effect["semantic_margin_gate_passed_any_representation"] is False
     assert effect["formal_test_accessed"] is False
     assert effect["training_performed"] is False
+    failure = downloader["s1_failure_analysis"]
+    assert failure["status"] == "PASS_DIAGNOSTIC_COMPLETE"
+    assert failure["original_s1_status"] == "FAIL_UNCHANGED"
+    assert failure["independent_audit_status"] == "PASS"
+    assert failure["train_multilabel_video_fraction"] == 0.63
+    assert failure["prototype_pair_cosine_mean"] > 0.8
+    assert failure["imbalance_correlations_significant_at_0_05"] == 0
+    assert failure["single_label_counterfactual_macro_recall_delta"] > 0
+    assert failure["single_label_counterfactual_margin_delta"] < 0
+    assert failure["formal_test_accessed"] is False
+    assert failure["training_performed"] is False
     assert downloader["coverage_repair_download_allowed"] is False
     assert downloader["coverage_repair11_result"]["passed"] == 10
     assert downloader["coverage_repair11_result"]["failed"] == 1
@@ -290,6 +302,7 @@ def test_llp_pre_download_review_records_partial_progress_without_unlocking_medi
     assert llp["qualification_blockers"] == [
         "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use",
         "s1_frozen_beats_semantic_margin_gate_failed",
+        "s1_prototype_geometry_entanglement_requires_new_data_representation_contract",
     ]
     assert "avqa_local_physical_id_inventory_missing" not in llp["qualification_blockers"]
     assert any("per_item_youtube_license_not_verified" in item for item in llp["qualification_blockers"])

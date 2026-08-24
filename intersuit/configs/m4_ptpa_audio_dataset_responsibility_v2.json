@@ -588,6 +588,59 @@
             "training_performed": false,
             "redistribution_allowed": false
           },
+          "s1_failure_analysis_authorization": {
+            "recorded_at": "2026-08-25",
+            "consumed_at": "2026-08-25",
+            "status": "consumed_and_closed_after_diagnostic_and_independent_audit",
+            "authority": "user_as_project_operator",
+            "scope": "internal_noncommercial_s1_failure_analysis_only",
+            "allowed_operations": [
+              "analyze_weak_label_prototype_contamination",
+              "analyze_speech_multilabel_prevalence_and_confusions",
+              "analyze_class_imbalance_recall_and_margin_associations",
+              "run_single_label_prototype_counterfactual_as_diagnostic_only"
+            ],
+            "not_authorized": [
+              "change_original_s1_decision_or_thresholds",
+              "promote_counterfactual_to_candidate",
+              "model_or_projector_training",
+              "llp_formal_test_access",
+              "downstream_stage_execution",
+              "redistribution_or_commercial_use"
+            ],
+            "training_allowed": false,
+            "formal_test_allowed": false,
+            "downstream_execution_allowed": false
+          },
+          "s1_failure_analysis": {
+            "status": "PASS_DIAGNOSTIC_COMPLETE",
+            "original_s1_status": "FAIL_UNCHANGED",
+            "contract_path": "intersuit/configs/m4_ptpa_llp_s1_failure_analysis_v1.json",
+            "contract_sha256": "45a78a223c5f4f8da0c6872fbff2fc3b02a3384b83473ad639ac49fc0ccd1d83",
+            "output_root": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_failure_analysis_v1",
+            "analysis_sha256": "c71d88bbe1a0cfde47319df392689a652bfe794d8e0e708c16ec0171d88b01a3",
+            "independent_audit_sha256": "6cf11e43aedae13c73e01af02db56346c5d1e959e8b6faf719d1ab5a3bc0c347",
+            "independent_audit_status": "PASS",
+            "committed_report_path": "intersuit/harness/M4_PTPA_LLP_S1_FAILURE_ANALYSIS_V1_ZH.md",
+            "committed_report_sha256": "760e9f6a44c1efb99a916b2460cbda5a9584582e41a48872cd4d299e6f494037",
+            "train_multilabel_video_fraction": 0.63,
+            "non_speech_prototype_sources_with_speech_fraction": 0.43333333333333335,
+            "prototype_pair_cosine_mean": 0.8364866573943032,
+            "prototype_pair_cosine_p95_mean": 0.9410035014152527,
+            "prototype_pair_cosine_max": 0.9743314981460571,
+            "cooccurring_minus_noncooccurring_cosine_mean": 0.09094125613188131,
+            "speech_train_video_prevalence": 0.45,
+            "speech_validation_query_prevalence": 0.3434343434343434,
+            "speech_target_recall_mean": 0.24509803921568626,
+            "imbalance_correlations_significant_at_0_05": 0,
+            "single_label_counterfactual_eligible_labels": 12,
+            "single_label_counterfactual_query_count": 35,
+            "single_label_counterfactual_macro_recall_delta": 0.03968253968253965,
+            "single_label_counterfactual_margin_delta": -0.0037633106112480164,
+            "formal_test_accessed": false,
+            "training_performed": false,
+            "downstream_execution_performed": false
+          },
           "canary2_download_allowed": false,
           "canary20_download_allowed": false,
           "pilot150_download_allowed": false,
@@ -601,7 +654,8 @@
       },
       "qualification_blockers": [
         "per_item_youtube_license_not_verified_for_redistribution_training_or_broader_use",
-        "s1_frozen_beats_semantic_margin_gate_failed"
+        "s1_frozen_beats_semantic_margin_gate_failed",
+        "s1_prototype_geometry_entanglement_requires_new_data_representation_contract"
       ]
     },
     "clotho_aqa": {
@@ -738,11 +792,12 @@
     "llp_s1_internal_noncommercial_feature_preparation_allowed": true,
     "llp_s1_single_gpu_feature_extraction_allowed": true,
     "llp_s1_internal_validation_effect_evaluation_allowed": false,
+    "llp_s1_internal_failure_analysis_allowed": false,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1_failure_analysis_only_no_downstream_training",
+  "next_stage": "s1_new_representation_contract_required_no_downstream_training",
   "next_stage_allowed": false
 }
