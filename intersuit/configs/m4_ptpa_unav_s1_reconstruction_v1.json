@@ -1,0 +1,147 @@
+{
+  "artifact_kind": "m4_ptpa_unav_s1_reconstruction_contract",
+  "format_version": 1,
+  "status": "blocked_media_canary2_youtube_bot_auth",
+  "scope": "internal_noncommercial_s1_reconstruction_only",
+  "official_source": {
+    "project": "https://unav100.github.io/",
+    "paper": "CVPR 2023",
+    "repository": "https://github.com/ttgeng233/UnAV",
+    "repository_commit": "1609deba4fbaf25222c6ee6c7d43b0d0ddfab20d",
+    "hugging_face": "ttgeng233/UnAV-100",
+    "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
+    "license_claim": "CC-BY-4.0 dataset; original video copyright remains with original owners",
+    "source_csv_google_drive_file_id": "1yHg-QZJ-DlL3K2I52ixtjGX4rJRa9Oc3"
+  },
+  "metadata": {
+    "root": "intersuit/datasets/UNAV_S1_V1/official_metadata",
+    "files": {
+      "train.parquet": {
+        "size": 323290,
+        "sha256": "d8b1302fc12dc22a62ca23b592392cb000d00d2a487a70aa40876dde52742d55"
+      },
+      "validation.parquet": {
+        "size": 116962,
+        "sha256": "551e1781c8a8fd77cb7a1daf0ad9b71346c615864de7bba6fb5dba3565dadc6b"
+      },
+      "test.parquet": {
+        "size": 115568,
+        "sha256": "36a7d528772c1be736c105bfc65955255c822e99b7ceded64ef6e1b9c969df45"
+      },
+      "download_video.csv": {
+        "size": 294050,
+        "sha256": "f1f9b36e607ed0cea04e818cf23027acd1cec4cdd9b7c118c93408e5654be735"
+      }
+    }
+  },
+  "official_counts": {
+    "train": {"videos": 6489, "events": 18123, "labels": 100},
+    "validation": {"videos": 2134, "events": 6036, "labels": 100},
+    "test": {"videos": 2167, "events": 5900, "labels": 100},
+    "total_videos": 10790,
+    "total_events": 30059,
+    "invalid_intervals": 0,
+    "physical_split_overlap": 0
+  },
+  "known_exclusions": {
+    "historical_unav_inventory": {
+      "path": "intersuit/harness/artifacts/dynamic_selector_restart_n0/physical_id_cross_audit.json",
+      "count": 410
+    },
+    "used_unav_validation_media": {
+      "path": "intersuit/harness/artifacts/dynamic_selector_v2_v1/full_validation_media_allowlist.json",
+      "count": 335
+    },
+    "llp_pilot150": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/final_media_v2/llp_pilot150_media_qualified_effect_locked.jsonl",
+      "count": 150
+    },
+    "expected_after_union": {
+      "train": {"excluded": 263, "remaining": 6226, "labels": 100, "min_unique_videos_per_label": 22},
+      "validation": {"excluded": 417, "remaining": 1717, "labels": 100, "min_unique_videos_per_label": 6},
+      "test": {"excluded": 69, "remaining": 2098, "labels": 100, "min_unique_videos_per_label": 12}
+    }
+  },
+  "media_distribution": {
+    "repository_total_bytes": 65776162932,
+    "archive_parts": 13,
+    "part_size_bytes_00_to_11": 5368709120,
+    "part_12_size_bytes": 1351094873,
+    "individual_hub_media_files_available": false,
+    "single_video_route": "official download_video.csv plus source YouTube clip"
+  },
+  "official_downloader": {
+    "script_path": "scripts/video_download.py",
+    "script_sha256": "b21188a2ae237dc85a973facf5ec1e6ead6b753fa25ab800252815f13549700c",
+    "source_download_command": "yt-dlp --ignore-config <youtube_url> -o <video_id>_full_video.mp4 -f b",
+    "trim_command": "ffmpeg -ss <start> -i <full_video> -t <duration> -vcodec libx264 -acodec aac -strict -2 <video_id>.mp4 -y -loglevel -8",
+    "probe_command": "yt-dlp --ignore-config <youtube_url> -f b --simulate --quiet --print id",
+    "compat_probe_command": "yt-dlp --ignore-config <youtube_url> --js-runtimes node:<path> -f bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio --simulate --quiet --print id",
+    "compatibility_reason": "literal official -f b requested format unavailable after current YouTube format changes",
+    "cookies_allowed": false,
+    "client_or_po_token_args_allowed": false
+  },
+  "pilot": {
+    "selection_seed": 20260826,
+    "splits": ["train", "validation"],
+    "videos_per_split": 10,
+    "test_rows_allowed": 0,
+    "selection": "six-stratum duration_x_event-count round-robin; unseen-label greedy; stable SHA256 tie-break",
+    "probe": "anonymous metadata-only yt-dlp simulate",
+    "download": "disabled_until_probe_review_and_explicit_scoped_authorization"
+  },
+  "probe_results": {
+    "literal_official_canary2": {
+      "status": "FAIL",
+      "requested": 2,
+      "available": 0,
+      "failure_class": "requested_format_unavailable",
+      "sha256": "b509a56a3b7555e8816e9227507bf9c468eb9e517adbc24a1996a65df72498fe"
+    },
+    "node_ejs_compat_canary2": {
+      "status": "PASS",
+      "requested": 2,
+      "available": 2,
+      "sha256": "fbffe2ed7624be1412dddadad01b164c4bb94fdc26a603b414d3672fb4c6ebab"
+    },
+    "node_ejs_compat_canary20": {
+      "status": "PASS",
+      "requested": 20,
+      "available": 20,
+      "sha256": "091a10512453c86a7ab4a4cd23c9992acddeb89a6e484b636d216f4efcdf25d5"
+    },
+    "cookies_used": false,
+    "client_or_po_token_args_used": false,
+    "media_files_created": 0
+  },
+  "media_canary2_result": {
+    "status": "FAIL",
+    "requested": 2,
+    "passed": 0,
+    "failed": 2,
+    "failure_class": "youtube_http429_bot_authentication",
+    "result_path": "intersuit/datasets/UNAV_S1_V1/media_canary2_v1/canary2_result.json",
+    "result_sha256": "121696fd4e33ffb491f6408ee88e7f381b327d2d806ec3d03285475b159a910b",
+    "cookies_used": false,
+    "client_or_po_token_args_used": false,
+    "media_files_created": 0,
+    "next_options": [
+      "fresh_cookie_explicitly_scoped_to_unav_canary2",
+      "explicit_authorization_for_65_78gb_official_archive_download"
+    ]
+  },
+  "permissions": {
+    "metadata_audit_allowed": true,
+    "anonymous_train_validation_probe_allowed": true,
+    "train_validation_media_download_allowed": false,
+    "canary2_train_validation_media_download_allowed": false,
+    "canary20_train_validation_media_download_allowed": false,
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "test_media_download_allowed": false,
+    "test_feature_extraction_allowed": false,
+    "test_effect_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false
+  }
+}

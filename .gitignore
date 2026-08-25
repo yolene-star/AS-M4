@@ -24,6 +24,7 @@ intersuit/datasets/AVE_HF_*/
 intersuit/datasets/LLP/
 intersuit/datasets/LLP_PILOT_MEDIA_V2/
 intersuit/datasets/LLP_OFFICIAL_LITERAL_CANARY/
+intersuit/datasets/UNAV_S1_V1/
 intersuit/datasets/AVQA_HF_ANNOTATIONS/
 intersuit/external/AVUT/
 intersuit/datasets/NEW_AV_TRAIN/

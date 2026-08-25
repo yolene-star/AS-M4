@@ -658,6 +658,72 @@
         "s1_prototype_geometry_entanglement_requires_new_data_representation_contract"
       ]
     },
+    "unav100_s1_reconstruction": {
+      "primary_stage": "s1_reconstruction_candidate",
+      "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
+      "status": "blocked_media_canary2_youtube_bot_auth",
+      "official_source": "https://unav100.github.io/",
+      "paper": "CVPR 2023",
+      "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
+      "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
+      "dataset_contract_sha256": "ecd95d4694e3f6396148a44cf97f19fd6a1be58da4860a8e05fd2169bb9816e0",
+      "review_path": "intersuit/harness/M4_PTPA_UNAV_S1_RECONSTRUCTION_MEDIA_REVIEW_ZH.md",
+      "review_sha256": "e333dec92af59ce10666e3e3fea227b4281174e7868ecad43f6657d288f9ca75",
+      "official_counts": {
+        "train": {"videos": 6489, "events": 18123, "labels": 100},
+        "validation": {"videos": 2134, "events": 6036, "labels": 100},
+        "test": {"videos": 2167, "events": 5900, "labels": 100}
+      },
+      "eligible_after_known_history": {
+        "train": {"videos": 6226, "labels": 100, "min_unique_videos_per_label": 22},
+        "validation": {"videos": 1717, "labels": 100, "min_unique_videos_per_label": 6},
+        "test": {"videos": 2098, "labels": 100, "min_unique_videos_per_label": 12}
+      },
+      "metadata_qualification": {
+        "status": "PASS",
+        "physical_split_overlap": 0,
+        "invalid_intervals": 0,
+        "ledger_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_physical_ledger.jsonl",
+        "ledger_sha256": "536e34318f56ae21502acc6ce5ff3496cf8250339a718dcfa2f75205e0fa1cc4",
+        "canary20_plan_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_media_canary20_plan_locked.jsonl",
+        "canary20_plan_sha256": "96a25a25d8c9b578544ada7ce889ae89820c225e4eb6d5a70a25e278bc633d49",
+        "canary20_train": 10,
+        "canary20_validation": 10,
+        "canary20_test": 0,
+        "canary20_unique_labels": 38
+      },
+      "media_probe": {
+        "literal_official_canary2": "FAIL_REQUESTED_FORMAT_UNAVAILABLE",
+        "node_ejs_compat_canary2": "PASS_2_OF_2",
+        "node_ejs_compat_canary20": "PASS_20_OF_20",
+        "cookies_used": false,
+        "client_or_po_token_args_used": false,
+        "media_files_created": 0
+      },
+      "media_canary2": {
+        "status": "FAIL",
+        "requested": 2,
+        "passed": 0,
+        "failure_class": "youtube_http429_bot_authentication",
+        "result_sha256": "121696fd4e33ffb491f6408ee88e7f381b327d2d806ec3d03285475b159a910b",
+        "cookies_used": false,
+        "media_files_created": 0
+      },
+      "permissions": {
+        "metadata_audit_allowed": true,
+        "media_probe_allowed": false,
+        "train_validation_media_download_allowed": false,
+        "feature_extraction_allowed": false,
+        "effect_access_allowed": false,
+        "test_media_download_allowed": false,
+        "test_effect_access_allowed": false,
+        "training_allowed": false
+      },
+      "qualification_blockers": [
+        "fresh_cookie_scoped_to_unav_canary2_or_full_archive_authorization_required",
+        "raw_video_copyright_and_media_availability_require_per_file_audit"
+      ]
+    },
     "clotho_aqa": {
       "primary_stage": "s2",
       "responsibility": "question_conditioned_audio_answer_semantics",
@@ -793,11 +859,14 @@
     "llp_s1_single_gpu_feature_extraction_allowed": true,
     "llp_s1_internal_validation_effect_evaluation_allowed": false,
     "llp_s1_internal_failure_analysis_allowed": false,
+    "unav_s1_metadata_audit_allowed": true,
+    "unav_s1_media_probe_allowed": false,
+    "unav_s1_train_validation_media_download_allowed": false,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1_new_representation_contract_required_no_downstream_training",
+  "next_stage": "s1_unav_media_access_blocked_user_choice_required",
   "next_stage_allowed": false
 }

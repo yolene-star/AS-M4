@@ -32,6 +32,7 @@ def test_dataset_roles_follow_frozen_stage_order():
 
     assert lock["status"] == "plan_locked_dataset_qualification_required"
     assert lock["datasets"]["llp"]["primary_stage"] == "s1"
+    assert lock["datasets"]["unav100_s1_reconstruction"]["primary_stage"] == "s1_reconstruction_candidate"
     assert lock["datasets"]["clotho_aqa"]["primary_stage"] == "s2"
     assert lock["datasets"]["avcaps"]["primary_stage"] == "s3a"
     assert lock["datasets"]["longvale"]["primary_stages"] == ["s3b", "s6"]
@@ -52,6 +53,9 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["llp_s1_single_gpu_feature_extraction_allowed"] is True
     assert permissions["llp_s1_internal_validation_effect_evaluation_allowed"] is False
     assert permissions["llp_s1_internal_failure_analysis_allowed"] is False
+    assert permissions["unav_s1_metadata_audit_allowed"] is True
+    assert permissions["unav_s1_media_probe_allowed"] is False
+    assert permissions["unav_s1_train_validation_media_download_allowed"] is False
     assert permissions["gpu_execution_allowed"] is False
     assert permissions["training_allowed"] is False
     assert permissions["confirm_effect_access_allowed"] is False
@@ -326,3 +330,26 @@ def test_longvale_exception_is_exactly_one_locked_archive():
     assert qualification["confirm_effect_access_allowed"] is False
     assert longvale["qualification_blockers"] == []
     assert lock["next_stage_allowed"] is False
+
+
+def test_unav_s1_reconstruction_is_metadata_qualified_and_media_blocked():
+    lock = load_lock()
+    unav = lock["datasets"]["unav100_s1_reconstruction"]
+
+    assert unav["status"] == "blocked_media_canary2_youtube_bot_auth"
+    assert unav["hugging_face_revision"] == "daeb88bc14eeff48f8a4ac2836b67f6c350f847b"
+    assert unav["metadata_qualification"]["status"] == "PASS"
+    assert unav["metadata_qualification"]["physical_split_overlap"] == 0
+    assert unav["metadata_qualification"]["invalid_intervals"] == 0
+    assert unav["eligible_after_known_history"]["train"]["videos"] == 6226
+    assert unav["eligible_after_known_history"]["validation"]["videos"] == 1717
+    assert unav["eligible_after_known_history"]["test"]["videos"] == 2098
+    assert unav["media_probe"]["node_ejs_compat_canary20"] == "PASS_20_OF_20"
+    assert unav["media_canary2"]["status"] == "FAIL"
+    assert unav["media_canary2"]["failure_class"] == "youtube_http429_bot_authentication"
+    assert unav["media_canary2"]["cookies_used"] is False
+    assert unav["media_canary2"]["media_files_created"] == 0
+    assert unav["permissions"]["train_validation_media_download_allowed"] is False
+    assert unav["permissions"]["test_effect_access_allowed"] is False
+    assert unav["permissions"]["training_allowed"] is False
+    assert lock["next_stage"] == "s1_unav_media_access_blocked_user_choice_required"
