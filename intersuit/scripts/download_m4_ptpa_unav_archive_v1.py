@@ -9,9 +9,10 @@ import json
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -184,6 +185,70 @@ def download_part_with_retries(
     raise AssertionError("不可达的分卷重试状态")
 
 
+def download_parts(
+    files: list[dict[str, Any]], revision: str, output: Path, curl: Path,
+    retries: int, part_attempts: int, retry_delay: int, workers: int,
+    progress_callback: Callable[[list[dict[str, Any]]], None] | None = None,
+) -> list[dict[str, Any]]:
+    if workers < 1:
+        raise ValueError("--workers必须大于等于1")
+
+    def invoke(item: dict[str, Any]) -> dict[str, Any]:
+        return download_part_with_retries(
+            item, revision, output, curl, retries, part_attempts, retry_delay,
+        )
+
+    completed: dict[str, dict[str, Any]] = {}
+
+    def record(result: dict[str, Any]) -> None:
+        completed[result["name"]] = result
+        ordered = [completed[item["name"]] for item in files if item["name"] in completed]
+        if progress_callback is not None:
+            progress_callback(ordered)
+        print(json.dumps(result, ensure_ascii=False), flush=True)
+
+    if workers == 1:
+        for item in files:
+            result = invoke(item)
+            record(result)
+            if result["status"] not in {"downloaded_verified", "reused_verified"}:
+                break
+    else:
+        with ThreadPoolExecutor(max_workers=min(workers, len(files))) as executor:
+            futures = {executor.submit(invoke, item): item["name"] for item in files}
+            for future in as_completed(futures):
+                record(future.result())
+    return [completed[item["name"]] for item in files if item["name"] in completed]
+
+
+def status_payload(
+    revision: str, requested_parts: int, results: list[dict[str, Any]], status: str,
+) -> dict[str, Any]:
+    return {
+        "artifact_kind": "m4_ptpa_unav_official_archive_download_status",
+        "format_version": 1,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "revision": revision,
+        "requested_parts": requested_parts,
+        "completed_verified": sum(
+            row["status"] in {"downloaded_verified", "reused_verified"}
+            for row in results
+        ),
+        "failed": sum(
+            row["status"] not in {"downloaded_verified", "reused_verified"}
+            for row in results
+        ),
+        "in_progress": requested_parts - len(results),
+        "archive_extraction_allowed": False,
+        "feature_extraction_allowed": False,
+        "effect_access_allowed": False,
+        "test_effect_access_allowed": False,
+        "training_allowed": False,
+        "status": status,
+        "results": results,
+    }
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     if os.environ.get("CONDA_DEFAULT_ENV") != "M4":
         raise RuntimeError("必须通过 conda run -n M4 启动")
@@ -196,42 +261,22 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if not 0 <= args.only_index < len(files):
             raise ValueError("--only-index越界")
         files = [files[args.only_index]]
-    results = []
-    for item in files:
-        result = download_part_with_retries(
-            item, revision, args.output, args.curl, args.retries,
-            args.part_attempts, args.part_retry_delay,
-        )
-        results.append(result)
-        payload = {
-            "artifact_kind": "m4_ptpa_unav_official_archive_download_status",
-            "format_version": 1,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "revision": revision,
-            "requested_parts": len(files),
-            "completed_verified": sum(
-                row["status"] in {"downloaded_verified", "reused_verified"}
-                for row in results
-            ),
-            "failed": sum(
-                row["status"] not in {"downloaded_verified", "reused_verified"}
-                for row in results
-            ),
-            "archive_extraction_allowed": False,
-            "feature_extraction_allowed": False,
-            "effect_access_allowed": False,
-            "test_effect_access_allowed": False,
-            "training_allowed": False,
-            "results": results,
-        }
-        write_json(args.status, payload)
-        print(json.dumps(result, ensure_ascii=False), flush=True)
-        if result["status"] not in {"downloaded_verified", "reused_verified"}:
-            break
-    final = json.loads(args.status.read_text(encoding="utf-8"))
-    final["status"] = (
-        "PASS" if final["completed_verified"] == final["requested_parts"] else "FAIL"
+    requested_parts = len(files)
+
+    def update_status(results: list[dict[str, Any]]) -> None:
+        write_json(args.status, status_payload(revision, requested_parts, results, "RUNNING"))
+
+    results = download_parts(
+        files, revision, args.output, args.curl, args.retries,
+        args.part_attempts, args.part_retry_delay, args.workers, update_status,
     )
+    final_status = "PASS" if (
+        len(results) == requested_parts and all(
+            row["status"] in {"downloaded_verified", "reused_verified"}
+            for row in results
+        )
+    ) else "FAIL"
+    final = status_payload(revision, requested_parts, results, final_status)
     write_json(args.status, final)
     return final
 
@@ -245,6 +290,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--retries", type=int, default=12)
     parser.add_argument("--part-attempts", type=int, default=24)
     parser.add_argument("--part-retry-delay", type=int, default=30)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--only-index", type=int)
     return parser.parse_args()
 

@@ -79,3 +79,30 @@ def test_download_part_with_retries_resumes_after_connection_close(monkeypatch, 
     assert result["status"] == "downloaded_verified"
     assert result["part_attempt"] == 2
     assert sleeps == [7]
+
+
+def test_download_parts_parallel_preserves_contract_order(monkeypatch, tmp_path):
+    files = [{"name": f"part_{index:02d}"} for index in range(4)]
+    snapshots = []
+
+    def fake_download(item, *args, **kwargs):
+        return {"name": item["name"], "status": "downloaded_verified"}
+
+    monkeypatch.setattr(module, "download_part_with_retries", fake_download)
+    results = module.download_parts(
+        files, "revision", tmp_path, Path("/bin/true"),
+        retries=2, part_attempts=3, retry_delay=0, workers=3,
+        progress_callback=lambda rows: snapshots.append([row["name"] for row in rows]),
+    )
+
+    assert [row["name"] for row in results] == [row["name"] for row in files]
+    assert snapshots[-1] == [row["name"] for row in files]
+
+
+def test_download_parts_rejects_zero_workers(tmp_path):
+    try:
+        module.download_parts([], "revision", tmp_path, Path("/bin/true"), 1, 1, 0, 0)
+    except ValueError as error:
+        assert "--workers" in str(error)
+    else:
+        raise AssertionError("workers=0必须被拒绝")
