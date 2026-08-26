@@ -109,7 +109,7 @@ def download_part(
     )
     command = [
         str(curl), "--fail", "--location", "--retry", str(retries),
-        "--retry-delay", "5", "--retry-all-errors", "--continue-at", "-",
+        "--retry-delay", "5", "--retry-connrefused", "--continue-at", "-",
         "--progress-bar", "--output", str(partial), archive_url(revision, name),
     ]
     proc = subprocess.run(command, check=False)

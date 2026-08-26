@@ -53,6 +53,8 @@ def test_download_part_uses_resume_and_atomic_verified_commit(monkeypatch, tmp_p
     assert not (tmp_path / "part_00.partial").exists()
     assert "--continue-at" in calls[0]
     assert calls[0][calls[0].index("--continue-at") + 1] == "-"
+    assert "--retry-connrefused" in calls[0]
+    assert "--retry-all-errors" not in calls[0]
 
     reused = module.download_part(item, "revision", tmp_path, Path("/bin/true"), 2)
     assert reused["status"] == "reused_verified"
