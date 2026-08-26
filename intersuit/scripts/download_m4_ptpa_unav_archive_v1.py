@@ -153,6 +153,37 @@ def download_part(
     }
 
 
+def download_part_with_retries(
+    item: dict[str, Any], revision: str, output: Path, curl: Path,
+    retries: int = 12, part_attempts: int = 24, retry_delay: int = 30,
+) -> dict[str, Any]:
+    if part_attempts < 1:
+        raise ValueError("--part-attempts必须大于等于1")
+    for attempt in range(1, part_attempts + 1):
+        result = download_part(item, revision, output, curl, retries)
+        result["part_attempt"] = attempt
+        if result["status"] in {"downloaded_verified", "reused_verified"}:
+            return result
+        if result["status"] != "download_failed" or attempt == part_attempts:
+            return result
+        print(
+            json.dumps(
+                {
+                    "event": "part_retry",
+                    "name": item["name"],
+                    "attempt": attempt,
+                    "next_attempt": attempt + 1,
+                    "partial_bytes": result.get("partial_bytes", 0),
+                    "retry_delay_seconds": retry_delay,
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        time.sleep(retry_delay)
+    raise AssertionError("不可达的分卷重试状态")
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     if os.environ.get("CONDA_DEFAULT_ENV") != "M4":
         raise RuntimeError("必须通过 conda run -n M4 启动")
@@ -167,7 +198,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         files = [files[args.only_index]]
     results = []
     for item in files:
-        result = download_part(item, revision, args.output, args.curl, args.retries)
+        result = download_part_with_retries(
+            item, revision, args.output, args.curl, args.retries,
+            args.part_attempts, args.part_retry_delay,
+        )
         results.append(result)
         payload = {
             "artifact_kind": "m4_ptpa_unav_official_archive_download_status",
@@ -209,6 +243,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--status", type=Path, default=DEFAULT_STATUS)
     parser.add_argument("--curl", type=Path, default=DEFAULT_CURL)
     parser.add_argument("--retries", type=int, default=12)
+    parser.add_argument("--part-attempts", type=int, default=24)
+    parser.add_argument("--part-retry-delay", type=int, default=30)
     parser.add_argument("--only-index", type=int)
     return parser.parse_args()
 

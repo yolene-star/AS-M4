@@ -59,3 +59,23 @@ def test_download_part_uses_resume_and_atomic_verified_commit(monkeypatch, tmp_p
     reused = module.download_part(item, "revision", tmp_path, Path("/bin/true"), 2)
     assert reused["status"] == "reused_verified"
     assert len(calls) == 1
+
+
+def test_download_part_with_retries_resumes_after_connection_close(monkeypatch, tmp_path):
+    outcomes = [
+        {"name": "part_01", "status": "download_failed", "partial_bytes": 123},
+        {"name": "part_01", "status": "downloaded_verified", "size": 456},
+    ]
+    sleeps = []
+
+    monkeypatch.setattr(module, "download_part", lambda *args, **kwargs: outcomes.pop(0))
+    monkeypatch.setattr(module.time, "sleep", sleeps.append)
+
+    result = module.download_part_with_retries(
+        {"name": "part_01"}, "revision", tmp_path, Path("/bin/true"),
+        retries=2, part_attempts=3, retry_delay=7,
+    )
+
+    assert result["status"] == "downloaded_verified"
+    assert result["part_attempt"] == 2
+    assert sleeps == [7]
