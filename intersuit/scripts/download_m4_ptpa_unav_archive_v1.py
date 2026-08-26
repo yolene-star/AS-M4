@@ -165,13 +165,18 @@ def download_part_with_retries(
         result["part_attempt"] = attempt
         if result["status"] in {"downloaded_verified", "reused_verified"}:
             return result
-        if result["status"] != "download_failed" or attempt == part_attempts:
+        retryable = result["status"] == "download_failed" or (
+            result["status"] == "size_mismatch"
+            and result.get("observed_size", 0) < result.get("expected_size", 0)
+        )
+        if not retryable or attempt == part_attempts:
             return result
         print(
             json.dumps(
                 {
                     "event": "part_retry",
                     "name": item["name"],
+                    "previous_status": result["status"],
                     "attempt": attempt,
                     "next_attempt": attempt + 1,
                     "partial_bytes": result.get("partial_bytes", 0),

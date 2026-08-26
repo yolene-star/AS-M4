@@ -63,7 +63,12 @@ def test_download_part_uses_resume_and_atomic_verified_commit(monkeypatch, tmp_p
 
 def test_download_part_with_retries_resumes_after_connection_close(monkeypatch, tmp_path):
     outcomes = [
-        {"name": "part_01", "status": "download_failed", "partial_bytes": 123},
+        {
+            "name": "part_01",
+            "status": "size_mismatch",
+            "observed_size": 123,
+            "expected_size": 456,
+        },
         {"name": "part_01", "status": "downloaded_verified", "size": 456},
     ]
     sleeps = []
