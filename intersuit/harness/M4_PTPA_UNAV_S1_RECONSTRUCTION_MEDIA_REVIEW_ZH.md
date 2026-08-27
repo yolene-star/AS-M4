@@ -3,10 +3,10 @@
 ## 结论
 
 UnAV-100 metadata、官方13卷归档完整性和无解压成员审计均为 `PASS`，当前状态为
-`canary20_selective_extraction_authorized_effect_locked`。早期YouTube媒体canary2的 `FAIL`
+`canary20_media_qualified_effect_locked`。早期YouTube媒体canary2的 `FAIL`
 保留为历史获取证据，不再阻塞官方归档路线。原LLP S1 FAIL不变；UnAV路线尚未解压媒体，
 也未进入特征、效果或训练。用户已在收到精确范围提示后以“继续”授权：仅从已验证归档
-选择性解压冻结canary20的10条train和10条validation，test为0；只做媒体资格审计。
+选择性解压冻结canary20的10条train和10条validation，test为0；该授权已消费并关闭。
 
 UnAV-100 是当前唯一满足“train/validation/test 都有公开事件类别与准确 onset/offset”的
 顶会主候选。官方 train/validation/test 三个 split 共10,790个唯一视频、30,059个事件、
@@ -76,6 +76,25 @@ Hugging Face 官方仓库共约65.78GB；媒体为13个分卷：前12卷各5GiB�
 
 该PASS只关闭下载和归档结构blocker，不等于逐媒体解码、音轨、时长、许可、特征或效果资格。
 
+## Canary20选择性解压与媒体资格
+
+严格按冻结20行计划从分卷tar流式选择性写出媒体，未做一般归档解压：
+
+- requested/passed/failed：20/20/0；
+- split：train 10、validation 10、test 0；
+- 总字节：`112,551,427`；
+- 容器：MP4 20；视频H.264 20；音频AAC 20、44.1kHz 20；
+- 音频声道：mono 5、stereo 15；
+- metadata与媒体最大时长绝对偏差：0.529秒，小于冻结1秒门禁；
+- 完整音视频解码：20/20；16kHz单声道音频解码：20/20；
+- 额外媒体文件、媒体SHA mismatch、test媒体访问：均为0；
+- 特征、效果、训练：均未执行。
+
+结果SHA：summary `d9a495119f8cc8a25d2d95179d491b624dcfc6c227915c4605c5c9d8e5b3de42`，
+results `03943a3d402e761915641dab0ab63e9c5bc025559196f072468591b703b7e883`，
+independent audit `ab6206c3d466ac7abc4a410b85281fd76a9cff730bbed44a535f7717f322506f`。
+独立审计状态为 `PASS_INDEPENDENT_CANARY20_MEDIA_AUDIT`。
+
 ## Canary计划
 
 冻结计划共20条：train/validation各10，test 0；覆盖38类，单事件/多事件各10，短/中/长
@@ -114,7 +133,7 @@ duration分层为8/8/4。计划 SHA256：
 - train/validation媒体下载：关闭；
 - 完整归档下载：已消费并关闭；
 - 归档成员清点：已完成并关闭；
-- 选择性train/validation解压：仅冻结canary20范围内临时开启；
+- 选择性train/validation解压：canary20已消费并关闭；
 - test解压/解码：关闭；
 - canary20下载：关闭；
 - test媒体/特征/效果：关闭；
@@ -130,5 +149,5 @@ duration分层为8/8/4。计划 SHA256：
 canary20只允许10条train和10条validation，test为0；验收范围仅包括容器、音轨、时长、
 事件边界和解码。canary通过后还需独立Review，才能申请全量合格train/validation选择性解压。
 
-当前可执行canary20选择性解压与媒体审计；完成或失败后该权限立即关闭。特征、效果、test和
-训练继续保持关闭。
+canary20媒体资格已通过，但下一步必须先完成S1-R权威计划修订和独立Review；不得由canary
+直接扩大到全量train/validation解压。特征、效果、test和训练继续保持关闭。

@@ -661,14 +661,14 @@
     "unav100_s1_reconstruction": {
       "primary_stage": "s1_reconstruction_candidate",
       "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
-      "status": "canary20_selective_extraction_authorized_effect_locked",
+      "status": "canary20_media_qualified_effect_locked",
       "official_source": "https://unav100.github.io/",
       "paper": "CVPR 2023",
       "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
       "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
-      "dataset_contract_sha256": "1a65e0ecac356876010595b418e18e621d76f21f6789c0134dae44c4db72b8a7",
+      "dataset_contract_sha256": "c61f5296738408bcf933099e07a0eaf91db6ad5917b224fa9dfbea22b59244d4",
       "review_path": "intersuit/harness/M4_PTPA_UNAV_S1_RECONSTRUCTION_MEDIA_REVIEW_ZH.md",
-      "review_sha256": "4fb8e87dab47f169e64b45beced209c21814ac54b84abc116163cc078c7bc305",
+      "review_sha256": "a9c6a0e29575190af679c1a0bbff18858b2ce923d0586b32bd9e7d8024a48efd",
       "official_counts": {
         "train": {"videos": 6489, "events": 18123, "labels": 100},
         "validation": {"videos": 2134, "events": 6036, "labels": 100},
@@ -736,7 +736,7 @@
         "test_media_accessed": false
       },
       "canary20_selective_extraction": {
-        "status": "authorized_not_started",
+        "status": "PASS_CANARY20_MEDIA_QUALIFIED_EFFECT_LOCKED",
         "authorization_recorded_at": "2026-08-27",
         "authorization_source": "user_continue_after_exact_scoped_prompt",
         "scope": "internal_noncommercial_media_qualification_only",
@@ -750,7 +750,27 @@
         "feature_extraction_allowed": false,
         "effect_access_allowed": false,
         "test_media_access_allowed": false,
-        "training_allowed": false
+        "training_allowed": false,
+        "result": {
+          "summary_path": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1/summary.json",
+          "summary_sha256": "d9a495119f8cc8a25d2d95179d491b624dcfc6c227915c4605c5c9d8e5b3de42",
+          "results_path": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1/canary20_media_results.jsonl",
+          "results_sha256": "03943a3d402e761915641dab0ab63e9c5bc025559196f072468591b703b7e883",
+          "independent_audit_path": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1/independent_audit.json",
+          "independent_audit_sha256": "ab6206c3d466ac7abc4a410b85281fd76a9cff730bbed44a535f7717f322506f",
+          "independent_audit_status": "PASS_INDEPENDENT_CANARY20_MEDIA_AUDIT",
+          "passed": 20,
+          "failed": 0,
+          "total_media_bytes": 112551427,
+          "duration_max_abs_delta_sec": 0.529,
+          "full_media_decode_passed": 20,
+          "audio_decode_16khz_mono_passed": 20,
+          "test_media_accessed": false,
+          "feature_extraction_performed": false,
+          "effect_accessed": false,
+          "training_performed": false,
+          "authorization_consumed": true
+        }
       },
       "permissions": {
         "metadata_audit_allowed": true,
@@ -759,7 +779,7 @@
         "full_archive_download_allowed_by_explicit_user_authorization": false,
         "archive_member_inventory_allowed": false,
         "archive_extraction_allowed": false,
-        "selective_train_validation_extraction_allowed": true,
+        "selective_train_validation_extraction_allowed": false,
         "feature_extraction_allowed": false,
         "effect_access_allowed": false,
         "test_media_download_allowed": false,
@@ -768,7 +788,7 @@
       },
       "qualification_blockers": [
         "s1_reconstruction_plan_review_required",
-        "selective_train_validation_canary20_media_qualification_pending",
+        "full_train_validation_media_qualification_authorization_required_after_plan_review",
         "raw_video_copyright_and_media_availability_require_per_file_audit"
       ]
     },
@@ -913,12 +933,12 @@
     "unav_s1_full_archive_download_allowed_by_explicit_user_authorization": false,
     "unav_s1_archive_member_inventory_allowed": false,
     "unav_s1_archive_extraction_allowed": false,
-    "unav_s1_selective_train_validation_extraction_allowed": true,
+    "unav_s1_selective_train_validation_extraction_allowed": false,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1_unav_canary20_selective_extraction_authorized_effect_locked",
+  "next_stage": "s1_unav_reconstruction_plan_review_required",
   "next_stage_allowed": false
 }

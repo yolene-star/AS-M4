@@ -59,7 +59,7 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["unav_s1_full_archive_download_allowed_by_explicit_user_authorization"] is False
     assert permissions["unav_s1_archive_member_inventory_allowed"] is False
     assert permissions["unav_s1_archive_extraction_allowed"] is False
-    assert permissions["unav_s1_selective_train_validation_extraction_allowed"] is True
+    assert permissions["unav_s1_selective_train_validation_extraction_allowed"] is False
     assert permissions["gpu_execution_allowed"] is False
     assert permissions["training_allowed"] is False
     assert permissions["confirm_effect_access_allowed"] is False
@@ -336,11 +336,11 @@ def test_longvale_exception_is_exactly_one_locked_archive():
     assert lock["next_stage_allowed"] is False
 
 
-def test_unav_s1_reconstruction_canary20_selective_extraction_is_scoped():
+def test_unav_s1_reconstruction_canary20_media_is_qualified_and_effect_locked():
     lock = load_lock()
     unav = lock["datasets"]["unav100_s1_reconstruction"]
 
-    assert unav["status"] == "canary20_selective_extraction_authorized_effect_locked"
+    assert unav["status"] == "canary20_media_qualified_effect_locked"
     assert unav["hugging_face_revision"] == "daeb88bc14eeff48f8a4ac2836b67f6c350f847b"
     assert unav["metadata_qualification"]["status"] == "PASS"
     assert unav["metadata_qualification"]["physical_split_overlap"] == 0
@@ -368,12 +368,19 @@ def test_unav_s1_reconstruction_canary20_selective_extraction_is_scoped():
     assert unav["permissions"]["archive_member_inventory_allowed"] is False
     assert unav["permissions"]["archive_extraction_allowed"] is False
     canary = unav["canary20_selective_extraction"]
-    assert canary["status"] == "authorized_not_started"
+    assert canary["status"] == "PASS_CANARY20_MEDIA_QUALIFIED_EFFECT_LOCKED"
     assert canary["requested"] == 20
     assert canary["train"] == 10 and canary["validation"] == 10 and canary["test"] == 0
     assert canary["feature_extraction_allowed"] is False
     assert canary["effect_access_allowed"] is False
-    assert unav["permissions"]["selective_train_validation_extraction_allowed"] is True
+    result = canary["result"]
+    assert result["passed"] == 20 and result["failed"] == 0
+    assert result["independent_audit_status"] == "PASS_INDEPENDENT_CANARY20_MEDIA_AUDIT"
+    assert result["test_media_accessed"] is False
+    assert result["feature_extraction_performed"] is False
+    assert result["effect_accessed"] is False
+    assert result["training_performed"] is False
+    assert unav["permissions"]["selective_train_validation_extraction_allowed"] is False
     assert unav["permissions"]["test_effect_access_allowed"] is False
     assert unav["permissions"]["training_allowed"] is False
-    assert lock["next_stage"] == "s1_unav_canary20_selective_extraction_authorized_effect_locked"
+    assert lock["next_stage"] == "s1_unav_reconstruction_plan_review_required"
