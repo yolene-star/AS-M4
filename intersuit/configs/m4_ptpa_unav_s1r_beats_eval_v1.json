@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_RAW_BEATS_TRAIN_VALIDATION_EVALUATION_TRAINING_LOCKED",
+  "authorization_basis": "用户要求继续UnAV的BEATs单模块测试",
+  "feature_summary": "intersuit/harness/artifacts/unav_s1r_beats_features_v1/summary.json",
+  "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+  "evaluation": {
+    "prototype_source": "train_only_physical_video_equal_weight",
+    "query_source": "validation_only_physical_video_label_pairs",
+    "event_window_weight": "official_onset_offset_overlap_seconds",
+    "overlap_multilabel_safe": true,
+    "mismatch_seeds": [17, 23, 47],
+    "bootstrap_replicates": 2000,
+    "thresholds": {
+      "macro_recall_at_1_min": 0.21,
+      "balanced_accuracy_min": 0.21,
+      "mean_margin_strictly_positive": true,
+      "margin_ci_lower_strictly_positive": true,
+      "correct_minus_mismatch_strictly_positive_all_seeds": true
+    }
+  },
+  "permissions": {
+    "train_validation_effect_access_allowed": true,
+    "test_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false
+  }
+}
