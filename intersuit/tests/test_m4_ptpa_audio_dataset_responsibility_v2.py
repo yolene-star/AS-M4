@@ -61,7 +61,7 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["unav_s1_archive_member_inventory_allowed"] is False
     assert permissions["unav_s1_archive_extraction_allowed"] is False
     assert permissions["unav_s1_selective_train_validation_extraction_allowed"] is False
-    assert permissions["unav_s1r_full_train_validation_media_extraction_allowed"] is True
+    assert permissions["unav_s1r_full_train_validation_media_extraction_allowed"] is False
     assert permissions["unav_s1r_feature_extraction_allowed"] is False
     assert permissions["unav_s1r_validation_effect_access_allowed"] is False
     assert permissions["gpu_execution_allowed"] is False
@@ -344,7 +344,7 @@ def test_unav_s1_reconstruction_canary20_media_is_qualified_and_effect_locked():
     lock = load_lock()
     unav = lock["datasets"]["unav100_s1_reconstruction"]
 
-    assert unav["status"] == "s1r_full_train_validation_media_qualification_authorized_effect_locked"
+    assert unav["status"] == "s1r_full_media_qualified_subset_7941_effect_locked"
     assert unav["hugging_face_revision"] == "daeb88bc14eeff48f8a4ac2836b67f6c350f847b"
     assert unav["metadata_qualification"]["status"] == "PASS"
     assert unav["metadata_qualification"]["physical_split_overlap"] == 0
@@ -391,13 +391,13 @@ def test_unav_s1_reconstruction_canary20_media_is_qualified_and_effect_locked():
     assert s1r["unav_train_role"] == "development_only"
     assert s1r["unav_validation_role"] == "single_internal_confirm_after_freeze"
     assert s1r["unav_test_role"] == "sealed_formal_confirm"
-    assert s1r["full_train_validation_media_extraction_allowed"] is True
+    assert s1r["full_train_validation_media_extraction_allowed"] is False
     assert s1r["feature_extraction_allowed"] is False
     assert s1r["validation_effect_access_allowed"] is False
     assert s1r["test_effect_access_allowed"] is False
     assert s1r["training_allowed"] is False
     full_media = unav["full_train_validation_media_qualification"]
-    assert full_media["status"] == "authorized_not_started"
+    assert full_media["status"] == "PASS_QUALIFIED_SUBSET_WITH_2_REJECTED_EFFECT_LOCKED"
     assert full_media["requested"] == 7943
     assert full_media["train"] == 6226
     assert full_media["validation"] == 1717
@@ -406,6 +406,17 @@ def test_unav_s1_reconstruction_canary20_media_is_qualified_and_effect_locked():
     assert full_media["feature_extraction_allowed"] is False
     assert full_media["effect_access_allowed"] is False
     assert full_media["training_allowed"] is False
+    full_result = full_media["result"]
+    assert full_result["strict_full_status"] == "FAIL_FULL_MEDIA_QUALIFICATION"
+    assert full_result["qualified"] == 7941
+    assert full_result["rejected"] == 2
+    assert full_result["qualified_train"] == 6224
+    assert full_result["qualified_validation"] == 1717
+    assert full_result["test"] == 0
+    assert full_result["label_coverage_train"] == 100
+    assert full_result["label_coverage_validation"] == 100
+    assert full_result["rejection_is_effect_based"] is False
+    assert full_result["qualified_manifest_is_only_downstream_allowlist"] is True
     assert unav["permissions"]["test_effect_access_allowed"] is False
     assert unav["permissions"]["training_allowed"] is False
-    assert lock["next_stage"] == "s1r_unav_full_train_validation_media_qualification_authorized"
+    assert lock["next_stage"] == "s1r_unav_frozen_feature_contract_review_required"

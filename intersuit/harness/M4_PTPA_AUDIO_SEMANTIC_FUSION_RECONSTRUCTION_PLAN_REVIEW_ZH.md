@@ -170,15 +170,15 @@ CRC/size/SHA/ffprobe/音轨/事件解码/时长边界验收。该关闭只表示
 
 仍未关闭的blocker：
 
-- 6226个train和1717个validation合格媒体已获得仅限媒体资格的选择性解压授权，但逐文件
-  SHA、容器、音轨、时长、事件边界和解码尚未完成；
+- 6226个train和1717个validation已完成逐文件媒体资格；严格全量门禁因2个train时长偏差
+  超过1秒而FAIL，独立审计确认7941个合格子集（train6224、validation1717）且100类覆盖完整；
 - 冻结BEATs/teacher输入归一化、窗口缓存格式和输出manifest尚未形成新Review；
 - validation internal confirm尚未生成sealed manifest，效果访问次数仍为0；
 - test 2098个合格ID保持封存，不能因validation通过自动开启；
 - 原视频逐文件许可仍未验证，当前只允许项目操作者授权的本机内部非商业媒体资格工作。
 
-因此下游`next_stage_allowed=false`。当前只允许执行S1-R全量train/validation媒体资格；
-不得提特征、看validation效果或训练，test保持0。
+因此下游`next_stage_allowed=false`。媒体资格权限已关闭；下一步只能制定冻结特征合同与
+manifest Review，不得直接提特征、看validation效果或训练，test保持0。
 
 ## 4. v3 数据责任审查
 

@@ -662,14 +662,14 @@
     "unav100_s1_reconstruction": {
       "primary_stage": "s1_reconstruction_candidate",
       "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
-      "status": "s1r_full_train_validation_media_qualification_authorized_effect_locked",
+      "status": "s1r_full_media_qualified_subset_7941_effect_locked",
       "official_source": "https://unav100.github.io/",
       "paper": "CVPR 2023",
       "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
       "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
-      "dataset_contract_sha256": "26c998518224e170210217225f9fc62164b8d8296fd1128da48c2ad89ca04fcd",
+      "dataset_contract_sha256": "a550be8c58ca335ee7c78f4113176f76f151b6eb8228af7f635c498b11dc555c",
       "review_path": "intersuit/harness/M4_PTPA_UNAV_S1_RECONSTRUCTION_MEDIA_REVIEW_ZH.md",
-      "review_sha256": "8d11a54850168e5d1ac7d115ffc36328ba2c285777dff32eecb694cd694062a6",
+      "review_sha256": "7ae1218a1aa46d402e6043a52a8c305afe6beb595107a78ed25cde90ed73004a",
       "official_counts": {
         "train": {"videos": 6489, "events": 18123, "labels": 100},
         "validation": {"videos": 2134, "events": 6036, "labels": 100},
@@ -776,16 +776,16 @@
       "s1r_plan_review": {
         "status": "PASS_PLAN_ONLY_CANARY20_MEDIA_QUALIFIED",
         "contract_path": "intersuit/configs/m4_ptpa_unav_s1r_plan_v1.json",
-        "contract_sha256": "25d47cc0efa6f76b0a76431a85897bd33f17baafa2dbb751b8a3b3fc75e77f71",
+        "contract_sha256": "74094c0e9ed01832e6562607785e4cd8fc2df1ed5dafce87b0611a84de9e5e3d",
         "authoritative_plan_path": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_ZH.md",
         "authoritative_plan_sha256": "2ee4bc86cb035c3d62e5485b97b46ce5adaf0d7909666c092b99dd7d431d3f1d",
         "authoritative_review_path": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_REVIEW_ZH.md",
-        "authoritative_review_sha256": "ee2daedca2ff9d0cac3a564246acee172b7dca7ab4f076567505414a28aacef7",
+        "authoritative_review_sha256": "94121199d297e89b2e9db90a392236ab118307982a6efc0a05c183ff1a4ca22d",
         "historical_llp_s1_status": "FAIL_UNCHANGED",
         "unav_train_role": "development_only",
         "unav_validation_role": "single_internal_confirm_after_freeze",
         "unav_test_role": "sealed_formal_confirm",
-        "full_train_validation_media_extraction_allowed": true,
+        "full_train_validation_media_extraction_allowed": false,
         "feature_extraction_allowed": false,
         "validation_effect_access_allowed": false,
         "test_effect_access_allowed": false,
@@ -793,7 +793,7 @@
         "next_stage_allowed": false
       },
       "full_train_validation_media_qualification": {
-        "status": "authorized_not_started",
+        "status": "PASS_QUALIFIED_SUBSET_WITH_2_REJECTED_EFFECT_LOCKED",
         "authorization_recorded_at": "2026-08-27",
         "authorization_source": "user_continue_after_scoped_full_media_prompt",
         "scope": "internal_noncommercial_train_validation_media_qualification_only",
@@ -809,7 +809,33 @@
         "effect_access_allowed": false,
         "test_media_access_allowed": false,
         "training_allowed": false,
-        "redistribution_allowed": false
+        "redistribution_allowed": false,
+        "result": {
+          "strict_full_status": "FAIL_FULL_MEDIA_QUALIFICATION",
+          "independent_audit_status": "PASS_INDEPENDENT_AUDIT_WITH_2_MEDIA_REJECTED_EFFECT_LOCKED",
+          "summary_sha256": "61e8a1ca18f7a05ad4c6c1558dd5df5e953de51023384304e54689f2fbbc114e",
+          "results_sha256": "85dcc45d24d9e03009ebb69155ee0486c68edb6ec295e0013b4b7cf6bb5174b3",
+          "qualified_manifest_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/qualified_media_manifest.jsonl",
+          "qualified_manifest_sha256": "e889eaa112eb44938fa9a1c8bc484ecb8118bc9e5b90825e0b78884ba66889a7",
+          "rejected_manifest_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/rejected_media_manifest.jsonl",
+          "rejected_manifest_sha256": "10a8937accc03b101587eab64b39e0060b851a3cf0c0f8e53e38549cd8cfed17",
+          "independent_audit_sha256": "d4cb48ea06c360a4af48147413396af73fdc764fd1ab80a13bfbe8d7eae7e59f",
+          "qualified": 7941,
+          "rejected": 2,
+          "qualified_train": 6224,
+          "qualified_validation": 1717,
+          "test": 0,
+          "label_coverage_train": 100,
+          "label_coverage_validation": 100,
+          "train_min_unique_videos_per_label": 22,
+          "validation_min_unique_videos_per_label": 6,
+          "rejection_is_effect_based": false,
+          "qualified_manifest_is_only_downstream_allowlist": true,
+          "feature_extraction_performed": false,
+          "effect_accessed": false,
+          "training_performed": false,
+          "authorization_consumed": true
+        }
       },
       "permissions": {
         "metadata_audit_allowed": true,
@@ -819,7 +845,7 @@
         "archive_member_inventory_allowed": false,
         "archive_extraction_allowed": false,
         "selective_train_validation_extraction_allowed": false,
-        "full_train_validation_media_qualification_allowed": true,
+        "full_train_validation_media_qualification_allowed": false,
         "feature_extraction_allowed": false,
         "effect_access_allowed": false,
         "test_media_download_allowed": false,
@@ -827,9 +853,8 @@
         "training_allowed": false
       },
       "qualification_blockers": [
-        "full_train_validation_media_qualification_pending",
         "s1r_frozen_feature_contract_and_manifest_review_required",
-        "raw_video_copyright_and_media_availability_require_per_file_audit"
+        "raw_video_per_item_license_unverified_for_training_or_redistribution"
       ]
     },
     "clotho_aqa": {
@@ -974,7 +999,7 @@
     "unav_s1_archive_member_inventory_allowed": false,
     "unav_s1_archive_extraction_allowed": false,
     "unav_s1_selective_train_validation_extraction_allowed": false,
-    "unav_s1r_full_train_validation_media_extraction_allowed": true,
+    "unav_s1r_full_train_validation_media_extraction_allowed": false,
     "unav_s1r_feature_extraction_allowed": false,
     "unav_s1r_validation_effect_access_allowed": false,
     "gpu_execution_allowed": false,
@@ -982,6 +1007,6 @@
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1r_unav_full_train_validation_media_qualification_authorized",
+  "next_stage": "s1r_unav_frozen_feature_contract_review_required",
   "next_stage_allowed": false
 }

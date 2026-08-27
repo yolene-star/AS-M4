@@ -151,5 +151,11 @@ canary20只允许10条train和10条validation，test为0；验收范围仅包括
 
 canary20媒体资格、S1-R权威计划修订和独立Review均已通过。用户随后以“继续”授权仅对
 历史排除后的6226个train和1717个validation执行全量选择性解压与逐文件媒体资格；总计
-7943文件、48,993,281,767字节，test为0。该授权不包含特征、效果、训练或再分发，执行完成
-或失败后立即关闭。
+7943文件、48,993,281,767字节，test为0。该授权已消费并关闭：严格全量门禁为FAIL，原因是
+2个train媒体与metadata时长偏差超过冻结1秒门槛；其余7941个媒体通过，独立审计PASS。
+
+合格子集为train 6224、validation 1717，两个split仍各覆盖100类，最低每类唯一视频仍为22/6。
+合格manifest SHA为`e889eaa112eb44938fa9a1c8bc484ecb8118bc9e5b90825e0b78884ba66889a7`；
+拒绝manifest SHA为`10a8937accc03b101587eab64b39e0060b851a3cf0c0f8e53e38549cd8cfed17`。
+被拒绝的`1Y2IkZULXo8`和`nzwmPWAAQFg`只因媒体完整性门禁排除，不基于模型效果。
+后续唯一合法allowlist是7941行合格manifest。该阶段未提特征、未访问效果、未训练或再分发。
