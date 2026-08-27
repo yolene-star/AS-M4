@@ -661,14 +661,14 @@
     "unav100_s1_reconstruction": {
       "primary_stage": "s1_reconstruction_candidate",
       "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
-      "status": "archive_complete_verified_structure_audited_effect_locked",
+      "status": "canary20_selective_extraction_authorized_effect_locked",
       "official_source": "https://unav100.github.io/",
       "paper": "CVPR 2023",
       "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
       "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
-      "dataset_contract_sha256": "ca07dd31e15a7380405c40786991c68ea7d0ebfea2fb89bd9eaef2a5e7a8f430",
+      "dataset_contract_sha256": "1a65e0ecac356876010595b418e18e621d76f21f6789c0134dae44c4db72b8a7",
       "review_path": "intersuit/harness/M4_PTPA_UNAV_S1_RECONSTRUCTION_MEDIA_REVIEW_ZH.md",
-      "review_sha256": "c5c7ad985c97044c736e911c6458d4bbb182d5a5aed3798522052ae311ee2944",
+      "review_sha256": "4fb8e87dab47f169e64b45beced209c21814ac54b84abc116163cc078c7bc305",
       "official_counts": {
         "train": {"videos": 6489, "events": 18123, "labels": 100},
         "validation": {"videos": 2134, "events": 6036, "labels": 100},
@@ -735,6 +735,23 @@
         "media_extracted": 0,
         "test_media_accessed": false
       },
+      "canary20_selective_extraction": {
+        "status": "authorized_not_started",
+        "authorization_recorded_at": "2026-08-27",
+        "authorization_source": "user_continue_after_exact_scoped_prompt",
+        "scope": "internal_noncommercial_media_qualification_only",
+        "plan_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_media_canary20_plan_locked.jsonl",
+        "plan_sha256": "96a25a25d8c9b578544ada7ce889ae89820c225e4eb6d5a70a25e278bc633d49",
+        "requested": 20,
+        "train": 10,
+        "validation": 10,
+        "test": 0,
+        "expected_media_bytes": 112551427,
+        "feature_extraction_allowed": false,
+        "effect_access_allowed": false,
+        "test_media_access_allowed": false,
+        "training_allowed": false
+      },
       "permissions": {
         "metadata_audit_allowed": true,
         "media_probe_allowed": false,
@@ -742,7 +759,7 @@
         "full_archive_download_allowed_by_explicit_user_authorization": false,
         "archive_member_inventory_allowed": false,
         "archive_extraction_allowed": false,
-        "selective_train_validation_extraction_allowed": false,
+        "selective_train_validation_extraction_allowed": true,
         "feature_extraction_allowed": false,
         "effect_access_allowed": false,
         "test_media_download_allowed": false,
@@ -751,7 +768,7 @@
       },
       "qualification_blockers": [
         "s1_reconstruction_plan_review_required",
-        "selective_train_validation_canary20_extraction_authorization_required",
+        "selective_train_validation_canary20_media_qualification_pending",
         "raw_video_copyright_and_media_availability_require_per_file_audit"
       ]
     },
@@ -896,12 +913,12 @@
     "unav_s1_full_archive_download_allowed_by_explicit_user_authorization": false,
     "unav_s1_archive_member_inventory_allowed": false,
     "unav_s1_archive_extraction_allowed": false,
-    "unav_s1_selective_train_validation_extraction_allowed": false,
+    "unav_s1_selective_train_validation_extraction_allowed": true,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1_unav_plan_review_and_selective_extraction_authorization_required",
+  "next_stage": "s1_unav_canary20_selective_extraction_authorized_effect_locked",
   "next_stage_allowed": false
 }

@@ -66,6 +66,7 @@ def load_contract(path: Path) -> tuple[dict[str, Any], dict[str, Path]]:
         "canary2_media_download_authorized_effect_locked",
         "blocked_media_canary2_youtube_bot_auth",
         "archive_complete_verified_structure_audited_effect_locked",
+        "canary20_selective_extraction_authorized_effect_locked",
     }:
         raise ValueError("UnAV S1 contract status 漂移")
     permissions = contract["permissions"]

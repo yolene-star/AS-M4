@@ -3,9 +3,10 @@
 ## 结论
 
 UnAV-100 metadata、官方13卷归档完整性和无解压成员审计均为 `PASS`，当前状态为
-`archive_complete_verified_structure_audited_effect_locked`。早期YouTube媒体canary2的 `FAIL`
+`canary20_selective_extraction_authorized_effect_locked`。早期YouTube媒体canary2的 `FAIL`
 保留为历史获取证据，不再阻塞官方归档路线。原LLP S1 FAIL不变；UnAV路线尚未解压媒体，
-也未进入特征、效果或训练。
+也未进入特征、效果或训练。用户已在收到精确范围提示后以“继续”授权：仅从已验证归档
+选择性解压冻结canary20的10条train和10条validation，test为0；只做媒体资格审计。
 
 UnAV-100 是当前唯一满足“train/validation/test 都有公开事件类别与准确 onset/offset”的
 顶会主候选。官方 train/validation/test 三个 split 共10,790个唯一视频、30,059个事件、
@@ -113,7 +114,7 @@ duration分层为8/8/4。计划 SHA256：
 - train/validation媒体下载：关闭；
 - 完整归档下载：已消费并关闭；
 - 归档成员清点：已完成并关闭；
-- 选择性train/validation解压：关闭；
+- 选择性train/validation解压：仅冻结canary20范围内临时开启；
 - test解压/解码：关闭；
 - canary20下载：关闭；
 - test媒体/特征/效果：关闭；
@@ -123,10 +124,11 @@ duration分层为8/8/4。计划 SHA256：
 
 ## 下一阶段门禁
 
-下一步先修订权威S1计划，明确UnAV仅为保留原LLP FAIL前提下的独立 `S1-R` 重构候选；
-该Review通过后，仍需用户明确授权“只选择性解压冻结canary20的train/validation媒体”。
+权威S1计划仍需后续修订，明确UnAV仅为保留原LLP FAIL前提下的独立 `S1-R` 重构候选。
+当前授权只关闭其前置媒体canary，不等于批准S1-R特征或效果。
 
 canary20只允许10条train和10条validation，test为0；验收范围仅包括容器、音轨、时长、
 事件边界和解码。canary通过后还需独立Review，才能申请全量合格train/validation选择性解压。
 
-在新授权前不解压任何媒体；特征、效果、test和训练继续保持关闭。
+当前可执行canary20选择性解压与媒体审计；完成或失败后该权限立即关闭。特征、效果、test和
+训练继续保持关闭。

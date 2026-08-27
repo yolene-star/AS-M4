@@ -1,7 +1,7 @@
 {
   "artifact_kind": "m4_ptpa_unav_s1_reconstruction_contract",
   "format_version": 1,
-  "status": "archive_complete_verified_structure_audited_effect_locked",
+  "status": "canary20_selective_extraction_authorized_effect_locked",
   "scope": "internal_noncommercial_s1_reconstruction_only",
   "official_source": {
     "project": "https://unav100.github.io/",
@@ -118,6 +118,39 @@
     "media_extracted": 0,
     "test_media_accessed": false
   },
+  "canary20_selective_extraction": {
+    "status": "authorized_not_started",
+    "authorization_recorded_at": "2026-08-27",
+    "authorization_source": "user_continue_after_exact_scoped_prompt",
+    "scope": "internal_noncommercial_media_qualification_only",
+    "plan_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_media_canary20_plan_locked.jsonl",
+    "plan_sha256": "96a25a25d8c9b578544ada7ce889ae89820c225e4eb6d5a70a25e278bc633d49",
+    "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+    "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+    "output_root": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1",
+    "requested": 20,
+    "train": 10,
+    "validation": 10,
+    "test": 0,
+    "expected_media_bytes": 112551427,
+    "duration_max_abs_delta_sec": 1.0,
+    "event_offset_media_tolerance_sec": 1.0,
+    "required_checks": [
+      "allowlisted_tar_member_only",
+      "atomic_selected_extraction",
+      "sha256",
+      "ffprobe_container_duration_streams",
+      "video_and_audio_stream_required",
+      "full_video_audio_decode",
+      "audio_decode_16khz_mono",
+      "event_boundaries_within_media_tolerance"
+    ],
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "test_media_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false
+  },
   "official_downloader": {
     "script_path": "scripts/video_download.py",
     "script_sha256": "b21188a2ae237dc85a973facf5ec1e6ead6b753fa25ab800252815f13549700c",
@@ -187,7 +220,7 @@
     "full_archive_download_allowed_by_explicit_user_authorization": false,
     "archive_member_inventory_allowed": false,
     "archive_extraction_allowed": false,
-    "selective_train_validation_extraction_allowed": false,
+    "selective_train_validation_extraction_allowed": true,
     "feature_extraction_allowed": false,
     "effect_access_allowed": false,
     "test_media_download_allowed": false,
