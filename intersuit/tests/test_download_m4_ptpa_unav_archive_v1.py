@@ -25,7 +25,7 @@ def test_real_contract_closes_download_after_exactly_13_verified_parts():
         (ROOT / "configs/m4_ptpa_unav_s1_reconstruction_v1.json").read_text()
     )
     files = contract["media_distribution"]["archive_files"]
-    assert contract["status"] == "canary20_media_qualified_effect_locked"
+    assert contract["status"] == "full_train_validation_media_qualification_authorized_effect_locked"
     assert contract["archive_completion"]["verified_parts"] == 13
     assert len(files) == 13 and sum(row["size"] for row in files) == 65_775_604_313
     assert contract["permissions"]["full_archive_download_allowed_by_explicit_user_authorization"] is False

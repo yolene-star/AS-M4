@@ -1,7 +1,7 @@
 {
   "artifact_kind": "m4_ptpa_unav_s1_reconstruction_contract",
   "format_version": 1,
-  "status": "canary20_media_qualified_effect_locked",
+  "status": "full_train_validation_media_qualification_authorized_effect_locked",
   "scope": "internal_noncommercial_s1_reconstruction_only",
   "official_source": {
     "project": "https://unav100.github.io/",
@@ -179,6 +179,43 @@
       "authorization_consumed": true
     }
   },
+  "full_train_validation_media_qualification": {
+    "status": "authorized_not_started",
+    "authorization_recorded_at": "2026-08-27",
+    "authorization_source": "user_continue_after_scoped_full_media_prompt",
+    "scope": "internal_noncommercial_train_validation_media_qualification_only",
+    "ledger_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_physical_ledger.jsonl",
+    "ledger_sha256": "536e34318f56ae21502acc6ce5ff3496cf8250339a718dcfa2f75205e0fa1cc4",
+    "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+    "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+    "output_root": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1",
+    "requested": 7943,
+    "train": 6226,
+    "validation": 1717,
+    "test": 0,
+    "expected_media_bytes": 48993281767,
+    "expected_duration_sec": 333506.62,
+    "expected_event_count": 21532,
+    "duration_max_abs_delta_sec": 1.0,
+    "event_offset_media_tolerance_sec": 1.0,
+    "decode_workers": 16,
+    "required_checks": [
+      "exact_historical_clean_train_validation_allowlist",
+      "atomic_selected_extraction",
+      "sha256",
+      "ffprobe_container_duration_streams",
+      "video_and_audio_stream_required",
+      "full_video_audio_decode",
+      "audio_decode_16khz_mono",
+      "event_boundaries_within_media_tolerance",
+      "resume_per_file_audit"
+    ],
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "test_media_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false
+  },
   "official_downloader": {
     "script_path": "scripts/video_download.py",
     "script_sha256": "b21188a2ae237dc85a973facf5ec1e6ead6b753fa25ab800252815f13549700c",
@@ -249,6 +286,7 @@
     "archive_member_inventory_allowed": false,
     "archive_extraction_allowed": false,
     "selective_train_validation_extraction_allowed": false,
+    "full_train_validation_media_qualification_allowed": true,
     "feature_extraction_allowed": false,
     "effect_access_allowed": false,
     "test_media_download_allowed": false,

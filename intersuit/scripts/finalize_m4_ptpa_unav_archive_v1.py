@@ -48,6 +48,7 @@ def validate_contract(contract: dict[str, Any]) -> list[dict[str, Any]]:
         "archive_complete_verified_structure_audited_effect_locked",
         "canary20_selective_extraction_authorized_effect_locked",
         "canary20_media_qualified_effect_locked",
+        "full_train_validation_media_qualification_authorized_effect_locked",
     }:
         raise PermissionError("UnAV完整归档合同状态未授权终态复核")
     permissions = contract["permissions"]

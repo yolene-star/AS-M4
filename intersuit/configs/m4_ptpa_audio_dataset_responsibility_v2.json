@@ -662,14 +662,14 @@
     "unav100_s1_reconstruction": {
       "primary_stage": "s1_reconstruction_candidate",
       "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
-      "status": "s1r_plan_review_pass_media_canary_qualified_effect_locked",
+      "status": "s1r_full_train_validation_media_qualification_authorized_effect_locked",
       "official_source": "https://unav100.github.io/",
       "paper": "CVPR 2023",
       "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
       "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
-      "dataset_contract_sha256": "c61f5296738408bcf933099e07a0eaf91db6ad5917b224fa9dfbea22b59244d4",
+      "dataset_contract_sha256": "26c998518224e170210217225f9fc62164b8d8296fd1128da48c2ad89ca04fcd",
       "review_path": "intersuit/harness/M4_PTPA_UNAV_S1_RECONSTRUCTION_MEDIA_REVIEW_ZH.md",
-      "review_sha256": "a9c6a0e29575190af679c1a0bbff18858b2ce923d0586b32bd9e7d8024a48efd",
+      "review_sha256": "8d11a54850168e5d1ac7d115ffc36328ba2c285777dff32eecb694cd694062a6",
       "official_counts": {
         "train": {"videos": 6489, "events": 18123, "labels": 100},
         "validation": {"videos": 2134, "events": 6036, "labels": 100},
@@ -776,21 +776,40 @@
       "s1r_plan_review": {
         "status": "PASS_PLAN_ONLY_CANARY20_MEDIA_QUALIFIED",
         "contract_path": "intersuit/configs/m4_ptpa_unav_s1r_plan_v1.json",
-        "contract_sha256": "28f1821a5fef27371da7b16df55f4ecedc3bc70673707f7ab7e19b4fac133c80",
+        "contract_sha256": "25d47cc0efa6f76b0a76431a85897bd33f17baafa2dbb751b8a3b3fc75e77f71",
         "authoritative_plan_path": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_ZH.md",
         "authoritative_plan_sha256": "2ee4bc86cb035c3d62e5485b97b46ce5adaf0d7909666c092b99dd7d431d3f1d",
         "authoritative_review_path": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_REVIEW_ZH.md",
-        "authoritative_review_sha256": "a8fc0dc976c8c3c8132893a4fbcc1d7aee9a2e9609be366cdd018073e4dd0a9e",
+        "authoritative_review_sha256": "ee2daedca2ff9d0cac3a564246acee172b7dca7ab4f076567505414a28aacef7",
         "historical_llp_s1_status": "FAIL_UNCHANGED",
         "unav_train_role": "development_only",
         "unav_validation_role": "single_internal_confirm_after_freeze",
         "unav_test_role": "sealed_formal_confirm",
-        "full_train_validation_media_extraction_allowed": false,
+        "full_train_validation_media_extraction_allowed": true,
         "feature_extraction_allowed": false,
         "validation_effect_access_allowed": false,
         "test_effect_access_allowed": false,
         "training_allowed": false,
         "next_stage_allowed": false
+      },
+      "full_train_validation_media_qualification": {
+        "status": "authorized_not_started",
+        "authorization_recorded_at": "2026-08-27",
+        "authorization_source": "user_continue_after_scoped_full_media_prompt",
+        "scope": "internal_noncommercial_train_validation_media_qualification_only",
+        "requested": 7943,
+        "train": 6226,
+        "validation": 1717,
+        "test": 0,
+        "expected_media_bytes": 48993281767,
+        "expected_duration_sec": 333506.62,
+        "expected_event_count": 21532,
+        "decode_workers": 16,
+        "feature_extraction_allowed": false,
+        "effect_access_allowed": false,
+        "test_media_access_allowed": false,
+        "training_allowed": false,
+        "redistribution_allowed": false
       },
       "permissions": {
         "metadata_audit_allowed": true,
@@ -800,6 +819,7 @@
         "archive_member_inventory_allowed": false,
         "archive_extraction_allowed": false,
         "selective_train_validation_extraction_allowed": false,
+        "full_train_validation_media_qualification_allowed": true,
         "feature_extraction_allowed": false,
         "effect_access_allowed": false,
         "test_media_download_allowed": false,
@@ -807,7 +827,7 @@
         "training_allowed": false
       },
       "qualification_blockers": [
-        "full_train_validation_media_qualification_authorization_required_after_plan_review",
+        "full_train_validation_media_qualification_pending",
         "s1r_frozen_feature_contract_and_manifest_review_required",
         "raw_video_copyright_and_media_availability_require_per_file_audit"
       ]
@@ -954,7 +974,7 @@
     "unav_s1_archive_member_inventory_allowed": false,
     "unav_s1_archive_extraction_allowed": false,
     "unav_s1_selective_train_validation_extraction_allowed": false,
-    "unav_s1r_full_train_validation_media_extraction_allowed": false,
+    "unav_s1r_full_train_validation_media_extraction_allowed": true,
     "unav_s1r_feature_extraction_allowed": false,
     "unav_s1r_validation_effect_access_allowed": false,
     "gpu_execution_allowed": false,
@@ -962,6 +982,6 @@
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1r_unav_full_train_validation_media_qualification_authorization_required",
+  "next_stage": "s1r_unav_full_train_validation_media_qualification_authorized",
   "next_stage_allowed": false
 }

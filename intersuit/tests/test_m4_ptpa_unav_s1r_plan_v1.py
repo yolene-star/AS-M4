@@ -54,5 +54,10 @@ def test_s1r_gates_and_permissions_are_fail_closed():
     assert gates["margin_ci95_lower_strictly_positive"] is True
     assert gates["correct_above_mismatch"] is True
     assert gates["test_effect_accessed"] is False
-    assert all(value is False for value in permissions.values())
+    assert permissions["full_train_validation_media_extraction_allowed"] is True
+    assert all(
+        value is False
+        for key, value in permissions.items()
+        if key != "full_train_validation_media_extraction_allowed"
+    )
     assert contract["next_stage_allowed"] is False

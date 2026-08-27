@@ -1,7 +1,7 @@
 {
   "artifact_kind": "m4_ptpa_unav_s1r_reconstruction_plan_contract",
   "format_version": 1,
-  "status": "PASS_PLAN_ONLY_CANARY20_MEDIA_QUALIFIED",
+  "status": "FULL_TRAIN_VALIDATION_MEDIA_QUALIFICATION_AUTHORIZED_EFFECT_LOCKED",
   "route": "audio_semantic_fusion_reconstruction_v1",
   "stage": "s1r_unav_strong_timed_semantic_reconstruction",
   "scope": "internal_noncommercial_strong_timed_audio_semantic_upper_bound_only",
@@ -97,7 +97,7 @@
     "test_effect_accessed": false
   },
   "permissions": {
-    "full_train_validation_media_extraction_allowed": false,
+    "full_train_validation_media_extraction_allowed": true,
     "feature_extraction_allowed": false,
     "gpu_execution_allowed": false,
     "train_effect_access_allowed": false,
@@ -109,6 +109,20 @@
     "downstream_stage_execution_allowed": false,
     "redistribution_allowed": false
   },
-  "next_stage": "s1r1_full_train_validation_media_qualification_authorization_required",
+  "full_media_qualification_authorization": {
+    "recorded_at": "2026-08-27",
+    "authorization_source": "user_continue_after_scoped_full_media_prompt",
+    "train": 6226,
+    "validation": 1717,
+    "test": 0,
+    "media_bytes": 48993281767,
+    "media_duration_sec": 333506.62,
+    "event_count": 21532,
+    "qualification_only": true,
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "training_allowed": false
+  },
+  "next_stage": "s1r1_full_train_validation_media_qualification_authorized",
   "next_stage_allowed": false
 }

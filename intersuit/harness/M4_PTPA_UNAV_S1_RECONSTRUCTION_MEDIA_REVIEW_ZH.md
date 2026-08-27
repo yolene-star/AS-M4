@@ -149,5 +149,7 @@ duration分层为8/8/4。计划 SHA256：
 canary20只允许10条train和10条validation，test为0；验收范围仅包括容器、音轨、时长、
 事件边界和解码。canary通过后还需独立Review，才能申请全量合格train/validation选择性解压。
 
-canary20媒体资格已通过，但下一步必须先完成S1-R权威计划修订和独立Review；不得由canary
-直接扩大到全量train/validation解压。特征、效果、test和训练继续保持关闭。
+canary20媒体资格、S1-R权威计划修订和独立Review均已通过。用户随后以“继续”授权仅对
+历史排除后的6226个train和1717个validation执行全量选择性解压与逐文件媒体资格；总计
+7943文件、48,993,281,767字节，test为0。该授权不包含特征、效果、训练或再分发，执行完成
+或失败后立即关闭。
