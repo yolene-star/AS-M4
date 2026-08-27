@@ -661,14 +661,14 @@
     "unav100_s1_reconstruction": {
       "primary_stage": "s1_reconstruction_candidate",
       "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
-      "status": "blocked_media_canary2_youtube_bot_auth",
+      "status": "archive_complete_verified_structure_audited_effect_locked",
       "official_source": "https://unav100.github.io/",
       "paper": "CVPR 2023",
       "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
       "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
-      "dataset_contract_sha256": "ecd95d4694e3f6396148a44cf97f19fd6a1be58da4860a8e05fd2169bb9816e0",
+      "dataset_contract_sha256": "ca07dd31e15a7380405c40786991c68ea7d0ebfea2fb89bd9eaef2a5e7a8f430",
       "review_path": "intersuit/harness/M4_PTPA_UNAV_S1_RECONSTRUCTION_MEDIA_REVIEW_ZH.md",
-      "review_sha256": "e333dec92af59ce10666e3e3fea227b4281174e7868ecad43f6657d288f9ca75",
+      "review_sha256": "c5c7ad985c97044c736e911c6458d4bbb182d5a5aed3798522052ae311ee2944",
       "official_counts": {
         "train": {"videos": 6489, "events": 18123, "labels": 100},
         "validation": {"videos": 2134, "events": 6036, "labels": 100},
@@ -709,10 +709,40 @@
         "cookies_used": false,
         "media_files_created": 0
       },
+      "archive_completion": {
+        "status": "PASS_ARCHIVE_COMPLETE_VERIFIED_EFFECT_LOCKED",
+        "manifest_path": "intersuit/datasets/UNAV_S1_V1/official_archive/archive_completion_manifest_v1.json",
+        "manifest_sha256": "576c46a0675b0a31b6a4c5c9a696efc63d880582133de98448b525982e236794",
+        "archive_parts": 13,
+        "archive_total_bytes": 65775604313,
+        "verified_parts": 13,
+        "explicit_user_download_authorization_consumed": true,
+        "active_download_processes": 0
+      },
+      "archive_member_audit": {
+        "status": "PASS",
+        "summary_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/summary.json",
+        "summary_sha256": "653a33f840906b932ab073bef9f605aa5b2154030a17fd79fd45f9283c47db0a",
+        "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+        "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+        "regular_mp4_count": 10790,
+        "archive_split_counts": {"train": 6489, "validation": 2134, "test": 2167},
+        "eligible_after_known_history_counts": {"train": 6226, "validation": 1717, "test": 2098},
+        "missing_metadata_ids": 0,
+        "extra_archive_ids": 0,
+        "unsafe_members": 0,
+        "non_regular_members": 0,
+        "media_extracted": 0,
+        "test_media_accessed": false
+      },
       "permissions": {
         "metadata_audit_allowed": true,
         "media_probe_allowed": false,
         "train_validation_media_download_allowed": false,
+        "full_archive_download_allowed_by_explicit_user_authorization": false,
+        "archive_member_inventory_allowed": false,
+        "archive_extraction_allowed": false,
+        "selective_train_validation_extraction_allowed": false,
         "feature_extraction_allowed": false,
         "effect_access_allowed": false,
         "test_media_download_allowed": false,
@@ -720,7 +750,8 @@
         "training_allowed": false
       },
       "qualification_blockers": [
-        "fresh_cookie_scoped_to_unav_canary2_or_full_archive_authorization_required",
+        "s1_reconstruction_plan_review_required",
+        "selective_train_validation_canary20_extraction_authorization_required",
         "raw_video_copyright_and_media_availability_require_per_file_audit"
       ]
     },
@@ -862,11 +893,15 @@
     "unav_s1_metadata_audit_allowed": true,
     "unav_s1_media_probe_allowed": false,
     "unav_s1_train_validation_media_download_allowed": false,
+    "unav_s1_full_archive_download_allowed_by_explicit_user_authorization": false,
+    "unav_s1_archive_member_inventory_allowed": false,
+    "unav_s1_archive_extraction_allowed": false,
+    "unav_s1_selective_train_validation_extraction_allowed": false,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1_unav_media_access_blocked_user_choice_required",
+  "next_stage": "s1_unav_plan_review_and_selective_extraction_authorization_required",
   "next_stage_allowed": false
 }

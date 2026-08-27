@@ -56,6 +56,10 @@ def test_permissions_remain_fail_closed_after_plan_integration():
     assert permissions["unav_s1_metadata_audit_allowed"] is True
     assert permissions["unav_s1_media_probe_allowed"] is False
     assert permissions["unav_s1_train_validation_media_download_allowed"] is False
+    assert permissions["unav_s1_full_archive_download_allowed_by_explicit_user_authorization"] is False
+    assert permissions["unav_s1_archive_member_inventory_allowed"] is False
+    assert permissions["unav_s1_archive_extraction_allowed"] is False
+    assert permissions["unav_s1_selective_train_validation_extraction_allowed"] is False
     assert permissions["gpu_execution_allowed"] is False
     assert permissions["training_allowed"] is False
     assert permissions["confirm_effect_access_allowed"] is False
@@ -332,11 +336,11 @@ def test_longvale_exception_is_exactly_one_locked_archive():
     assert lock["next_stage_allowed"] is False
 
 
-def test_unav_s1_reconstruction_is_metadata_qualified_and_media_blocked():
+def test_unav_s1_reconstruction_archive_is_verified_but_extraction_remains_blocked():
     lock = load_lock()
     unav = lock["datasets"]["unav100_s1_reconstruction"]
 
-    assert unav["status"] == "blocked_media_canary2_youtube_bot_auth"
+    assert unav["status"] == "archive_complete_verified_structure_audited_effect_locked"
     assert unav["hugging_face_revision"] == "daeb88bc14eeff48f8a4ac2836b67f6c350f847b"
     assert unav["metadata_qualification"]["status"] == "PASS"
     assert unav["metadata_qualification"]["physical_split_overlap"] == 0
@@ -350,6 +354,20 @@ def test_unav_s1_reconstruction_is_metadata_qualified_and_media_blocked():
     assert unav["media_canary2"]["cookies_used"] is False
     assert unav["media_canary2"]["media_files_created"] == 0
     assert unav["permissions"]["train_validation_media_download_allowed"] is False
+    completion = unav["archive_completion"]
+    assert completion["status"] == "PASS_ARCHIVE_COMPLETE_VERIFIED_EFFECT_LOCKED"
+    assert completion["verified_parts"] == 13
+    assert completion["archive_total_bytes"] == 65_775_604_313
+    audit = unav["archive_member_audit"]
+    assert audit["status"] == "PASS"
+    assert audit["regular_mp4_count"] == 10_790
+    assert audit["missing_metadata_ids"] == 0
+    assert audit["unsafe_members"] == 0
+    assert audit["test_media_accessed"] is False
+    assert unav["permissions"]["full_archive_download_allowed_by_explicit_user_authorization"] is False
+    assert unav["permissions"]["archive_member_inventory_allowed"] is False
+    assert unav["permissions"]["archive_extraction_allowed"] is False
+    assert unav["permissions"]["selective_train_validation_extraction_allowed"] is False
     assert unav["permissions"]["test_effect_access_allowed"] is False
     assert unav["permissions"]["training_allowed"] is False
-    assert lock["next_stage"] == "s1_unav_media_access_blocked_user_choice_required"
+    assert lock["next_stage"] == "s1_unav_plan_review_and_selective_extraction_authorization_required"

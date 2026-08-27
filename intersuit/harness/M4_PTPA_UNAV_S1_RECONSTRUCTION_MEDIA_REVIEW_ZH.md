@@ -2,8 +2,10 @@
 
 ## 结论
 
-UnAV-100 metadata 资格为 `PASS`，媒体 canary2 为 `FAIL`，当前状态为
-`blocked_media_canary2_youtube_bot_auth`。原 LLP S1 FAIL 不变；UnAV 路线尚未进入特征、效果或训练。
+UnAV-100 metadata、官方13卷归档完整性和无解压成员审计均为 `PASS`，当前状态为
+`archive_complete_verified_structure_audited_effect_locked`。早期YouTube媒体canary2的 `FAIL`
+保留为历史获取证据，不再阻塞官方归档路线。原LLP S1 FAIL不变；UnAV路线尚未解压媒体，
+也未进入特征、效果或训练。
 
 UnAV-100 是当前唯一满足“train/validation/test 都有公开事件类别与准确 onset/offset”的
 顶会主候选。官方 train/validation/test 三个 split 共10,790个唯一视频、30,059个事件、
@@ -35,7 +37,8 @@ Hugging Face CLI 0.36.0 在HEAD metadata检查处因代理/Content-Length兼容�
 排除源包括：410个既有历史UnAV物理ID、335个已用于selector的UnAV validation媒体、
 LLP pilot150。排除理由可以重叠；最终按物理ID union计算。
 
-Test 只完成metadata资格与历史排除，没有下载媒体、提取特征或访问效果。
+Test 的字节随不可拆分官方归档以不透明形式保存在本地，但只完成metadata资格、历史排除和
+成员ID清点；没有解压、解码、提取特征或访问效果。
 
 ## 媒体发布结构
 
@@ -48,6 +51,29 @@ Hugging Face 官方仓库共约65.78GB；媒体为13个分卷：前12卷各5GiB�
    裁成官方片段。
 
 官方脚本 SHA256：`b21188a2ae237dc85a973facf5ec1e6ead6b753fa25ab800252815f13549700c`。
+
+## 官方归档完成与结构审计
+
+用户明确授权下载官方65.78GB完整归档后，part_00至part_08由断点curl完成，part_09至part_12
+由同一固定revision的Hugging Face Xet handoff完成。组合终态重新流式计算全部13卷SHA：
+
+- 归档卷：13/13 verified；
+- 压缩总字节：`65,775,604,313`；
+- 组合manifest SHA256：`576c46a0675b0a31b6a4c5c9a696efc63d880582133de98448b525982e236794`；
+- Xet handoff TSV SHA256：`e87c5a5db097235fbd14ab1fff69791b7e2bb5b2f23fd7ae29ac0204ffa7e490`；
+- 活跃下载进程：0。
+
+在不写出任何MP4的条件下，流式扫描完整gzip/tar：
+
+- 成员总数：10,791（目录1、普通MP4 10,790）；
+- metadata物理ID匹配：10,790/10,790；
+- train/validation/test：6,489/2,134/2,167；
+- 历史排除后：6,226/1,717/2,098；
+- 路径穿越、symlink/非规则成员、重复、缺失和多余ID：均为0；
+- member index SHA256：`2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345`；
+- summary SHA256：`653a33f840906b932ab073bef9f605aa5b2154030a17fd79fd45f9283c47db0a`。
+
+该PASS只关闭下载和归档结构blocker，不等于逐媒体解码、音轨、时长、许可、特征或效果资格。
 
 ## Canary计划
 
@@ -85,18 +111,22 @@ duration分层为8/8/4。计划 SHA256：
 - metadata audit：允许；
 - media probe：已消费并关闭；
 - train/validation媒体下载：关闭；
+- 完整归档下载：已消费并关闭；
+- 归档成员清点：已完成并关闭；
+- 选择性train/validation解压：关闭；
+- test解压/解码：关闭；
 - canary20下载：关闭；
 - test媒体/特征/效果：关闭；
 - train/validation特征/效果：关闭；
 - 训练：关闭；
 - 再分发：关闭。
 
-## 解除阻塞所需用户选择
+## 下一阶段门禁
 
-推荐方案：提供重新登录后导出的新YouTube cookie文件，并明确声明“仅授权用于UnAV
-canary2”。不能复用此前仅授权LLP canary的cookie。
+下一步先修订权威S1计划，明确UnAV仅为保留原LLP FAIL前提下的独立 `S1-R` 重构候选；
+该Review通过后，仍需用户明确授权“只选择性解压冻结canary20的train/validation媒体”。
 
-备选方案：明确授权下载官方65.78GB、13分卷完整媒体归档。该方案不依赖YouTube会话，但
-下载量和解压空间明显更大。
+canary20只允许10条train和10条validation，test为0；验收范围仅包括容器、音轨、时长、
+事件边界和解码。canary通过后还需独立Review，才能申请全量合格train/validation选择性解压。
 
-在用户作出选择前，不继续媒体下载，也不进入特征、效果或训练。
+在新授权前不解压任何媒体；特征、效果、test和训练继续保持关闭。

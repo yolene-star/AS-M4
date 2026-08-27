@@ -1,7 +1,7 @@
 {
   "artifact_kind": "m4_ptpa_unav_s1_reconstruction_contract",
   "format_version": 1,
-  "status": "full_archive_download_authorized_effect_locked",
+  "status": "archive_complete_verified_structure_audited_effect_locked",
   "scope": "internal_noncommercial_s1_reconstruction_only",
   "official_source": {
     "project": "https://unav100.github.io/",
@@ -87,6 +87,37 @@
       {"name": "unav_raw_videos.tar.gz.part_12", "size": 1351094873, "sha256": "d38371218b5f1dcf2babd039b882608ecf4cd24a6863b4f6c6a39dc03eb788d3"}
     ]
   },
+  "archive_completion": {
+    "status": "PASS_ARCHIVE_COMPLETE_VERIFIED_EFFECT_LOCKED",
+    "manifest_path": "intersuit/datasets/UNAV_S1_V1/official_archive/archive_completion_manifest_v1.json",
+    "manifest_sha256": "576c46a0675b0a31b6a4c5c9a696efc63d880582133de98448b525982e236794",
+    "archive_parts": 13,
+    "archive_total_bytes": 65775604313,
+    "verified_parts": 13,
+    "curl_intermediate_verified_parts": 9,
+    "xet_handoff_verified_parts": [9, 10, 11, 12],
+    "explicit_user_download_authorization_consumed": true,
+    "active_download_processes": 0
+  },
+  "archive_member_audit": {
+    "status": "PASS",
+    "summary_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/summary.json",
+    "summary_sha256": "653a33f840906b932ab073bef9f605aa5b2154030a17fd79fd45f9283c47db0a",
+    "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+    "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+    "archive_member_count": 10791,
+    "directory_count": 1,
+    "regular_mp4_count": 10790,
+    "total_media_bytes": 66154508646,
+    "archive_split_counts": {"train": 6489, "validation": 2134, "test": 2167},
+    "eligible_after_known_history_counts": {"train": 6226, "validation": 1717, "test": 2098},
+    "missing_metadata_ids": 0,
+    "extra_archive_ids": 0,
+    "unsafe_members": 0,
+    "non_regular_members": 0,
+    "media_extracted": 0,
+    "test_media_accessed": false
+  },
   "official_downloader": {
     "script_path": "scripts/video_download.py",
     "script_sha256": "b21188a2ae237dc85a973facf5ec1e6ead6b753fa25ab800252815f13549700c",
@@ -153,8 +184,10 @@
     "train_validation_media_download_allowed": false,
     "canary2_train_validation_media_download_allowed": false,
     "canary20_train_validation_media_download_allowed": false,
-    "full_archive_download_allowed_by_explicit_user_authorization": true,
+    "full_archive_download_allowed_by_explicit_user_authorization": false,
+    "archive_member_inventory_allowed": false,
     "archive_extraction_allowed": false,
+    "selective_train_validation_extraction_allowed": false,
     "feature_extraction_allowed": false,
     "effect_access_allowed": false,
     "test_media_download_allowed": false,

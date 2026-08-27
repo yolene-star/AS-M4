@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/download_m4_ptpa_unav_archive_v1.py"
@@ -18,16 +20,20 @@ sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
 
-def test_real_contract_authorizes_exactly_13_archive_parts():
+def test_real_contract_closes_download_after_exactly_13_verified_parts():
     contract = json.loads(
         (ROOT / "configs/m4_ptpa_unav_s1_reconstruction_v1.json").read_text()
     )
-    files = module.validate_contract(contract)
-    assert len(files) == 13
-    assert sum(row["size"] for row in files) == 65_775_604_313
+    files = contract["media_distribution"]["archive_files"]
+    assert contract["status"] == "archive_complete_verified_structure_audited_effect_locked"
+    assert contract["archive_completion"]["verified_parts"] == 13
+    assert len(files) == 13 and sum(row["size"] for row in files) == 65_775_604_313
+    assert contract["permissions"]["full_archive_download_allowed_by_explicit_user_authorization"] is False
     assert contract["permissions"]["archive_extraction_allowed"] is False
     assert contract["permissions"]["feature_extraction_allowed"] is False
     assert contract["permissions"]["test_effect_access_allowed"] is False
+    with pytest.raises(PermissionError):
+        module.validate_contract(contract)
 
 
 def test_download_part_uses_resume_and_atomic_verified_commit(monkeypatch, tmp_path):
