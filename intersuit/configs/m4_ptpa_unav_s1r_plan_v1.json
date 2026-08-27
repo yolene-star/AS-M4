@@ -1,0 +1,114 @@
+{
+  "artifact_kind": "m4_ptpa_unav_s1r_reconstruction_plan_contract",
+  "format_version": 1,
+  "status": "PASS_PLAN_ONLY_CANARY20_MEDIA_QUALIFIED",
+  "route": "audio_semantic_fusion_reconstruction_v1",
+  "stage": "s1r_unav_strong_timed_semantic_reconstruction",
+  "scope": "internal_noncommercial_strong_timed_audio_semantic_upper_bound_only",
+  "historical_s1": {
+    "dataset": "LLP",
+    "status": "FAIL_UNCHANGED",
+    "decision": "stop_before_s2_s3_s4_and_any_downstream_training",
+    "result_report": "intersuit/harness/M4_PTPA_LLP_S1_EFFECT_RESULT_V1_ZH.md",
+    "result_report_sha256": "65eb1e0ee60a6dab7bdf1b2f75f14c7e667cf9bd20443f9e5d308c0644e2e094",
+    "failure_analysis_report": "intersuit/harness/M4_PTPA_LLP_S1_FAILURE_ANALYSIS_V1_ZH.md",
+    "failure_analysis_report_sha256": "760e9f6a44c1efb99a916b2460cbda5a9584582e41a48872cd4d299e6f494037",
+    "must_not_relabel_as_pass": true,
+    "must_not_change_thresholds": true
+  },
+  "unav_source": {
+    "dataset_contract": "intersuit/configs/m4_ptpa_unav_s1_reconstruction_v1.json",
+    "dataset_contract_sha256": "c61f5296738408bcf933099e07a0eaf91db6ad5917b224fa9dfbea22b59244d4",
+    "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
+    "archive_status": "PASS_ARCHIVE_COMPLETE_VERIFIED_EFFECT_LOCKED",
+    "archive_member_audit_status": "PASS",
+    "canary20_status": "PASS_CANARY20_MEDIA_QUALIFIED_EFFECT_LOCKED",
+    "canary20_summary_sha256": "d9a495119f8cc8a25d2d95179d491b624dcfc6c227915c4605c5c9d8e5b3de42",
+    "canary20_independent_audit_sha256": "ab6206c3d466ac7abc4a410b85281fd76a9cff730bbed44a535f7717f322506f"
+  },
+  "data_roles": {
+    "train": {
+      "eligible_physical_videos": 6226,
+      "labels": 100,
+      "role": "development_prototype_construction_representation_and_threshold_selection",
+      "effect_access_before_full_media_and_feature_review": false
+    },
+    "validation": {
+      "eligible_physical_videos": 1717,
+      "labels": 100,
+      "role": "single_internal_confirm_after_candidate_and_threshold_freeze",
+      "effect_access_once": true,
+      "currently_effect_locked": true
+    },
+    "test": {
+      "eligible_physical_videos": 2098,
+      "labels": 100,
+      "role": "formal_confirm_sealed_until_separate_authorization",
+      "media_extraction_allowed": false,
+      "feature_extraction_allowed": false,
+      "effect_access_allowed": false
+    }
+  },
+  "stage_order": [
+    "s1r0_plan_and_canary_media_qualification",
+    "s1r1_full_train_validation_media_qualification",
+    "s1r2_frozen_feature_preparation",
+    "s1r3_train_development_representation_freeze",
+    "s1r4_validation_internal_confirm_once",
+    "s1r5_formal_test_only_after_separate_authorization"
+  ],
+  "strong_timing_contract": {
+    "canonical_label_source": "official_event_label",
+    "event_interval_source": "official_onset_offset",
+    "window_sec": 1.0,
+    "hop_sec": 1.0,
+    "overlapping_events_are_multilabel": true,
+    "overlapping_valid_event_must_not_be_used_as_negative": true,
+    "same_video_negative_requires_no_active_official_event": true,
+    "clip_label_promotion_to_all_windows_forbidden": true
+  },
+  "frozen_representation_candidates": [
+    "beats_clip_pooling",
+    "beats_1s_window_pooling",
+    "beats_strong_event_interval_pooling",
+    "qualified_frozen_teacher_embedding"
+  ],
+  "negative_contract": {
+    "same_video_inactive_window": "only_when_no_official_event_is_active",
+    "cross_video_same_class": "different_physical_media_same_canonical_label",
+    "cross_video_acoustic_hard_negative": "different_label_and_no_target_label_conflict",
+    "mismatch": "different_physical_media_and_different_canonical_label"
+  },
+  "fixed_statistics": {
+    "seeds": [17, 29, 43],
+    "bootstrap_replicates": 10000,
+    "primary_unit": "physical_media",
+    "class_count": 100,
+    "random_baseline": 0.01
+  },
+  "gates": {
+    "macro_recall_at_1_min": 0.21,
+    "balanced_accuracy_min": 0.21,
+    "mean_positive_minus_hard_negative_margin_strictly_positive": true,
+    "margin_ci95_lower_strictly_positive": true,
+    "correct_above_mismatch": true,
+    "three_fixed_seeds_direction_consistent": true,
+    "validation_access_only_after_candidate_freeze": true,
+    "test_effect_accessed": false
+  },
+  "permissions": {
+    "full_train_validation_media_extraction_allowed": false,
+    "feature_extraction_allowed": false,
+    "gpu_execution_allowed": false,
+    "train_effect_access_allowed": false,
+    "validation_effect_access_allowed": false,
+    "test_media_access_allowed": false,
+    "test_feature_extraction_allowed": false,
+    "test_effect_access_allowed": false,
+    "model_or_projector_training_allowed": false,
+    "downstream_stage_execution_allowed": false,
+    "redistribution_allowed": false
+  },
+  "next_stage": "s1r1_full_train_validation_media_qualification_authorization_required",
+  "next_stage_allowed": false
+}

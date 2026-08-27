@@ -9,6 +9,7 @@
   "stage_order": [
     "s0_dataset_qualification",
     "s1_llp_frozen_semantic_upper_bound",
+    "s1r_unav_strong_timed_semantic_reconstruction",
     "s2_clotho_aqa_answer_representation_upper_bound",
     "s3a_avcaps_fusion_upper_bound",
     "s3b_longvale_end_to_end_upper_bound",
@@ -661,7 +662,7 @@
     "unav100_s1_reconstruction": {
       "primary_stage": "s1_reconstruction_candidate",
       "responsibility": "strongly_timed_audio_visual_event_prototypes_and_semantic_margin_retest",
-      "status": "canary20_media_qualified_effect_locked",
+      "status": "s1r_plan_review_pass_media_canary_qualified_effect_locked",
       "official_source": "https://unav100.github.io/",
       "paper": "CVPR 2023",
       "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
@@ -772,6 +773,25 @@
           "authorization_consumed": true
         }
       },
+      "s1r_plan_review": {
+        "status": "PASS_PLAN_ONLY_CANARY20_MEDIA_QUALIFIED",
+        "contract_path": "intersuit/configs/m4_ptpa_unav_s1r_plan_v1.json",
+        "contract_sha256": "28f1821a5fef27371da7b16df55f4ecedc3bc70673707f7ab7e19b4fac133c80",
+        "authoritative_plan_path": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_ZH.md",
+        "authoritative_plan_sha256": "2ee4bc86cb035c3d62e5485b97b46ce5adaf0d7909666c092b99dd7d431d3f1d",
+        "authoritative_review_path": "intersuit/harness/M4_PTPA_AUDIO_SEMANTIC_FUSION_RECONSTRUCTION_PLAN_REVIEW_ZH.md",
+        "authoritative_review_sha256": "a8fc0dc976c8c3c8132893a4fbcc1d7aee9a2e9609be366cdd018073e4dd0a9e",
+        "historical_llp_s1_status": "FAIL_UNCHANGED",
+        "unav_train_role": "development_only",
+        "unav_validation_role": "single_internal_confirm_after_freeze",
+        "unav_test_role": "sealed_formal_confirm",
+        "full_train_validation_media_extraction_allowed": false,
+        "feature_extraction_allowed": false,
+        "validation_effect_access_allowed": false,
+        "test_effect_access_allowed": false,
+        "training_allowed": false,
+        "next_stage_allowed": false
+      },
       "permissions": {
         "metadata_audit_allowed": true,
         "media_probe_allowed": false,
@@ -787,8 +807,8 @@
         "training_allowed": false
       },
       "qualification_blockers": [
-        "s1_reconstruction_plan_review_required",
         "full_train_validation_media_qualification_authorization_required_after_plan_review",
+        "s1r_frozen_feature_contract_and_manifest_review_required",
         "raw_video_copyright_and_media_availability_require_per_file_audit"
       ]
     },
@@ -934,11 +954,14 @@
     "unav_s1_archive_member_inventory_allowed": false,
     "unav_s1_archive_extraction_allowed": false,
     "unav_s1_selective_train_validation_extraction_allowed": false,
+    "unav_s1r_full_train_validation_media_extraction_allowed": false,
+    "unav_s1r_feature_extraction_allowed": false,
+    "unav_s1r_validation_effect_access_allowed": false,
     "gpu_execution_allowed": false,
     "training_allowed": false,
     "confirm_effect_access_allowed": false,
     "formal_test_effect_access_allowed": false
   },
-  "next_stage": "s1_unav_reconstruction_plan_review_required",
+  "next_stage": "s1r_unav_full_train_validation_media_qualification_authorization_required",
   "next_stage_allowed": false
 }

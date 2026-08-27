@@ -1,16 +1,17 @@
 # 音频语义、答案表示与融合位置重构计划审查
 
-审查版本：`v2`（2026-08-20）
+审查版本：`v3`（2026-08-27）
 
 ## 1. 审查结论
 
-结论：`PASS_FOR_DATASET_QUALIFICATION_ONLY`。
+结论：`PASS_PLAN_ONLY_CANARY20_MEDIA_QUALIFIED`。
 
 本计划正确承接了 Oracle selector 官方门禁失败：selector 路线保持停止，新路线只授权 CPU、只读的 S0 合同与数据审计。GPU、特征提取、训练、融合修改、confirm 和正式 test 均未授权。
 
-v2 将数据责任实例化为 LLP→S1、Clotho-AQA→S2、AVCaps→S3a、
-LongVALE→S3b/S6，但计划通过不等于数据资格通过。除用户已明确授权的
-LongVALE `part_19` 补充下载外，不解锁其他媒体下载。
+v3保留LLP原S1正式FAIL和“停止S2/S3/S4”决定，新增独立UnAV S1-R强时间重构。
+UnAV官方13卷、10790成员映射和train10+validation10 canary20媒体资格均PASS；这只证明
+媒体与强标注入口可用，不证明冻结表示有效。全量train/validation解压、特征、validation效果、
+test和训练继续未授权。
 
 ## 2. 已关闭的 blocker
 
@@ -152,13 +153,44 @@ CRC/size/SHA/ffprobe/音轨/事件解码/时长边界验收。该关闭只表示
 `next_stage_allowed=false`；前者只允许 metadata/许可/物理去重/媒体 pilot 计划审计，
 后者禁止进入 S1/GPU/特征/训练或任何效果 test。
 
-## 4. v2 数据责任审查
+## 3A. v3 UnAV S1-R计划审查
 
-### D-001：LLP 作为 S1 主数据
+机器合同：`intersuit/configs/m4_ptpa_unav_s1r_plan_v1.json`，SHA256
+`28f1821a5fef27371da7b16df55f4ecedc3bc70673707f7ab7e19b4fac133c80`。
 
-计划级通过。LLP 的 10 秒视频、25 类和 val/test 1 秒密集 audio/visual annotation
-与 `1s/1s + frozen BEATs + M4` 合同匹配。本地初审证明官方 split 物理交集为 0，
-但 train 是弱标注、raw media 未在本地，因此只允许下一步构建 pilot 计划，不允许下载 full/test。
+审查结果为 `PASS_PLAN_ONLY`，理由如下：
+
+1. LLP原S1结果报告和失败分析SHA已锁，状态固定为`FAIL_UNCHANGED`，禁止改阈值或改名晋级；
+2. UnAV与LLP任务责任分开：UnAV只检验强onset/offset是否修复prototype geometry和margin；
+3. train只做development，validation只在候选冻结后访问一次，test保持媒体/特征/效果三重封存；
+4. 重叠官方事件按多标签处理，same-video negative必须处于所有官方事件均不活跃的窗口；
+5. 100类随机基线锁为0.01，macro Recall@1与balanced accuracy门槛均为0.21；margin点估计和
+   95% CI下界必须严格大于0，correct必须高于mismatch，三个固定seed方向一致；
+6. canary20授权已经消费，当前所有全量媒体、GPU、特征、效果、test和训练权限均false。
+
+仍未关闭的blocker：
+
+- 6226个train和1717个validation合格媒体尚未获得全量选择性解压授权与逐文件资格；
+- 冻结BEATs/teacher输入归一化、窗口缓存格式和输出manifest尚未形成新Review；
+- validation internal confirm尚未生成sealed manifest，效果访问次数仍为0；
+- test 2098个合格ID保持封存，不能因validation通过自动开启；
+- 原视频逐文件许可仍未验证，当前只允许项目操作者授权的本机内部非商业媒体资格工作。
+
+因此`next_stage_allowed=false`。下一步只能申请S1-R全量train/validation媒体资格授权；
+不得直接提特征、看validation效果或训练。
+
+## 4. v3 数据责任审查
+
+### D-001：LLP 作为历史冻结S1
+
+结果级冻结。LLP已完成100 train+50 validation的冻结BEATs评测，Recall高于随机但semantic
+margin和CI门禁失败；formal test未访问。该FAIL不能被UnAV结果覆盖。
+
+### D-001R：UnAV-100作为S1-R重构候选
+
+计划级通过、媒体canary级通过。UnAV提供100类强onset/offset，归档成员与metadata精确匹配，
+canary20全部具备H.264视频与AAC音频并通过完整解码。它尚未获得全量媒体、特征或效果资格，
+所以当前不能声称S1-R上界通过。
 
 ### D-002：Clotho-AQA 作为 S2 主数据
 
@@ -193,6 +225,6 @@ S1/S2/S3a 都通过也不等于 S3b/S6 通过。
 
 ## 6. 人话结论
 
-现在只批准“把四套数据的来源、许可、物理去重、可下载率和职责查清”。
-还没有批准下载 LLP/Clotho-AQA/AVCaps 全量、提特征、改模型或训练。
-原计划的考试顺序不变，只是现在为每一科指定了不同的合法试卷。
+现在只批准UnAV S1-R的科学合同，并承认其归档与20条媒体canary合格。
+还没有批准全量train/validation解压、提特征、访问validation/test效果、改模型或训练。
+人话说：试卷和20道样题已经验真，但还没批准正式开卷考试。

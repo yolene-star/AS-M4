@@ -1,10 +1,15 @@
 # M4-PTPA 音频语义、答案表示与融合位置重构计划
 
-版本：`v2`（2026-08-20）
+版本：`v3`（2026-08-27）
 
 唯一机器可读数据责任入口：
 `intersuit/configs/m4_ptpa_audio_dataset_responsibility_v2.json`。
 新数据职责不改变原 S0–S6 的科学顺序和 fail-closed 门禁。
+UnAV S1-R机器可读计划：
+`intersuit/configs/m4_ptpa_unav_s1r_plan_v1.json`。
+
+v3不改写LLP原S1的正式FAIL，而是在其后新增独立 `S1-R`：只检验强时间标注是否能修复
+prototype纠缠和negative semantic margin。S1-R通过前不恢复S2/S3/S4或任何下游训练。
 
 ## 1. 决策背景
 
@@ -48,7 +53,8 @@ Dynamic Window Selector V3 已完成 100 个物理视频、14 个条件和 10,00
 
 | 阶段 | 数据集 | 唯一责任 | 明确不负责 |
 | --- | --- | --- | --- |
-| S1 | LLP | 冻结 BEATs 事件语义、1s/1s 窗口和音频/视觉事件上界 | 开放问答、长视频生成 |
+| S1（历史冻结） | LLP | 保留已审计的弱标签S1 FAIL与失败分析 | 重新调阈值、改名晋级、下游训练 |
+| S1-R | UnAV-100 | 强onset/offset事件原型、1s/1s窗口和语义margin重构 | 开放问答、融合位置、长视频生成 |
 | S2 | Clotho-AQA | 问题条件下的音频—答案语义表示 | 视觉融合、长视频 |
 | S3a | AVCaps | audio/visual/audio-visual 模态贡献与融合位置冻结上界 | canonical event class、1s 时间边界 |
 | S3b/S6 | LongVALE | 长视频端到端生成门禁 | S1 类别选择、S2 答案表示调参 |
@@ -64,6 +70,9 @@ Dynamic Window Selector V3 已完成 100 个物理视频、14 个条件和 10,00
 ```text
 gpu_execution_allowed
 feature_extraction_allowed
+unav_s1r_full_train_validation_media_extraction_allowed
+unav_s1r_feature_extraction_allowed
+unav_s1r_validation_effect_access_allowed
 llp_pilot_download_allowed
 clotho_aqa_download_allowed
 avcaps_download_allowed
@@ -111,54 +120,59 @@ selector_training_allowed
 
 S0 通过只允许构建离线 manifest；不自动允许 GPU、特征提取或训练。
 
-## 6. 阶段 S1：冻结音频语义上界
+## 6. 阶段 S1与S1-R：冻结音频语义上界
 
-S1 唯一主数据为 LLP。本地官方 metadata 初审为
-train/validation/test `10000/649/1200`，物理 ID 跨 split 交集为 0，
-三个 split 都覆盖 25 类。与已知 AVE 历史 2500 视频排除后的
-`9811/636/1183` 只是初审数，正式数量必须由全历史 overlap ledger
-重算后锁定。
+LLP原S1已按预注册合同完成：macro Recall@1高于随机，但所有表示的semantic margin与最差
+seed CI下界失败，正式结论为 `FAIL`。该结论、阈值和“停止S2/S3/S4”的决定保持不变。
 
-- official train-clean：只可用于 S1 development 与后续 S4 训练；train 为弱标注，
-  不得伪造 1s 密集边界。
-- official validation-clean：使用 dense audio/visual annotation 选择表示、pooling 和阈值。
-- official test-clean：在候选和阈值冻结后只访问一次，作 S1 confirm；
-  不因此解锁 S2/S3 的 test。
+S1-R是独立的强时间标注重构，不是LLP重跑。UnAV-100官方train/validation/test为
+`6489/2134/2167`个物理视频、各100类；排除完整历史后为`6226/1717/2098`。
+13卷归档和10790成员映射均PASS，train10+validation10的canary20媒体资格与独立审计PASS，
+但全量解压、特征、效果和训练均未授权。
+
+- train-clean：只用于媒体资格、prototype构建、表示与阈值开发；
+- validation-clean：候选、阈值、seed和统计代码冻结后，只访问一次internal confirm；
+- test-clean：继续封存，必须另行授权，不能由validation结果自动解锁；
+- S1-R通过也不把LLP FAIL改成PASS，不自动恢复S2/S3/S4。
 
 ### 6.1 表示
 
-优先比较：
+S1-R优先比较：
 
 - 冻结 BEATs clip pooling；
 - 冻结 BEATs 1s/1s window pooling；
-- 已资格化的开发 teacher embedding。
+- 强标注event interval pooling；
+- 已资格化的冻结teacher embedding。
 
 不得训练 projector、fusion 或语言模型。
 
 ### 6.2 正负样本
 
-- positive：正确物理媒体、正确 canonical event；
+- positive：正确物理媒体、正确 canonical event和官方有效onset/offset；
 - same-video hard negative：高能量非目标或邻近非目标窗口，仅在有真实时间监督时启用；
 - cross-video same-class：同类、不同物理媒体，用于一致性；
 - cross-video acoustic-hard-negative：声学相似但 canonical label 不同；
 - mismatch negative：来自错配媒体，且 canonical label 必须不同；
-- 无可靠时间边界的 clip-level 数据不得生成 same-video window label。
+- 重叠有效事件按多标签处理，不能互相作为负样本；
+- same-video negative必须处于所有官方事件均不活跃的窗口；
+- 无可靠时间边界的clip-level数据不得生成same-video window label。
 
 ### 6.3 指标与门禁
 
 主要指标：macro Recall@1、balanced accuracy、rank-first、positive-minus-hard-negative margin 和物理媒体级 bootstrap CI。
 
-S1 必须同时满足：
+100类随机基线为`0.01`。S1-R必须同时满足：
 
-- macro Recall@1 高于随机基线至少 `+0.20`；
-- balanced accuracy 高于随机基线至少 `+0.20`；
+- macro Recall@1 `>=0.21`；
+- balanced accuracy `>=0.21`；
 - mean positive-minus-hard-negative margin `>0`；
 - margin 95% CI 下界 `>0`；
 - correct 高于 mismatch；
 - 至少 3 个固定 seed 方向一致；
-- internal confirm 尚未访问。
+- validation internal confirm在冻结前尚未访问，且只能访问一次。
 
-否则停止该表示，不允许通过训练下游模块掩盖失败。
+否则停止S1-R，不允许通过训练下游模块掩盖失败。只有validation internal confirm通过并经
+独立Review，才可申请一次性test权限；test仍失败则保持原PTPA模型并停止。
 
 ## 7. 阶段 S2：答案表示上界
 
@@ -260,8 +274,8 @@ dev760/PT/PA 只做非劣回归，不用于选择候选。
 ## 12. 资源顺序
 
 - S0、manifest、合同测试、离线统计：CPU；
-- 数据下载顺序：LongVALE `part_19` 已授权补充 -> LLP train/validation 小规模 pilot
-  -> S1 媒体 Review -> Clotho-AQA -> S2 Review -> AVCaps -> S3 Review；
+- 数据顺序：UnAV归档与canary20已完成 -> S1-R计划Review -> 申请全量train/validation媒体资格
+  -> 冻结特征Review -> train development -> validation一次internal confirm；test另行封存授权；
 - LLP official test、Clotho-AQA test、AVCaps test 媒体可以在完整性层封存，
   但模型效果访问必须分阶段解封；
 - S1 先复用合格冻结特征，缺失时才申请单卡 GPU 2 提取；
@@ -272,19 +286,20 @@ dev760/PT/PA 只做非劣回归，不用于选择候选。
 
 ## 13. 完成与停止定义
 
-本路线只有在语义目标、答案表示或融合位置中至少一个单模块通过独立 confirm，并通过官方端到端指标与回归门禁后，才可称为候选。
+本路线只有在语义目标、答案表示或融合位置中至少一个单模块通过独立confirm，并通过官方端到端指标与回归门禁后，才可称为候选。S1-R validation通过只能称为internal upper-bound通过，
+不能冒充formal test。
 
 任一阶段 `next_stage_allowed=false`，下游 launcher 必须 fail-closed。没有合格候选时，保留原 PTPA 模型并停止新增训练。
 
 ## 14. 批准后的第一批工作
 
-只执行 S0：
+v3当前只允许完成S1-R计划和媒体资格前置工作：
 
 1. 冻结 `dataset_responsibility_v2` 与正式计划 Review；
 2. 生成全历史 split/访问状态台账和物理媒体交集矩阵；
 3. 完成已授权 LongVALE `part_19` 的 SHA/CRC/member 审计；
-4. 对 LLP 只先构建 metadata lock 和小规模 train/validation media pilot 计划，不解封 test；
-5. 审计 hard-negative 合法性及旧 R0/R2/teacher 资产资格；
-6. 输出修订后 S0 dataset qualification Review；
-7. Review 通过后才允许 LLP pilot 媒体获取；LLP pilot 通过后才决定 full media，
-   不因本计划修订自动下载 Clotho-AQA/AVCaps 或启动训练。
+4. 保留LLP S1 FAIL与失败分析，不重跑validation或formal test；
+5. 固化UnAV归档、成员审计和canary20媒体资格证据；
+6. 审计强时间hard-negative、多标签重叠和train/validation/test职责；
+7. Review通过后仍需独立授权才能全量选择性解压train/validation；
+8. 不因v3修订自动提特征、访问validation/test效果、下载Clotho-AQA/AVCaps或启动训练。
