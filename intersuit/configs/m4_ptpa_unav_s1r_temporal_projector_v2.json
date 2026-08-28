@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_STRONG_TIMED_PROTOTYPE_PROJECTOR_V2",
+  "scope": "internal_noncommercial_unav_event_semantics_only",
+  "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+  "model": {"input_dim": 768, "output_dim": 768, "hidden_dim": 256, "steps": 300, "lr": 0.00005, "margin": 0.05, "prototype_temperature": 0.07, "preserve_weight": 0.25},
+  "objective": "fixed_strong_onset_offset_event_prototypes_plus_hard_negative_margin_plus_identity_preservation",
+  "permissions": {"standalone_projector_training_allowed": true, "beats_training_allowed": false, "m4_fusion_training_allowed": false, "test_access_allowed": false, "redistribution_allowed": false}
+}
