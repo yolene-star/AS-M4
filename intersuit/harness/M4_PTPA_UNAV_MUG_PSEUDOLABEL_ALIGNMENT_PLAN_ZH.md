@@ -2,7 +2,7 @@
 
 ## 1. 目标
 
-在不训练 BEATs、不修改 M4/Qwen2 和视觉主干的前提下，利用 UnAV 官方 onset/offset 强时间事件标注，构造 MUG 风格跨模态随机组合（CMRC）伪标签，训练轻量音视频对齐模块，验证其是否比 raw BEATs 和现有 projector v2 更稳定。
+在不训练 BEATs、不修改 M4/Qwen2 和任何视觉模块的前提下，利用 UnAV 官方 onset/offset 强时间事件标注，训练纯音频 semantic projector，重点解决 projector 相比 raw BEATs 的类别召回下降问题。本阶段不引入视觉伪标签，也不执行跨模态随机组合。
 
 本计划只承担 UnAV 事件语义与音视频对齐验证，不承担最终 M4 问答效果证明。
 
@@ -19,32 +19,29 @@
 
 音频和视频来自同一物理视频，事件标签只由官方 `event_label` 与 `onset/offset` 产生。窗口标签按时间重叠秒数加权，禁止把 clip label 复制到全部窗口。
 
-### 3.2 视觉伪标签
+### 3.2 纯音频强时间事件原型
 
-视觉伪标签必须来自冻结视觉模型或官方窗口级视觉证据，并保存模型、版本、阈值、窗口范围和生成 SHA。没有通过独立审计的视觉伪标签不得进入训练。
+只使用 UnAV 官方 `event_label`、`onset/offset` 和冻结 BEATs 1 秒窗口特征。按事件与窗口的重叠秒数加权池化；重叠事件保留多标签。禁止把视频级标签复制到全部窗口。
 
-### 3.3 CMRC
+### 3.3 本阶段不做 CMRC
 
-随机抽取物理视频 A 的视觉窗口和视频 B 的音频窗口；组合标签为两侧在对应时间窗口内激活事件的安全并集。每个组合记录来源 ID、窗口时间、原始标签、合成标签和随机种子。
-
-禁止：test 数据、同物理视频泄漏、把重叠有效事件当负样本、使用未审计的伪标签、以旧 LLP/dev760 结果替代 UnAV。
+MUG 的跨模态随机组合属于后续音视频对齐阶段，本阶段不使用视觉输入、不生成视觉伪标签、不构造音视频混合样本。当前只研究纯音频 projector 为什么损失类别召回，以及如何保持 raw BEATs 几何。
 
 ## 4. 冻结与可训练范围
 
 冻结：BEATs、M4/Qwen2、视觉主干、原有语言模型。
 
-首轮只训练：audio projector、visual projector、轻量 temporal alignment head。
+首轮只训练：audio semantic projector。
 
 首轮禁止：fusion、dynamic selector、语言模型联合训练、BEATs 微调。
 
 ## 5. 损失函数
 
-`L = L_event_semantic + L_temporal_overlap + L_hard_negative + L_CMRC_consistency + λ L_identity`。
+`L = L_event_semantic + L_temporal_overlap + L_hard_negative + λ L_identity`。
 
 - `L_event_semantic`：多标签事件语义对齐；
 - `L_temporal_overlap`：约束 onset/offset 与窗口激活一致；
 - `L_hard_negative`：正确配对优于错配、inactive same-video 和跨视频 hard negative；
-- `L_CMRC_consistency`：合成样本预测应接近安全并集标签；
 - `L_identity`：保持 raw BEATs 几何，避免 projector 退化。
 
 ## 6. 训练阶梯
@@ -53,7 +50,7 @@
 
 ## 7. 独立评估
 
-validation 只允许一次确认，比较 raw BEATs、projector v2 和 CMRC 新 projector。指标包括 Macro Recall@1、balanced accuracy、positive-minus-hard-negative margin、correct-minus-mismatch、时间重叠率、每类 Recall 和物理视频 bootstrap CI。
+validation 只允许一次确认，比较 raw BEATs、旧 projector v1、temporal projector v2 和新的纯音频 projector。指标包括 Macro Recall@1、balanced accuracy、positive-minus-hard-negative margin、correct-minus-mismatch、每类 Recall、零召回类别数和物理视频 bootstrap CI。
 
 ## 8. 通过门槛
 
@@ -61,13 +58,13 @@ validation 只允许一次确认，比较 raw BEATs、projector v2 和 CMRC 新 
 
 ## 9. 回退与停止
 
-任一伪标签审计、泄漏检查、CMRC 并集规则或 validation 门禁失败，立即停止，不接入 M4。回退到 raw BEATs 或已冻结 projector v2；不得用冻结/删模块宣称恢复旧权重。
+任一事件区间审计、泄漏检查、负样本规则或 validation 门禁失败，立即停止，不接入 M4。回退到 raw BEATs 或已冻结 projector v2；不得用冻结/删模块宣称恢复旧权重。
 
 ## 10. 当前执行入口
 
 第 1 步：冻结基线与 SHA 锁。
-第 2 步：构建并独立审计音频/视觉伪标签。
-第 3 步：生成 CMRC 训练 manifest。
-第 4 步：运行训练阶梯。
-第 5 步：validation 一次性独立评估。
-第 6 步：通过后才设计 M4 gate0 接入诊断。
+第 2 步：构建并独立审计纯音频强时间事件原型与 hard-negative manifest。
+第 3 步：训练召回保持型纯音频 projector。
+第 4 步：运行 `2-step → 20-step → 150-step → 300-step` 训练阶梯。
+第 5 步：validation 一次性独立评估并与 raw BEATs/projector v2 对比。
+第 6 步：只有纯音频门禁通过后，才讨论是否进入 M4 gate0 诊断。
