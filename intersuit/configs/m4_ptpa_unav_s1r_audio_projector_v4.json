@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_AUDIO_RECALL_PRESERVING_PROJECTOR_V4",
+  "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+  "objective": "projected_prototype_hard_negative_class_balance_raw_rank_distillation_identity",
+  "model": {"input_dim": 768, "hidden_dim": 256, "output_dim": 768, "steps": [2,20,150,300], "lr": 0.00002, "temperature": 0.07, "margin": 0.05, "identity_weight": 1.0, "distill_weight": 0.5, "hard_negative_weight": 1.0},
+  "permissions": {"standalone_projector_training_allowed": true, "beats_training_allowed": false, "m4_fusion_training_allowed": false, "test_access_allowed": false}
+}
