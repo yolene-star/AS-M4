@@ -124,6 +124,8 @@ class ModelArguments:
         default="third_party/OmniMMI/baselines/videollama2/model"
     )
     scene_audio_beats_checkpoint_sha256: Optional[str] = field(default=None)
+    scene_audio_v4_projector_path: Optional[str] = field(default=None)
+    scene_audio_v4_projector_sha256: Optional[str] = field(default=None)
     scene_audio_window_mode: str = field(default="fixed")
     scene_audio_selector_dim: Optional[int] = field(default=None)
     dynamic_window_scales_sec: str = field(default="1.0,2.0,4.0")
@@ -2144,10 +2146,10 @@ def train(attn_implementation=None):
                 for p in model.get_model().speech_projector.parameters():
                     p.requires_grad = True
             if "scene_audio_encoder" in tunable_parts and model_args.enable_scene_audio:
-                if str(model_args.scene_audio_encoder_type).lower() == "beats":
+                if str(model_args.scene_audio_encoder_type).lower() in {"beats", "beats_v4"}:
                     raise ValueError(
-                        "冻结 BEATs 不能使用 scene_audio_encoder 全量解冻；"
-                        "请使用 scene_audio_projector。"
+                        "冻结 BEATs/BEATs-v4 不能使用 scene_audio_encoder 全量解冻；"
+                        "请使用受控的 projector/adapter 训练合同。"
                     )
                 for name, param in model.named_parameters():
                     if "scene_audio_encoder" in name:

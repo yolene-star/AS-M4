@@ -256,6 +256,12 @@ class LlavaMetaModel:
         self.config.scene_audio_beats_checkpoint_sha256 = (
             getattr(model_args, "scene_audio_beats_checkpoint_sha256", None) or None
         )
+        self.config.scene_audio_v4_projector_path = (
+            getattr(model_args, "scene_audio_v4_projector_path", None) or None
+        )
+        self.config.scene_audio_v4_projector_sha256 = (
+            getattr(model_args, "scene_audio_v4_projector_sha256", None) or None
+        )
         self.config.scene_audio_window_mode = normalize_scene_audio_window_mode(
             getattr(model_args, "scene_audio_window_mode", "fixed")
         )

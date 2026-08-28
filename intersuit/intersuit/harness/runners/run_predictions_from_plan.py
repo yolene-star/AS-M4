@@ -531,6 +531,9 @@ def maybe_replace_scene_audio_encoder(model: Any, env: dict[str, str]) -> bool:
         env.get("AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT"),
         env.get("AS_M4_SCENE_AUDIO_BEATS_CODE_ROOT"),
         env.get("AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256"),
+        env.get("AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH"),
+        env.get("AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256"),
+        env.get("AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE"),
         env.get("AS_M4_SCENE_AUDIO_TORCHAUDIO_BUNDLE"),
         env.get("AS_M4_SCENE_AUDIO_TORCHAUDIO_WEIGHT_PATH"),
     )
@@ -554,6 +557,12 @@ def maybe_replace_scene_audio_encoder(model: Any, env: dict[str, str]) -> bool:
     model.config.scene_audio_beats_checkpoint_sha256 = env.get(
         "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256"
     )
+    model.config.scene_audio_v4_projector_path = env.get(
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH"
+    )
+    model.config.scene_audio_v4_projector_sha256 = env.get(
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256"
+    )
     model.config.scene_audio_precomputed_shared_space = env.get(
         "AS_M4_SCENE_AUDIO_PRECOMPUTED_SHARED_SPACE", "0"
     ) in {"1", "true", "True", "yes"}
@@ -563,6 +572,48 @@ def maybe_replace_scene_audio_encoder(model: Any, env: dict[str, str]) -> bool:
 
     device = next(model.parameters()).device
     replacement = build_scene_audio_encoder(model.config).to(device=device)
+    adapter_source = env.get("AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE")
+    if encoder_type.lower() == "beats_v4" and adapter_source:
+        if adapter_source != "existing_audio_projector":
+            raise ValueError(
+                "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE 仅支持 existing_audio_projector"
+            )
+        previous = getattr(model_body, "scene_audio_encoder", None)
+        if isinstance(previous, list):
+            previous = previous[0] if previous else None
+        source_projector = getattr(previous, "audio_projector", None)
+        target_adapter = getattr(replacement, "m4_adapter", None)
+        if not isinstance(source_projector, torch.nn.Linear) or not isinstance(
+            target_adapter, torch.nn.Linear
+        ):
+            raise ValueError(
+                "beats_v4 existing_audio_projector 要求旧编码器含线性 audio_projector，"
+                "且新编码器含线性 m4_adapter"
+            )
+        if source_projector.weight.shape != target_adapter.weight.shape or (
+            source_projector.bias is None
+        ) != (target_adapter.bias is None):
+            raise ValueError(
+                "旧 audio_projector 与新 m4_adapter 形状不兼容："
+                f"source={tuple(source_projector.weight.shape)}, "
+                f"target={tuple(target_adapter.weight.shape)}"
+            )
+        with torch.no_grad():
+            target_adapter.weight.copy_(
+                source_projector.weight.to(
+                    device=target_adapter.weight.device,
+                    dtype=target_adapter.weight.dtype,
+                )
+            )
+            if target_adapter.bias is not None:
+                target_adapter.bias.copy_(
+                    source_projector.bias.to(
+                        device=target_adapter.bias.device,
+                        dtype=target_adapter.bias.dtype,
+                    )
+                )
+        target_adapter.requires_grad_(False)
+        model.config.scene_audio_v4_adapter_source = adapter_source
     replacement.eval()
     setattr(model_body, "scene_audio_encoder", replacement)
     if getattr(model_body, "streaming_av_module", None) is None:
@@ -573,6 +624,12 @@ def maybe_replace_scene_audio_encoder(model: Any, env: dict[str, str]) -> bool:
         streaming_av_module.eval()
         setattr(model_body, "streaming_av_module", streaming_av_module)
     model._as_m4_scene_audio_encoder_signature = signature
+    # The backend replacement itself is an explicit, SHA-locked setup action.
+    # Freeze the new module tree and start the mutation audit only after that
+    # setup, so the expected replacement is not misreported as inference-time
+    # weight drift.
+    replacement.requires_grad_(False)
+    model._as_m4_frozen_runtime_sha_before = frozen_runtime_module_sha256(model)
     return True
 
 

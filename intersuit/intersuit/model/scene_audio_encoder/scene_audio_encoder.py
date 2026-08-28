@@ -398,6 +398,98 @@ class FrozenBEATsSceneAudioEncoder(nn.Module):
         return self.audio_projector(raw)
 
 
+class FrozenBEATsV4SceneAudioEncoder(FrozenBEATsSceneAudioEncoder):
+    """Frozen BEATs + externally locked v4 semantic projector + M4 adapter."""
+
+    def __init__(
+        self,
+        hidden_size: int,
+        checkpoint_path: str,
+        code_root: str,
+        semantic_projector_path: str | None,
+        semantic_projector_sha256: str | None = None,
+        sample_rate: int = 16000,
+        expected_sha256: str | None = None,
+        encode_chunk_size: int = 0,
+    ) -> None:
+        super().__init__(
+            hidden_size=hidden_size,
+            checkpoint_path=checkpoint_path,
+            code_root=code_root,
+            sample_rate=sample_rate,
+            expected_sha256=expected_sha256,
+            encode_chunk_size=encode_chunk_size,
+        )
+        if not semantic_projector_path:
+            raise ValueError("beats_v4 requires scene_audio_v4_projector_path")
+        semantic_path = _resolve_local_file(semantic_projector_path, "v4 semantic projector")
+        semantic_sha = _sha256_file(semantic_path)
+        if semantic_projector_sha256 and semantic_sha != str(semantic_projector_sha256).lower():
+            raise ValueError(
+                f"v4 semantic projector SHA256 mismatch: expected={semantic_projector_sha256}, actual={semantic_sha}"
+            )
+        try:
+            payload = torch.load(semantic_path, map_location="cpu", weights_only=True)
+        except TypeError:
+            payload = torch.load(semantic_path, map_location="cpu")
+        state = payload.get("state_dict") if isinstance(payload, dict) else None
+        if not isinstance(state, dict):
+            raise ValueError("v4 semantic projector checkpoint must contain state_dict")
+        semantic = nn.Sequential(
+            nn.Linear(self.encoder_dim, 256),
+            nn.GELU(),
+            nn.Linear(256, self.encoder_dim),
+        )
+        required = {"down.weight", "down.bias", "up.weight", "up.bias"}
+        if not required <= set(state):
+            raise ValueError(f"v4 semantic projector keys missing: {sorted(required - set(state))}")
+        if any(not torch.isfinite(state[key]).all() for key in required):
+            raise ValueError("v4 semantic projector weights must be finite")
+        semantic[0].load_state_dict({"weight": state["down.weight"], "bias": state["down.bias"]})
+        semantic[2].load_state_dict({"weight": state["up.weight"], "bias": state["up.bias"]})
+        semantic.eval()
+        for parameter in semantic.parameters():
+            parameter.requires_grad = False
+        self.semantic_projector = semantic
+        self.m4_adapter = nn.Linear(self.encoder_dim, int(hidden_size))
+        nn.init.xavier_uniform_(self.m4_adapter.weight)
+        nn.init.zeros_(self.m4_adapter.bias)
+        self.semantic_projector_path = str(semantic_path)
+        self.semantic_projector_sha256 = semantic_sha
+        self.feature_kind = "beats_v4_semantic_projected"
+        for parameter in self.audio_projector.parameters():
+            parameter.requires_grad = False
+
+    def project(self, raw_features: torch.Tensor) -> torch.Tensor:
+        raw = _ensure_batched_features(raw_features).to(
+            device=self.m4_adapter.weight.device,
+            dtype=self.m4_adapter.weight.dtype,
+        )
+        residual = self.semantic_projector(raw.float())
+        semantic = F.normalize(raw.float() + 0.1 * residual, dim=-1)
+        return self.m4_adapter(semantic.to(dtype=self.m4_adapter.weight.dtype))
+
+    def forward(
+        self,
+        audio_windows: torch.Tensor,
+        sample_mask: torch.Tensor | None = None,
+        timestamps: torch.Tensor | None = None,
+    ) -> SceneAudioEncoderOutput:
+        output = super().forward(
+            audio_windows,
+            sample_mask=sample_mask,
+            timestamps=timestamps,
+        )
+        features = output.features.masked_fill(~output.mask.unsqueeze(-1), 0.0)
+        return output._replace(features=features)
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        self.semantic_projector.eval()
+        self.beats_model.eval()
+        return self
+
+
 def _ensure_batched_windows(audio_windows: torch.Tensor) -> torch.Tensor:
     if audio_windows.ndim == 2:
         audio_windows = audio_windows.unsqueeze(0)

@@ -679,6 +679,101 @@ def test_scene_audio_backend_is_installed_once_per_signature(monkeypatch):
     assert runner.maybe_replace_scene_audio_encoder(model, env) is False
     assert calls == {"encoder": 1, "streaming": 1}
     assert model.config.scene_audio_hidden_size == 4
+    assert model._as_m4_frozen_runtime_sha_before == runner.frozen_runtime_module_sha256(model)
+
+
+def test_scene_audio_v4_backend_propagates_locked_projector(monkeypatch):
+    import intersuit.model.scene_audio_encoder.builder as encoder_builder
+    import intersuit.model.streaming_av.builder as streaming_builder
+
+    captured = {}
+
+    def build_encoder(config):
+        captured["path"] = config.scene_audio_v4_projector_path
+        captured["sha256"] = config.scene_audio_v4_projector_sha256
+        return torch.nn.Linear(2, 2)
+
+    monkeypatch.setattr(encoder_builder, "build_scene_audio_encoder", build_encoder)
+    monkeypatch.setattr(
+        streaming_builder,
+        "build_streaming_av_module",
+        lambda config: torch.nn.Linear(2, 2),
+    )
+
+    class FakeModel:
+        def __init__(self):
+            self.config = SimpleNamespace(hidden_size=4)
+            self.body = SimpleNamespace(streaming_av_module=None)
+            self.weight = torch.nn.Parameter(torch.ones(1))
+
+        def get_model(self):
+            return self.body
+
+        def parameters(self):
+            return iter([self.weight])
+
+    env = {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "semantic.pt",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256": "a" * 64,
+    }
+    model = FakeModel()
+
+    assert runner.maybe_replace_scene_audio_encoder(model, env) is True
+    assert captured == {"path": "semantic.pt", "sha256": "a" * 64}
+    assert model._as_m4_frozen_runtime_sha_before == runner.frozen_runtime_module_sha256(model)
+
+
+def test_scene_audio_v4_backend_reuses_and_freezes_existing_audio_projector(
+    monkeypatch,
+):
+    import intersuit.model.scene_audio_encoder.builder as encoder_builder
+
+    class Replacement(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.m4_adapter = torch.nn.Linear(2, 3)
+
+    replacement = Replacement()
+    monkeypatch.setattr(
+        encoder_builder,
+        "build_scene_audio_encoder",
+        lambda config: replacement,
+    )
+
+    source = torch.nn.Linear(2, 3)
+    with torch.no_grad():
+        source.weight.fill_(0.25)
+        source.bias.fill_(-0.5)
+
+    class FakeModel:
+        def __init__(self):
+            self.config = SimpleNamespace(hidden_size=3)
+            self.body = SimpleNamespace(
+                scene_audio_encoder=SimpleNamespace(audio_projector=source),
+                streaming_av_module=torch.nn.Identity(),
+            )
+            self.weight = torch.nn.Parameter(torch.ones(1))
+
+        def get_model(self):
+            return self.body
+
+        def parameters(self):
+            return iter([self.weight])
+
+    model = FakeModel()
+    env = {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "semantic.pt",
+        "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE": "existing_audio_projector",
+    }
+
+    assert runner.maybe_replace_scene_audio_encoder(model, env) is True
+    assert torch.equal(replacement.m4_adapter.weight, source.weight)
+    assert torch.equal(replacement.m4_adapter.bias, source.bias)
+    assert all(not parameter.requires_grad for parameter in replacement.m4_adapter.parameters())
+    assert model.config.scene_audio_v4_adapter_source == "existing_audio_projector"
+    assert model._as_m4_frozen_runtime_sha_before == runner.frozen_runtime_module_sha256(model)
 
 
 def test_generated_token_slice_not_empty_when_tokens_exist():

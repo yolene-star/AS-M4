@@ -12,6 +12,7 @@
 - UnAV 冻结特征 manifest SHA256=`57b0bc55...eb935f0`，7941 条 train/validation，334769 个 1 秒窗口。
 - 当前 temporal projector v2：SHA256=`0bf779db...f92a610`；validation Macro Recall@1=`0.62795`，margin=`0.02133`。
 - raw BEATs 参考：validation Macro Recall@1=`0.68056`，margin=`0.01755`。
+- v4 active hard-negative 候选：SHA256=`3c514457...7bc866`。在统一的 2413 个 validation query 上，raw BEATs Macro Recall@1=`0.637547`、v4=`0.637742`，差值=`+0.000195`；margin 从`0.015302`提升到`0.018008`，raw 正确样本保持率=`99.67%`。这里的统一口径替代早期不可直接横比的 2413/4070 query 数值。
 
 ## 3. 数据与伪标签
 
@@ -68,3 +69,21 @@ validation 只允许一次确认，比较 raw BEATs、旧 projector v1、tempora
 第 4 步：运行 `2-step → 20-step → 150-step → 300-step` 训练阶梯。
 第 5 步：validation 一次性独立评估并与 raw BEATs/projector v2 对比。
 第 6 步：只有纯音频门禁通过后，才讨论是否进入 M4 gate0 诊断。
+
+## 11. 2026-08-29 执行状态
+
+- 第 1–4 步已完成，v4 active hard-negative 版本已冻结保存；BEATs、M4、fusion 和 test 均未训练或访问。
+- 第 5 步的统一 2413 query 评估已通过“召回基本保持、margin 提升”的候选门禁，但物理视频级 bootstrap CI 尚未成功落盘，因此不能宣称统计显著。
+- v4 已实现隔离的`768→768 semantic projector + 768→3584 M4 adapter`接口并通过 CPU shape、SHA、冻结和 gate0 回退测试。
+- 当前进入第 6 步前置门禁，只允许只读 behavior-off/gate0 smoke；不允许非零 gate correct 推理、训练、BEATs 解冻或 test 访问。
+
+## 12. M4 gate0 前置合同
+
+首轮只使用`M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1`诊断基座和 dev760 的首个非 test 样本。v4 semantic projector 按 SHA 锁定；`768→3584` adapter 必须复用并冻结该基座已有的`audio_projector`，禁止使用随机初始化 adapter 解释语义效果。
+
+只运行两种条件：
+
+1. `V4_BEHAVIOR_OFF`：完全关闭 scene audio；
+2. `V4_GATE0`：真实同步音频经过冻结 BEATs 和 v4 projector，但强制残差 gate 为 0。
+
+通过标准为两条件预测精确一致、gate0 音频残差精确为 0、所有冻结运行模块推理前后 SHA 不变且无 NaN/Inf。该 smoke 只证明接口和行为回退，不证明 v4 能提升 M4；只有 gate0 通过并补齐 adapter 来源审计后，才另行授权非零 gate correct/mismatch 诊断。
