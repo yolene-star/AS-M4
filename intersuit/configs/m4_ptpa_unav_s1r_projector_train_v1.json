@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_UNAV_STANDALONE_SEMANTIC_PROJECTOR_TRAINING",
+  "scope": "internal_noncommercial_unav_event_semantics_only",
+  "authorization_basis": "用户于2026-08-28要求继续下一阶段",
+  "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+  "train_split": 6224,
+  "validation_split": 1717,
+  "test_split": 0,
+  "model": {"input_dim": 768, "project_dim": 128, "classes": 100, "steps": 150, "lr": 0.0001},
+  "permissions": {"standalone_projector_training_allowed": true, "m4_fusion_training_allowed": false, "beats_training_allowed": false, "test_access_allowed": false, "redistribution_allowed": false}
+}
