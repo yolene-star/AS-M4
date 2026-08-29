@@ -1,0 +1,76 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_READ_ONLY_FUSION_PROJECTOR_GATE0_SMOKE",
+  "dataset": {
+    "name": "AS_M4_STAGE2",
+    "split": "dev760_v4_fusion_projector_gate0_smoke_v1",
+    "manifest": "/home/yjm/M4-main/intersuit/datasets/AS_M4_STAGE2/dev760_frozen_qa_manifest.json",
+    "manifest_sha256": "6d8a29e53532593eb5b66f007e0cc774631f52afa070b82a3e3e1718fd4a2ea7",
+    "scorer": "label_terms",
+    "sample_limit": 1,
+    "locked_first_sample_id": "ave_stage2_QSgqjJ2iglM_audio",
+    "test_accessed": false
+  },
+  "models": {
+    "baseline_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "as_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1"
+  },
+  "output_root": "/home/yjm/M4-main/intersuit/harness/artifacts/m4_ptpa_unav_v4_fusion_projector_gate0_smoke_v1",
+  "experiments": [
+    {
+      "id": "V4_BEHAVIOR_OFF",
+      "description": "同一基座关闭场景音频。",
+      "model_key": "as_m4",
+      "audio_condition": "none",
+      "rollback_mode": "behavior",
+      "force_audio_gate": "0",
+      "alignment": "off",
+      "gate_ablation": "none"
+    },
+    {
+      "id": "V4_BYPASS_GATE0",
+      "description": "冻结v4链路，绕过旧fusion projector并强制gate0。",
+      "model_key": "as_m4",
+      "audio_condition": "correct",
+      "rollback_mode": "gate0",
+      "force_audio_gate": "0",
+      "alignment": "off",
+      "gate_ablation": "all",
+      "env": {
+        "AS_M4_FUSION_PROJECTOR_MODE": "bypass",
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT": "/home/yjm/M4-main/intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "/home/yjm/M4-main/intersuit/checkpoints/AS-M4-UnAV-audio-projector-v4-active-hardneg-300step/semantic_projector.pt",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+        "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE": "existing_audio_projector"
+      }
+    },
+    {
+      "id": "V4_LIGHTWEIGHT_GATE0",
+      "description": "冻结v4链路，使用无参数lightweight fusion并强制gate0。",
+      "model_key": "as_m4",
+      "audio_condition": "correct",
+      "rollback_mode": "gate0",
+      "force_audio_gate": "0",
+      "alignment": "off",
+      "gate_ablation": "all",
+      "env": {
+        "AS_M4_FUSION_PROJECTOR_MODE": "lightweight",
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT": "/home/yjm/M4-main/intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "/home/yjm/M4-main/intersuit/checkpoints/AS-M4-UnAV-audio-projector-v4-active-hardneg-300step/semantic_projector.pt",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+        "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE": "existing_audio_projector"
+      }
+    }
+  ],
+  "permissions": {
+    "gpu_preflight_allowed": true,
+    "gate0_smoke_allowed": true,
+    "nonzero_gate_allowed": false,
+    "training_allowed": false,
+    "test_access_allowed": false
+  }
+}

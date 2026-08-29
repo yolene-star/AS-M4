@@ -1037,6 +1037,11 @@ def model_prediction(
     previous_gate_v1 = getattr(model.config, "enable_audio_confidence_gate_v1", False)
     previous_event_aligner_v1 = getattr(model.config, "enable_audio_event_aligner_v1", False)
     previous_fusion_mode = getattr(model.config, "as_m4_fusion_mode", "aligned_gated")
+    previous_fusion_projector_mode = getattr(
+        model.config,
+        "as_m4_fusion_projector_mode",
+        "legacy",
+    )
     previous_simple_audio_gate = getattr(model.config, "as_m4_simple_audio_gate", 1.0)
     previous_inference_simple_audio_gate = getattr(
         model.config,
@@ -1062,6 +1067,14 @@ def model_prediction(
     active_fusion_mode = str(
         exp.get("env", {}).get("AS_M4_FUSION_MODE") or previous_fusion_mode
     )
+    active_fusion_projector_mode = str(
+        exp.get("env", {}).get("AS_M4_FUSION_PROJECTOR_MODE")
+        or previous_fusion_projector_mode
+    )
+    if active_fusion_projector_mode not in {"legacy", "identity", "bypass", "lightweight"}:
+        raise ValueError(
+            "AS_M4_FUSION_PROJECTOR_MODE must be legacy, identity, bypass, or lightweight"
+        )
     active_simple_audio_gate = float(
         exp.get("env", {}).get("AS_M4_SIMPLE_AUDIO_GATE")
         or previous_simple_audio_gate
@@ -1075,6 +1088,7 @@ def model_prediction(
         else previous_inference_simple_audio_gate
     )
     model.config.as_m4_fusion_mode = active_fusion_mode
+    model.config.as_m4_fusion_projector_mode = active_fusion_projector_mode
     model.config.as_m4_simple_audio_gate = active_simple_audio_gate
     model.config.as_m4_inference_simple_audio_gate = active_inference_simple_audio_gate
     streaming_av_module = getattr(model.get_model(), "streaming_av_module", None)
@@ -1089,6 +1103,13 @@ def model_prediction(
             model,
             exp.get("env", {}),
         )
+    streaming_av_module = getattr(model.get_model(), "streaming_av_module", None)
+    if isinstance(streaming_av_module, list):
+        streaming_av_module = streaming_av_module[0]
+    previous_module_fusion_projector_mode = None
+    if streaming_av_module is not None and hasattr(streaming_av_module, "fusion"):
+        previous_module_fusion_projector_mode = streaming_av_module.fusion.fusion_mode
+        streaming_av_module.fusion.fusion_mode = active_fusion_projector_mode
     frame_timestamps_arg = None
     if using_video_feature and qa.get("frame_timestamps") is not None:
         frame_timestamps_arg = torch.as_tensor(qa.get("frame_timestamps") or [], dtype=torch.float32, device=device).unsqueeze(0)
@@ -1185,10 +1206,13 @@ def model_prediction(
             model.config.enable_audio_confidence_gate_v1 = previous_gate_v1
             model.config.enable_audio_event_aligner_v1 = previous_event_aligner_v1
             model.config.as_m4_fusion_mode = previous_fusion_mode
+            model.config.as_m4_fusion_projector_mode = previous_fusion_projector_mode
             model.config.as_m4_simple_audio_gate = previous_simple_audio_gate
             model.config.as_m4_inference_simple_audio_gate = previous_inference_simple_audio_gate
             if previous_module_gate_v1 is not None:
                 streaming_av_module.confidence_gate.enable_v1 = previous_module_gate_v1
+            if previous_module_fusion_projector_mode is not None:
+                streaming_av_module.fusion.fusion_mode = previous_module_fusion_projector_mode
     diagnostics = None
     if dump_diagnostics:
         diagnostics = jsonable_diagnostics(getattr(model, "_last_streaming_av_diagnostics", None))
@@ -1209,6 +1233,7 @@ def model_prediction(
     token_debug["audio_confidence_gate_v1"] = active_gate_v1
     token_debug["audio_event_aligner_v1"] = active_event_aligner_v1
     token_debug["as_m4_fusion_mode"] = active_fusion_mode
+    token_debug["as_m4_fusion_projector_mode"] = active_fusion_projector_mode
     token_debug["as_m4_simple_audio_gate"] = active_simple_audio_gate
     token_debug["as_m4_inference_simple_audio_gate"] = active_inference_simple_audio_gate
     token_debug["first_token_logits"] = first_token_logits
