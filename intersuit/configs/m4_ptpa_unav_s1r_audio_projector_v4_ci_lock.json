@@ -1,0 +1,56 @@
+{
+  "artifact_kind": "m4_ptpa_unav_s1r_audio_projector_v4_physical_video_ci_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "cluster_unit": "physical_video",
+  "seeds": [17, 23, 47],
+  "replicates_per_seed": 5000,
+  "source_lock": {
+    "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+    "projector_checkpoint_sha256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+    "metrics_cache_sha256": "932b6781a7f88974b34490806e2b66c9ec729491847c98feb205a1bac42f79d8"
+  },
+  "result_artifacts": {
+    "seed17": {
+      "path": "intersuit/harness/artifacts/unav_s1r_audio_projector_v4_ci/bootstrap_seed17.json",
+      "sha256": "d532c17027c37228fc91e71739932c15428bdfbd9e45f32f139f2af5cacdf1f1"
+    },
+    "seed23": {
+      "path": "intersuit/harness/artifacts/unav_s1r_audio_projector_v4_ci/bootstrap_seed23.json",
+      "sha256": "b58de78e5975d79b4f8471dcff2d13ff1fe5ad2d68b5d4c3dedea9b1ef1c617a"
+    },
+    "seed47": {
+      "path": "intersuit/harness/artifacts/unav_s1r_audio_projector_v4_ci/bootstrap_seed47.json",
+      "sha256": "c9a08ae64aeb563f7ec61637a2ae9a5cc12a0bc89711edbb1ae2cc3dcb501484"
+    }
+  },
+  "point": {
+    "validation_videos": 1717,
+    "validation_event_queries": 4070,
+    "validation_video_label_queries": 2413,
+    "raw_macro_recall_at_1": 0.6375470000379624,
+    "projected_macro_recall_at_1": 0.6377420825216934,
+    "macro_delta": 0.00019508248373101278,
+    "raw_margin": 0.015301658588056826,
+    "projected_margin": 0.018007933262464915,
+    "margin_delta": 0.0027062746744080882,
+    "raw_correct_preservation_rate": 0.9966688874083944
+  },
+  "worst_seed_ci95": {
+    "projected_margin_lower": 0.015860576904336218,
+    "margin_delta_lower": 0.0023761915502248728,
+    "raw_correct_preservation_rate_lower": 0.9933554817275747
+  },
+  "checks": {
+    "projected_margin_ci_lower_positive_all_seeds": true,
+    "margin_delta_ci_lower_positive_all_seeds": true,
+    "macro_delta_ci_includes_zero_all_seeds": true,
+    "recall_significant_improvement_claim_allowed": false,
+    "margin_improvement_claim_allowed": true,
+    "m4_end_to_end_claim_allowed": false,
+    "test_accessed": false,
+    "beats_training_performed": false,
+    "m4_training_performed": false
+  },
+  "status": "PASS_MARGIN_IMPROVEMENT_RECALL_STATISTICALLY_INDISTINGUISHABLE_NOT_M4_EFFECT"
+}

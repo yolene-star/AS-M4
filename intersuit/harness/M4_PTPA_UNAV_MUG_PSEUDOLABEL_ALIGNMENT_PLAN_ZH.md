@@ -73,7 +73,7 @@ validation 只允许一次确认，比较 raw BEATs、旧 projector v1、tempora
 ## 11. 2026-08-29 执行状态
 
 - 第 1–4 步已完成，v4 active hard-negative 版本已冻结保存；BEATs、M4、fusion 和 test 均未训练或访问。
-- 第 5 步的统一 2413 query 评估已通过“召回基本保持、margin 提升”的候选门禁，但物理视频级 bootstrap CI 尚未成功落盘，因此不能宣称统计显著。
+- 第 5 步的统一评估和物理视频级 bootstrap CI 已完成。三个 seed 各5000次重采样均显示Macro Recall差值CI跨0、v4绝对margin及margin增量CI下界严格为正，因此只允许宣称“召回与raw统计上不可区分、margin稳定提升”，不允许宣称召回显著提升。
 - v4 已实现隔离的`768→768 semantic projector + 768→3584 M4 adapter`接口并通过 CPU shape、SHA、冻结和 gate0 回退测试。
 - 当前进入第 6 步前置门禁，只允许只读 behavior-off/gate0 smoke；不允许非零 gate correct 推理、训练、BEATs 解冻或 test 访问。
 
