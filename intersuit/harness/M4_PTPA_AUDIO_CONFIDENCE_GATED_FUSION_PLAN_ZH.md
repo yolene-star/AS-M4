@@ -638,3 +638,16 @@ AS_M4_STREAMING_MEMORY_MODE=snapshot
 
 下一步应进入 P2：先构建与审计 correct/mismatch/noisy/silence/visual-question 配对合同，
 继续保持 `g_sync=1`，不把时间平移样本混入第一阶段训练。
+
+## 17. P2 母数据集调研结论
+
+P2 推荐使用 `Valor32k-AVQA v2.0` 作为唯一母数据集，并派生
+`AS-M4-CGF-Valor32K-v1`。原因是其原生提供 `visual/audio/audio-visual` 问题模态、
+真实世界 10 秒音视频、同视频多问题、开放式答案和 MCQ。
+
+第一阶段只使用 `model=gpt4o + quality_rating=obvious`，并平衡三种 modality。
+`quality_rating` 不是声学质量标签；QualityGate 必须由原音频与确定性 noisy/silence/low-gain
+派生版本的相对排序监督。Mismatch 只能在同 split、不同物理视频之间构造。
+
+在下载媒体前必须先执行许可证、链接、媒体覆盖率、音轨、时长、物理视频身份和排除集合审计。
+完整调研见 `M4_PTPA_AUDIO_CONFIDENCE_DATASET_RESEARCH_ZH.md`。
