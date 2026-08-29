@@ -1,0 +1,24 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_fusion_projector_nonzero_gate_result_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "PASS_TECHNICAL_NO_SELECTIVE_TASK_GAIN_STOP_EXPANSION",
+  "gate": 0.005,
+  "sample_limit": 10,
+  "modes": ["bypass", "lightweight"],
+  "results": {
+    "bypass": {
+      "accuracy": {"behavior": 3, "correct": 3, "mismatch": 3},
+      "prediction_changes": {"correct": 2, "mismatch": 2},
+      "unique_improvements": {"correct": 0, "mismatch": 0},
+      "delta_ratio": {"correct_min": 1.4430333976633847e-05, "correct_max": 1.647247700020671e-05, "mismatch_min": 1.4498574273602571e-05, "mismatch_max": 1.676287138252519e-05}
+    },
+    "lightweight": {
+      "accuracy": {"behavior": 3, "correct": 3, "mismatch": 3},
+      "prediction_changes": {"correct": 1, "mismatch": 2},
+      "unique_improvements": {"correct": 0, "mismatch": 0},
+      "delta_ratio": {"correct_min": 0.0005029204185120761, "correct_max": 0.0005624615587294102, "mismatch_min": 0.0005029466119594872, "mismatch_max": 0.0005625772755593061}
+    }
+  },
+  "permissions": {"full_dev_allowed": false, "formal_test_allowed": false, "training_allowed": false, "gate_increase_allowed": false, "effect_claim_allowed": false}
+}
