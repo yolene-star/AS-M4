@@ -1,6 +1,6 @@
 {
   "artifact_kind": "valor32k_avqa_train_pilot_lock",
-  "status": "PASS_MANIFEST_BLOCKED_SINGLE_TAR_MEDIA_ACCESS",
+  "status": "PASS_PILOT150_MEDIA_READY",
   "seed": "as-m4-cgf-valor32k-pilot-v1",
   "official_split": "train",
   "filters": {
@@ -34,7 +34,11 @@
     "is_single_archive": true,
     "per_file_pilot_download_available": false
   },
-  "full_archive_download_authorized": false,
+  "full_archive_download_authorized": true,
+  "full_archive_received": true,
+  "full_archive_sha256": "c44ef39d5add2a8f547906b094ae67835897fd83920183d87955a3429e5a1d76",
+  "pilot_media_extracted_count": 150,
+  "pilot_media_audio_video_valid_count": 150,
   "hf_test_media_allowed": false,
   "training_allowed": false,
   "gpu_allowed": false

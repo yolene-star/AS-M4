@@ -1,5 +1,12 @@
 # Valor32k-AVQA official train pilot150 与媒体门禁报告
 
+> 2026-08-30 更新：此前的单 tar 获取阻塞已经解除。官方
+> `VALOR32K_videos.tar` 已由用户上传，文件大小与官方元数据一致，SHA-256 为
+> `c44ef39d5add2a8f547906b094ae67835897fd83920183d87955a3429e5a1d76`。锁定 pilot150
+> 已精确提取 `150/150`，全部可读且同时含音视频流。当前媒体门禁状态为
+> `PASS_PILOT150_MEDIA_READY`；后续 P2 条件合同见
+> `M4_PTPA_AUDIO_CONFIDENCE_P2_RESULT_ZH.md`。
+
 日期：2026-08-29（Asia/Shanghai）
 
 ## 1. 结论

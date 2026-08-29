@@ -651,3 +651,23 @@ P2 推荐使用 `Valor32k-AVQA v2.0` 作为唯一母数据集，并派生
 
 在下载媒体前必须先执行许可证、链接、媒体覆盖率、音轨、时长、物理视频身份和排除集合审计。
 完整调研见 `M4_PTPA_AUDIO_CONFIDENCE_DATASET_RESEARCH_ZH.md`。
+
+## 18. 2026-08-30 P2 实施状态
+
+P2 已完成并通过构建器与独立审计器双重门禁：
+
+- official train pilot150：150 个物理视频、450 个三模态问题组；
+- 150/150 媒体可读并同时含音视频流；
+- 每个媒体记录相对路径、大小、SHA、时长、采样率、声道和窗口数；
+- 每个问题固定 14 个条件，共 6,300 条；
+- 第一阶段 5,400 条包含 clean、9 档确定性噪声、silence 和 mismatch；
+- `shift_-1.0s/+1.0s` 共 900 条只冻结为第二阶段资产，首轮训练混入数为 0；
+- mismatch 自映射、跨 split、缺少目标长度规范和类别 fallback 均为 0；
+- 独立审计的条件集合、noise seed、标签、阶段和来源错误均为 0。
+
+条件 manifest SHA-256 为
+`b24b1583d9360b7940e9949851a8cdc86fedaa684fed67b55e83d02fffdd58ba`。详细结果见
+`M4_PTPA_AUDIO_CONFIDENCE_P2_RESULT_ZH.md`。
+
+P2 通过不自动授权训练。下一步进入 P3 运行前合同和虚拟扰动数据加载器复现测试；只有冻结
+审计、可训练参数白名单和 `2-step` 停止门槛评审通过后，才允许启动 Gate-only canary。
