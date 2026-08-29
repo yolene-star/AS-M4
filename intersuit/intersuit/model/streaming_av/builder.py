@@ -28,6 +28,7 @@ class StreamingAVModule(nn.Module):
         silence_threshold = float(getattr(config, "audio_gate_silence_threshold", 1e-4))
         rms_reference = float(getattr(config, "audio_gate_rms_reference", 0.05))
         fusion_init = str(getattr(config, "as_m4_fusion_init", "zero"))
+        fusion_projector_mode = str(getattr(config, "as_m4_fusion_projector_mode", "legacy"))
         selector_dim = int(getattr(config, "scene_audio_selector_dim", hidden_size))
         selector_scales = _parse_scales(getattr(config, "dynamic_window_scales_sec", "1.0,2.0,4.0"))
 
@@ -119,7 +120,11 @@ class StreamingAVModule(nn.Module):
             rms_reference=rms_reference,
             max_offset_sec=max_offset_sec,
         )
-        self.fusion = GatedAVFusion(hidden_size, fusion_init=fusion_init)
+        self.fusion = GatedAVFusion(
+            hidden_size,
+            fusion_init=fusion_init,
+            fusion_mode=fusion_projector_mode,
+        )
 
 
 def build_streaming_av_module(config) -> StreamingAVModule:

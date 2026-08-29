@@ -146,6 +146,7 @@ class ModelArguments:
     force_audio_gate: Optional[float] = field(default=None)
     audio_delta_ratio_cap: float = field(default=0.0)
     as_m4_fusion_init: str = field(default="zero")
+    as_m4_fusion_projector_mode: str = field(default="legacy")
     as_m4_gate_logit_bias: float = field(default=-5.0)
     as_m4_fusion_mode: str = field(default="aligned_gated")
     as_m4_simple_audio_gate: float = field(default=1.0)

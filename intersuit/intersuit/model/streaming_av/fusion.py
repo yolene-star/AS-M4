@@ -11,19 +11,23 @@ from torch import nn
 class GatedAVFusion(nn.Module):
     """Fuse aligned scene-audio features into video tokens without adding tokens."""
 
-    def __init__(self, hidden_size: int, fusion_init: str = "zero") -> None:
+    def __init__(self, hidden_size: int, fusion_init: str = "zero", fusion_mode: str = "legacy") -> None:
         super().__init__()
         if hidden_size <= 0:
             raise ValueError("hidden_size must be positive")
         if fusion_init not in {"zero", "identity"}:
             raise ValueError(f"fusion_init must be 'zero' or 'identity', got {fusion_init!r}")
+        if fusion_mode not in {"legacy", "identity", "bypass", "lightweight"}:
+            raise ValueError(f"fusion_mode must be 'legacy', 'identity', 'bypass', or 'lightweight', got {fusion_mode!r}")
         self.hidden_size = int(hidden_size)
         self.fusion_init = fusion_init
+        self.fusion_mode = fusion_mode
         self.audio_projector = nn.Linear(hidden_size, hidden_size, bias=False)
         if fusion_init == "zero":
             nn.init.zeros_(self.audio_projector.weight)
         else:
             nn.init.eye_(self.audio_projector.weight)
+        self.lightweight_norm = nn.LayerNorm(hidden_size, elementwise_affine=False)
 
     def forward(
         self,
@@ -64,6 +68,10 @@ class GatedAVFusion(nn.Module):
 
     def audio_delta(self, aligned_audio: torch.Tensor) -> torch.Tensor:
         aligned_audio = torch.nan_to_num(aligned_audio, nan=0.0, posinf=0.0, neginf=0.0)
+        if self.fusion_mode in {"identity", "bypass"}:
+            return aligned_audio
+        if self.fusion_mode == "lightweight":
+            return self.lightweight_norm(aligned_audio.float()).to(dtype=aligned_audio.dtype)
         return self.audio_projector(aligned_audio)
 
 

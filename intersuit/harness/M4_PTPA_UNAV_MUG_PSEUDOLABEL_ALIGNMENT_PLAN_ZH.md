@@ -99,3 +99,9 @@ validation 只允许一次确认，比较 raw BEATs、旧 projector v1、tempora
 按独立合同在10条dev上完成behavior-off/correct/mismatch三条件。三组均为`3/10`；correct改变2条预测、mismatch改变1条，correct与mismatch仅1条预测不同，双方独有新增答对均0。残差稳定非零且约为视频norm的`5.1e-5–6.6e-5`，无空输出/EOS/nonfinite或冻结漂移。
 
 结论为“链路生效但未形成正确音频选择性”，停止扩大到full dev、test和训练。下一步只允许分析选择性在v4表示、既有adapter或语言模型决策的哪一层消失。
+
+## 15. 选择性消失位置
+
+3条纯音频correct/mismatch逐层探针显示，平均余弦从raw BEATs的`0.7525`降至v4的`0.7093`，证明v4保留并略增强分离；旧adapter升至`0.8609`，造成部分压缩；旧fusion projector进一步升至`0.9987`，是主要塌缩点。gate 0.005再把最终扰动缩至视频norm约`6e-5`。
+
+后续不得直接放大gate或训练全模型。只允许先设计隔离fusion重构合同，验证旁路/identity/轻量fusion能否保持correct/mismatch差异。

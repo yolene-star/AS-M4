@@ -291,6 +291,11 @@ class LlavaMetaModel:
         self.config.audio_delta_ratio_cap = getattr(model_args, "audio_delta_ratio_cap", 0.0)
         self.config.enable_scene_audio = getattr(model_args, "enable_scene_audio", True)
         self.config.as_m4_fusion_init = getattr(model_args, "as_m4_fusion_init", "zero")
+        self.config.as_m4_fusion_projector_mode = getattr(
+            model_args,
+            "as_m4_fusion_projector_mode",
+            "legacy",
+        )
         self.config.as_m4_gate_logit_bias = getattr(model_args, "as_m4_gate_logit_bias", -5.0)
         self.config.as_m4_fusion_mode = getattr(
             model_args,
