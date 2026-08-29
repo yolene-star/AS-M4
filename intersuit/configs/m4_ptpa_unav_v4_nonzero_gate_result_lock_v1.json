@@ -1,0 +1,47 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_nonzero_gate_result_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "PASS_TECHNICAL_NO_SELECTIVE_TASK_GAIN_STOP_EXPANSION",
+  "execution": {
+    "physical_gpu": 2,
+    "sample_limit": 10,
+    "conditions": ["behavior_off", "correct_g0005", "mismatch_g0005"],
+    "gate": 0.005,
+    "delta_ratio_cap": 0.05,
+    "test_accessed": false,
+    "training_performed": false
+  },
+  "artifacts": {
+    "behavior_sha256": "9a7cc2de67cb4ce79472e67168089d75db6540a010e13aeb4f74242ee1233f28",
+    "correct_sha256": "dc1c3cd83c3e1ac03d755e2c504bd8f67824ac0111c6c7e29e5717f0c572a9aa",
+    "mismatch_sha256": "1455fd1b63ad54c9e0a8ced820ffa8280e74da9a717291efae9c3e2f0e566265",
+    "frozen_audit_sha256": "cdaf6e02f366a7621f5fb74f274a44e5a90559ebdcb6adc09bfa8f3034a51a44",
+    "independent_audit_path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_nonzero_gate_diagnostic_v1/independent_audit.json",
+    "independent_audit_sha256": "12a77a6a7fe24fad22c3519f488aa1caf422d09baf1c42b2222394829353bcbc"
+  },
+  "results": {
+    "behavior_correct": 3,
+    "correct_audio_correct": 3,
+    "mismatch_audio_correct": 3,
+    "correct_prediction_changes_vs_behavior": 2,
+    "mismatch_prediction_changes_vs_behavior": 1,
+    "correct_vs_mismatch_prediction_difference_count": 1,
+    "correct_only_improvements": 0,
+    "mismatch_only_improvements": 0,
+    "correct_delta_ratio_range": [0.00005117270120535977, 0.00006557894084835425],
+    "mismatch_delta_ratio_range": [0.000055560496548423544, 0.00006466295599238947]
+  },
+  "checks": {
+    "technical_execution_pass": true,
+    "no_empty_eos_or_nonfinite": true,
+    "mismatch_physical_media_distinct": true,
+    "frozen_runtime_sha_unchanged": true,
+    "post_run_no_xid_aer_or_hung_task": true,
+    "correct_selective_gain_observed": false,
+    "full_dev_allowed": false,
+    "formal_test_allowed": false,
+    "training_allowed": false,
+    "m4_effect_claim_allowed": false
+  }
+}

@@ -93,3 +93,9 @@ validation 只允许一次确认，比较 raw BEATs、旧 projector v1、tempora
 2026-08-29在物理GPU2完成真实7B单样本smoke，独立审计状态为`PASS_V4_M4_GATE0_EXACT_ROLLBACK`。behavior-off与gate0预测及9个生成token精确一致；gate0解码20个音频窗口且audio norm为`9.93586`，但所有gate/delta均精确为0，冻结模块SHA不变，运行后无Xid/AER/hung task。
 
 该样本两条件均回答不完整且错误，因此只能关闭接口回退门禁，不能证明M4效果。非零gate仍需新合同，不自动授权。
+
+## 14. 非零 gate 极小诊断结果
+
+按独立合同在10条dev上完成behavior-off/correct/mismatch三条件。三组均为`3/10`；correct改变2条预测、mismatch改变1条，correct与mismatch仅1条预测不同，双方独有新增答对均0。残差稳定非零且约为视频norm的`5.1e-5–6.6e-5`，无空输出/EOS/nonfinite或冻结漂移。
+
+结论为“链路生效但未形成正确音频选择性”，停止扩大到full dev、test和训练。下一步只允许分析选择性在v4表示、既有adapter或语言模型决策的哪一层消失。
