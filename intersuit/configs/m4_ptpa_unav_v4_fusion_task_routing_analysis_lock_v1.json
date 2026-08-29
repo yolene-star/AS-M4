@@ -1,0 +1,35 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_fusion_task_routing_analysis_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "FIXED_RESIDUAL_LACKS_QUERY_ROUTING",
+  "evidence": {
+    "audio_task_count": 3,
+    "audio_task_prediction_changes_bypass": 0,
+    "audio_task_prediction_changes_lightweight": 0,
+    "visual_task_prediction_changes_bypass": 2,
+    "visual_task_prediction_changes_lightweight": 2,
+    "lightweight_to_bypass_residual_ratio": 34.47524492318559,
+    "bypass_accuracy": {"behavior": 3, "correct": 3, "mismatch": 3},
+    "lightweight_accuracy": {"behavior": 3, "correct": 3, "mismatch": 3}
+  },
+  "code_path": {
+    "simple_residual_uses_fixed_gate": true,
+    "simple_residual_uniformly_injects_into_video_frames": true,
+    "question_features_computed_for_simple_residual": false,
+    "question_features_require_gate_v1_or_question_conditioned_selector": true
+  },
+  "diagnosis": {
+    "fusion_projector_collapse_is_no_longer_only_bottleneck": true,
+    "missing_query_task_routing_supported": true,
+    "direct_gate_increase_supported": false,
+    "full_model_training_supported": false
+  },
+  "permissions": {
+    "full_dev_allowed": false,
+    "formal_test_allowed": false,
+    "training_allowed": false,
+    "gate_increase_allowed": false,
+    "query_conditioned_cpu_plan_allowed": true
+  }
+}
