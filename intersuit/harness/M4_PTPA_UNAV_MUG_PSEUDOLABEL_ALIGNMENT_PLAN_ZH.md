@@ -87,3 +87,9 @@ validation 只允许一次确认，比较 raw BEATs、旧 projector v1、tempora
 2. `V4_GATE0`：真实同步音频经过冻结 BEATs 和 v4 projector，但强制残差 gate 为 0。
 
 通过标准为两条件预测精确一致、gate0 音频残差精确为 0、所有冻结运行模块推理前后 SHA 不变且无 NaN/Inf。该 smoke 只证明接口和行为回退，不证明 v4 能提升 M4；只有 gate0 通过并补齐 adapter 来源审计后，才另行授权非零 gate correct/mismatch 诊断。
+
+## 13. gate0 执行结果
+
+2026-08-29在物理GPU2完成真实7B单样本smoke，独立审计状态为`PASS_V4_M4_GATE0_EXACT_ROLLBACK`。behavior-off与gate0预测及9个生成token精确一致；gate0解码20个音频窗口且audio norm为`9.93586`，但所有gate/delta均精确为0，冻结模块SHA不变，运行后无Xid/AER/hung task。
+
+该样本两条件均回答不完整且错误，因此只能关闭接口回退门禁，不能证明M4效果。非零gate仍需新合同，不自动授权。
