@@ -22,6 +22,9 @@ from .confidence_gate import (
     AudioConfidenceGate,
     AudioConfidenceGateOutput,
     AudioSignalFeatures,
+    FirstStageAudioConfidenceGate,
+    FirstStageAudioConfidenceGateOutput,
+    QuestionAudioRouter,
     compute_audio_signal_features,
 )
 from .event_detector import AudioEventDetector, AudioEventDetectorOutput
@@ -55,6 +58,9 @@ __all__ = [
     "build_streaming_av_module",
     "AudioConfidenceGate",
     "AudioConfidenceGateOutput",
+    "FirstStageAudioConfidenceGate",
+    "FirstStageAudioConfidenceGateOutput",
+    "QuestionAudioRouter",
     "AudioEventDetector",
     "AudioEventDetectorOutput",
     "DynamicWindowSelector",

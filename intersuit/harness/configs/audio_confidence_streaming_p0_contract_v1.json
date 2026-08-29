@@ -1,0 +1,47 @@
+{
+  "contract_id": "audio_confidence_streaming_p0_v1",
+  "created_at": "2026-08-29T00:00:00+08:00",
+  "status": "P0_FROZEN_P1_CPU_AUTHORIZED",
+  "baseline_model": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+  "stage_one": {
+    "trainable_modules": [
+      "question_audio_router",
+      "quality_gate",
+      "relevance_gate",
+      "required_low_dimensional_projections"
+    ],
+    "frozen_modules": [
+      "beats",
+      "m4_qwen2",
+      "vision_tower",
+      "scene_audio_projector",
+      "streaming_av_fusion"
+    ],
+    "sync_gate": "identity_one",
+    "temporal_window_correction": false,
+    "gpu_or_training_authorized": false
+  },
+  "streaming_protocol": {
+    "causal": true,
+    "lookahead_sec": 0.0,
+    "answer_memory_mode": "immutable_snapshot",
+    "new_input_during_generation": "next_memory_version",
+    "already_emitted_tokens_mutable": false,
+    "state_scope": "stream_id"
+  },
+  "required_cpu_gates": [
+    "future_invariance",
+    "prefix_equivalence",
+    "chunk_boundary_consistency",
+    "state_reset",
+    "stream_isolation",
+    "snapshot_immutability",
+    "gate0_streaming_fallback",
+    "empty_silence_continuity"
+  ],
+  "rollback_modes": [
+    "behavior_off",
+    "gate0",
+    "fixed_gate"
+  ]
+}
