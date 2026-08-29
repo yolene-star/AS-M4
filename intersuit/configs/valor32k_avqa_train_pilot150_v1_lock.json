@@ -1,0 +1,41 @@
+{
+  "artifact_kind": "valor32k_avqa_train_pilot_lock",
+  "status": "PASS_MANIFEST_BLOCKED_SINGLE_TAR_MEDIA_ACCESS",
+  "seed": "as-m4-cgf-valor32k-pilot-v1",
+  "official_split": "train",
+  "filters": {
+    "model": "gpt4o",
+    "quality_rating": "obvious",
+    "required_modalities_per_video": [
+      "visual",
+      "audio",
+      "audio-visual"
+    ],
+    "drop_exact_duplicate_questions": true
+  },
+  "audio_category_quotas": {
+    "description": 40,
+    "count": 35,
+    "temporal": 35,
+    "action": 20,
+    "location": 20
+  },
+  "selected_video_count": 150,
+  "selected_question_count": 450,
+  "manifest_sha256": "71e3d4c2289fd8d14b2b62c98bad67716cd3ab43676d8fe91b9a8d9a411f443c",
+  "existing_exclusion_overlap": 0,
+  "official_validation_overlap": 0,
+  "official_test_overlap": 0,
+  "media_source": {
+    "provider": "official VALOR Baidu share",
+    "share_filename": "VALOR32K_videos.tar",
+    "share_fs_id": 653871849642408,
+    "size_bytes": 41046312960,
+    "is_single_archive": true,
+    "per_file_pilot_download_available": false
+  },
+  "full_archive_download_authorized": false,
+  "hf_test_media_allowed": false,
+  "training_allowed": false,
+  "gpu_allowed": false
+}
