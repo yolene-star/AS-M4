@@ -10,7 +10,7 @@
   "pilot_manifest_sha256": "71e3d4c2289fd8d14b2b62c98bad67716cd3ab43676d8fe91b9a8d9a411f443c",
   "media_audit_sha256": "62672ca7e20f2c2ef106b294d33bb9b0060547742c216a89ef3c81cdd6f754bd",
   "media_assets_sha256": "0c3b23f86a69d91594e7206c4f71e66d4a3fbf15e6e1e8205944bda6336587cc",
-  "condition_manifest_sha256": "b24b1583d9360b7940e9949851a8cdc86fedaa684fed67b55e83d02fffdd58ba",
+  "condition_manifest_sha256": "007d5b1d936323d28adee252ce6f407d458d24b3042b1caf1bb8a0086f301e26",
   "physical_video_count": 150,
   "question_group_count": 450,
   "condition_record_count": 6300,

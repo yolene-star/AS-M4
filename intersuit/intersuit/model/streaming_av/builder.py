@@ -5,7 +5,7 @@ from __future__ import annotations
 from torch import nn
 
 from .audio_event_aligner import LocalAudioEventAligner
-from .confidence_gate import AudioConfidenceGate
+from .confidence_gate import AudioConfidenceGate, FirstStageAudioConfidenceGate
 from .dynamic_window_selector import DynamicWindowSelector, LegacyMultiscaleDynamicWindowSelector
 from .event_detector import AudioEventDetector
 from .fusion import GatedAVFusion
@@ -124,6 +124,21 @@ class StreamingAVModule(nn.Module):
             hidden_size,
             fusion_init=fusion_init,
             fusion_mode=fusion_projector_mode,
+        )
+        # Keep this after every legacy module so adding the dormant P3 Gate does
+        # not consume RNG before existing parameter initialization.
+        self.first_stage_confidence_gate = FirstStageAudioConfidenceGate(
+            hidden_size=hidden_size,
+            projection_dim=int(getattr(config, "audio_confidence_projection_dim", 128)),
+            gate_logit_bias=float(
+                getattr(config, "first_stage_audio_gate_logit_bias", -2.0)
+            ),
+            router_logit_bias=float(
+                getattr(config, "audio_question_router_logit_bias", -4.0)
+            ),
+            gate_max=float(getattr(config, "first_stage_audio_gate_max", 1.0)),
+            silence_threshold=silence_threshold,
+            rms_reference=rms_reference,
         )
 
 

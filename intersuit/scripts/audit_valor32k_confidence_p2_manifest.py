@@ -88,6 +88,15 @@ def audit_manifest(
             source_error_count += 1
             continue
 
+        expected_target_fields = {
+            "target_audio_sample_rate_hz": target_asset["audio_sample_rate_hz"],
+            "target_audio_channels": target_asset["audio_channels"],
+            "target_audio_duration_sec": target_asset["duration_sec"],
+            "target_stream_window_count": target_asset["stream_window_count"],
+        }
+        if any(clean.get(key) != value for key, value in expected_target_fields.items()):
+            source_error_count += 1
+
         for condition, row in by_condition.items():
             is_shift = condition.startswith("shift_")
             if is_shift != (row["stage"] == "second_sync_only"):

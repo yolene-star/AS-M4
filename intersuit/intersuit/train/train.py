@@ -43,7 +43,9 @@ from intersuit.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_ST
 from intersuit.constants import SPEECH_TOKEN_INDEX, DEFAULT_SPEECH_TOKEN
 from intersuit.train.llava_trainer import LLaVATrainer
 from intersuit.train.trainable_parts import (
+    AUDIO_CONFIDENCE_GATE_ONLY_ALIAS,
     SCENE_AUDIO_SELECTOR_ONLY_ALIAS,
+    enable_audio_confidence_gate_only,
     enable_scene_audio_selector_only,
 )
 
@@ -66,7 +68,7 @@ class ModelArguments:
     model_class_name: Optional[str] = field(default=None, metadata={"help": "Used to init model class, format is XXXXForCausalLM. e.g. currently XXXX is chosen from LlavaLlama, LlavaMixtral, LlavaMistral, Llama"})
 
     mm_tunable_parts: Optional[str] = field(
-        default=None, metadata={"help": '可包含 mm_mlp_adapter、mm_vision_resampler、mm_vision_tower、mm_language_model、scene_audio_branch；精确 selector-only 使用 scene_audio_selector，且不得与其他项组合。'}
+        default=None, metadata={"help": '可包含 mm_mlp_adapter、mm_vision_resampler、mm_vision_tower、mm_language_model、scene_audio_branch；严格单模块模式使用 scene_audio_selector 或 audio_confidence_gate，且不得与其他项组合。'}
     )
     # deciding which part of the multimodal model to tune, will overwrite other previous settings
 
@@ -156,6 +158,10 @@ class ModelArguments:
     enable_audio_confidence_gate_v1: bool = field(default=False)
     audio_gate_silence_threshold: float = field(default=1e-4)
     audio_gate_rms_reference: float = field(default=0.05)
+    audio_confidence_projection_dim: int = field(default=128)
+    first_stage_audio_gate_logit_bias: float = field(default=-2.0)
+    audio_question_router_logit_bias: float = field(default=-4.0)
+    first_stage_audio_gate_max: float = field(default=1.0)
     enable_audio_event_aligner_v1: bool = field(default=False)
     audio_event_local_offset_sec: float = field(default=0.5)
     audio_event_silence_threshold: float = field(default=1e-4)
@@ -2129,6 +2135,13 @@ def train(attn_implementation=None):
                     raise ValueError("scene_audio_selector 要求 enable_scene_audio=true")
                 allowed_names = enable_scene_audio_selector_only(model)
                 rank0_print(f"scene_audio_selector trainable allowlist: {allowed_names}")
+            if AUDIO_CONFIDENCE_GATE_ONLY_ALIAS in tunable_parts:
+                if tunable_parts != [AUDIO_CONFIDENCE_GATE_ONLY_ALIAS]:
+                    raise ValueError("audio_confidence_gate 是严格 Gate-only 模式，不得与其他 tunable part 组合")
+                if not model_args.enable_scene_audio:
+                    raise ValueError("audio_confidence_gate 要求 enable_scene_audio=true")
+                allowed_names = enable_audio_confidence_gate_only(model)
+                rank0_print(f"audio_confidence_gate trainable allowlist: {allowed_names}")
             if "mm_mlp_adapter" in tunable_parts:
                 for p in model.get_model().mm_projector.parameters():
                     p.requires_grad = True

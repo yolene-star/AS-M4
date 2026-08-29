@@ -44,7 +44,8 @@ mismatch 音频在消费时必须按目标媒体执行确定性重采样、声�
 数据加载器必须按 manifest 中的 recipe 与 seed 生成，并接受复现测试。
 
 条件 manifest SHA-256 为
-`b24b1583d9360b7940e9949851a8cdc86fedaa684fed67b55e83d02fffdd58ba`。
+`007d5b1d936323d28adee252ce6f407d458d24b3042b1caf1bb8a0086f301e26`。该版本额外逐条
+冻结目标采样率、声道、时长和流式窗口数，供 P3 虚拟波形加载器直接消费。
 
 ## 独立审计
 

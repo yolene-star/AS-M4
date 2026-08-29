@@ -666,8 +666,26 @@ P2 已完成并通过构建器与独立审计器双重门禁：
 - 独立审计的条件集合、noise seed、标签、阶段和来源错误均为 0。
 
 条件 manifest SHA-256 为
-`b24b1583d9360b7940e9949851a8cdc86fedaa684fed67b55e83d02fffdd58ba`。详细结果见
+`007d5b1d936323d28adee252ce6f407d458d24b3042b1caf1bb8a0086f301e26`。详细结果见
 `M4_PTPA_AUDIO_CONFIDENCE_P2_RESULT_ZH.md`。
 
 P2 通过不自动授权训练。下一步进入 P3 运行前合同和虚拟扰动数据加载器复现测试；只有冻结
 审计、可训练参数白名单和 `2-step` 停止门槛评审通过后，才允许启动 Gate-only canary。
+
+## 19. 2026-08-30 P3 训练前门禁状态
+
+P3 preflight 已通过，训练仍关闭：
+
+- P2 manifest 增加目标采样率、声道、时长和窗口数，新 SHA 为
+  `007d5b1d936323d28adee252ce6f407d458d24b3042b1caf1bb8a0086f301e26`；
+- 新增 ffmpeg float32 虚拟波形执行器，white/pink/background noise、silence、mismatch 和 shift
+  均按冻结 recipe 执行；
+- 真实 MP4 的 10 dB smoke 实测为 10.0 dB，静音全零，重复生成逐元素一致；
+- 新增严格 `MM_TUNABLE_PARTS=audio_confidence_gate` 白名单和 optimizer 审计；
+- hidden 3584/projection 128 下只允许 24 个 tensor、1,910,671 个参数训练；
+- dormant FirstStage Gate 不进入默认 forward，并保持旧模块初始化顺序和旧 state dict 非严格加载兼容；
+- `2 -> 20 -> 150` 的指标门槛与停止条件已冻结。
+
+当前状态为 `PASS_P3_PREFLIGHT_TRAINING_CLOSED`。冻结特征预计算、Gate loss/collator 和 gate-only
+checkpoint 保存恢复尚未实现，因此 2-step 仍未授权。详细报告见
+`M4_PTPA_AUDIO_CONFIDENCE_P3_PREFLIGHT_ZH.md`。

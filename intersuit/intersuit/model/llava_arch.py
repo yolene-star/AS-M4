@@ -325,6 +325,18 @@ class LlavaMetaModel:
             model_args, "audio_gate_silence_threshold", 1e-4
         )
         self.config.audio_gate_rms_reference = getattr(model_args, "audio_gate_rms_reference", 0.05)
+        self.config.audio_confidence_projection_dim = getattr(
+            model_args, "audio_confidence_projection_dim", 128
+        )
+        self.config.first_stage_audio_gate_logit_bias = getattr(
+            model_args, "first_stage_audio_gate_logit_bias", -2.0
+        )
+        self.config.audio_question_router_logit_bias = getattr(
+            model_args, "audio_question_router_logit_bias", -4.0
+        )
+        self.config.first_stage_audio_gate_max = getattr(
+            model_args, "first_stage_audio_gate_max", 1.0
+        )
         self.config.enable_audio_event_aligner_v1 = getattr(
             model_args, "enable_audio_event_aligner_v1", False
         )
