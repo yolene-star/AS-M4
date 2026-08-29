@@ -1,0 +1,97 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_NONZERO_GATE_DIAGNOSTIC_ONLY",
+  "dataset": {
+    "name": "AS_M4_STAGE2",
+    "split": "dev760_v4_nonzero_gate_diagnostic_v1",
+    "manifest": "/home/yjm/M4-main/intersuit/datasets/AS_M4_STAGE2/dev760_frozen_qa_manifest.json",
+    "manifest_sha256": "6d8a29e53532593eb5b66f007e0cc774631f52afa070b82a3e3e1718fd4a2ea7",
+    "scorer": "label_terms",
+    "sample_limit": 10,
+    "test_accessed": false
+  },
+  "models": {
+    "baseline_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "as_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1"
+  },
+  "output_root": "/home/yjm/M4-main/intersuit/harness/artifacts/m4_ptpa_unav_v4_nonzero_gate_diagnostic_v1",
+  "experiment_ids": [
+    "V4_BEHAVIOR_OFF",
+    "V4_CORRECT_G0005",
+    "V4_MISMATCH_G0005"
+  ],
+  "experiments": [
+    {
+      "id": "V4_BEHAVIOR_OFF",
+      "description": "同一PTPA诊断基座完全关闭scene audio。",
+      "model_key": "as_m4",
+      "audio_condition": "none",
+      "rollback_mode": "behavior",
+      "force_audio_gate": "0",
+      "alignment": "off",
+      "gate_ablation": "none"
+    },
+    {
+      "id": "V4_CORRECT_G0005",
+      "description": "正确同步音频经过冻结BEATs/v4和既有adapter，固定非零gate=0.005。",
+      "model_key": "as_m4",
+      "audio_condition": "correct",
+      "rollback_mode": "none",
+      "alignment": "off",
+      "gate_ablation": "none",
+      "env": {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT": "/home/yjm/M4-main/intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "/home/yjm/M4-main/intersuit/checkpoints/AS-M4-UnAV-audio-projector-v4-active-hardneg-300step/semantic_projector.pt",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+        "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE": "existing_audio_projector",
+        "AS_M4_FUSION_MODE": "beats_simple_residual",
+        "AS_M4_INFERENCE_SIMPLE_AUDIO_GATE": "0.005",
+        "AS_M4_AUDIO_DELTA_RATIO_CAP": "0.05"
+      }
+    },
+    {
+      "id": "V4_MISMATCH_G0005",
+      "description": "跨物理视频错配音频，其他参数与correct完全相同。",
+      "model_key": "as_m4",
+      "audio_condition": "mismatched",
+      "rollback_mode": "none",
+      "alignment": "off",
+      "gate_ablation": "none",
+      "env": {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT": "/home/yjm/M4-main/intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "/home/yjm/M4-main/intersuit/checkpoints/AS-M4-UnAV-audio-projector-v4-active-hardneg-300step/semantic_projector.pt",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+        "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE": "existing_audio_projector",
+        "AS_M4_FUSION_MODE": "beats_simple_residual",
+        "AS_M4_INFERENCE_SIMPLE_AUDIO_GATE": "0.005",
+        "AS_M4_AUDIO_DELTA_RATIO_CAP": "0.05"
+      }
+    }
+  ],
+  "permissions": {
+    "gpu_preflight_allowed": true,
+    "nonzero_gate_diagnostic_allowed": true,
+    "sample_limit": 10,
+    "full_dev_allowed": false,
+    "formal_test_access_allowed": false,
+    "training_allowed": false,
+    "beats_unfreeze_allowed": false
+  },
+  "stop_gates": {
+    "empty_prediction_count_max": 0,
+    "first_token_eos_count_max": 0,
+    "nonfinite_diagnostic_count_max": 0,
+    "delta_to_video_ratio_max": 0.05,
+    "frozen_runtime_sha_unchanged_required": true,
+    "mismatch_unique_improvement_must_not_exceed_correct": true
+  },
+  "claim_boundary": {
+    "diagnostic_only": true,
+    "m4_effect_claim_allowed": false,
+    "training_next_stage_automatically_allowed": false
+  }
+}
