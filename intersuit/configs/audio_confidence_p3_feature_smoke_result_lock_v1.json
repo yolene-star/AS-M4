@@ -1,0 +1,74 @@
+{
+  "lock_id": "audio_confidence_p3_feature_smoke_result_v1",
+  "status": "PASS_P3_FROZEN_FEATURE_SMOKE",
+  "run_start": "2026-08-30T09:29:21+08:00",
+  "code_commit": "91b7c74",
+  "contract": "intersuit/configs/audio_confidence_p3_feature_smoke_v1.json",
+  "scope": {
+    "physical_gpu": 2,
+    "cuda_visible_devices": "2",
+    "logical_device": "cuda:0",
+    "record_count": 2,
+    "training_performed": false,
+    "formal_test_accessed": false
+  },
+  "result": {
+    "audit_status": "PASS_P3_FROZEN_FEATURE_AUDIT",
+    "feature_manifest_sha256": "999eb9b648c6bcc0d9967a18a46778c64d2a7d8d5959c9cf870fdc1578e95ea2",
+    "quality_supervised_windows": 18,
+    "relevance_supervised_windows": 9,
+    "hidden_size": 3584,
+    "all_features_finite": true,
+    "records": [
+      {
+        "record_id": "21dd8b32a6c336a3ae7e85dc",
+        "modality": "visual",
+        "condition": "clean_correct",
+        "shape": [1, 9, 3584],
+        "audio_norm": 39.404335021972656,
+        "video_norm": 61.636985778808594,
+        "question_norm": 0.31751734018325806,
+        "feature_sha256": "065b80ac60e0867926f2c9b80ee7b4a1dbf583583da6062cdb70a5071f1c4e65"
+      },
+      {
+        "record_id": "09e9c334260531f1ccc49423",
+        "modality": "audio",
+        "condition": "clean_correct",
+        "shape": [1, 9, 3584],
+        "audio_norm": 39.404335021972656,
+        "video_norm": 61.636985778808594,
+        "question_norm": 0.32343927025794983,
+        "feature_sha256": "a8ba2dad1abc680bcdb3af9e32bcca5786ac9f72bb1811f7abadaa5db456a07e"
+      }
+    ],
+    "encoder_source_sha256": {
+      "audio": "956c664abfdad0528da58981f1fef7d54fb12e8398888e152da51a794888357a",
+      "video": "f02b469bbfc141998e14b32becd927e751d4b652416818861f632e531dc694f6",
+      "question": "9bd98b66babaaf25b64dac3421aaba4b86da78662c59bddaaa3ad655345742fc"
+    }
+  },
+  "runtime": {
+    "gpu_memory_before_mib": 11,
+    "gpu_memory_after_mib": 11,
+    "gpu_power_limit_w": 450,
+    "no_gpu_process_left_after_exit": true,
+    "precompute_log_sha256": "3a043a5d32e3159bba750dc778279858326493122f34ee58858ee1e0f627f9eb",
+    "kernel_check": {
+      "dmesg_since_supported": false,
+      "journal_access_complete": false,
+      "latest_relevant_dmesg_entry": "2026-08-29 08:54:29 NVRM module load",
+      "new_xid_aer_pcie_hung_task_observed": false
+    }
+  },
+  "warnings": [
+    "vision tower meta-copy warnings appeared during staged initialization; runtime module state SHA and finite visual forward both completed",
+    "kernel journal visibility was limited; full dmesg relevant tail contained no entry newer than the pre-run 2026-08-29 module load"
+  ],
+  "authorization_after_result": {
+    "full_feature_precompute": false,
+    "two_step_training": false,
+    "twenty_step_training": false,
+    "one_hundred_fifty_step_training": false,
+    "p4_7b": false
+  }
+}

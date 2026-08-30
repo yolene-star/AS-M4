@@ -58,6 +58,11 @@ class FrozenM4FeatureExtractor:
         self._question_cache: dict[str, torch.Tensor] = {}
         if any(parameter.requires_grad for parameter in self.model.parameters()):
             raise RuntimeError("冻结 M4 特征提取器仍存在 requires_grad=true 参数")
+        meta_parameters = [
+            name for name, parameter in self.model.named_parameters() if parameter.is_meta
+        ]
+        if meta_parameters:
+            raise RuntimeError(f"冻结 M4 仍存在 meta 参数：{meta_parameters[:8]}")
 
     @torch.inference_mode()
     def encode_audio(self, windows: torch.Tensor, timestamps: torch.Tensor) -> torch.Tensor:
@@ -169,6 +174,8 @@ def main() -> None:
             allowed_output_path = PROJECT_ROOT / allowed_output_path
         if args.output_root.resolve() != allowed_output_path.resolve():
             raise PermissionError("P3 feature precompute 输出目录不在合同白名单")
+    if scope.get("overwrite_existing") is False and args.output_root.exists() and any(args.output_root.iterdir()):
+        raise FileExistsError("P3 feature precompute 合同禁止覆盖已有输出")
     if args.device.startswith("cuda") and os.environ.get("CUDA_VISIBLE_DEVICES") != "2":
         raise RuntimeError("正式 P3 预计算必须显式设置 CUDA_VISIBLE_DEVICES=2")
     expected_manifest_sha = contract["dataset"]["condition_manifest_sha256"]

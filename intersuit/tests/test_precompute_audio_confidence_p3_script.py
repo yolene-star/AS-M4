@@ -42,3 +42,18 @@ def test_smoke_contract_rejects_limit_or_output_scope_drift(tmp_path):
     )
     assert bad_output.returncode != 0
     assert "输出目录不在合同白名单" in bad_output.stderr
+
+
+def test_smoke_contract_rejects_existing_output_before_gpu_access(tmp_path):
+    contract = json.loads(SMOKE_CONTRACT.read_text())
+    contract["feature_precompute_scope"]["allowed_output_root"] = str(tmp_path)
+    local_contract = tmp_path / "contract.json"
+    local_contract.write_text(json.dumps(contract))
+    (tmp_path / "existing.txt").write_text("do not overwrite")
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT), "--contract", str(local_contract),
+         "--limit", "2", "--output-root", str(tmp_path)],
+        cwd=ROOT, text=True, capture_output=True, check=False,
+    )
+    assert completed.returncode != 0
+    assert "禁止覆盖已有输出" in completed.stderr

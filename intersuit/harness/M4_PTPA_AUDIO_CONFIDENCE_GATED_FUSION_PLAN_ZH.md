@@ -726,3 +726,8 @@ P3 训练侧与冻结特征管线代码已推进，但训练仍关闭：
 
 任何 GPU2 非空闲、驱动异常、SHA/shape 漂移、NaN/Inf、OOM、Xid/AER/PCIe/hung task
 都会立即停止；本 smoke 通过也只表示真实特征接线可用，不自动授权完整 5,400 条预计算或训练。
+
+实际 smoke 已通过：2 条均为 `[1,9,3584]`，独立审计状态
+`PASS_P3_FROZEN_FEATURE_AUDIT`，GPU 前后均为 11 MiB。详细结果与内核日志可见性限制见
+`M4_PTPA_AUDIO_CONFIDENCE_P3_FEATURE_SMOKE_RESULT_ZH.md`。完整特征预计算和 2-step 训练
+仍保持关闭；下一步先完成跨条件音频、视频和问题特征的去重缓存合同与磁盘预算。
