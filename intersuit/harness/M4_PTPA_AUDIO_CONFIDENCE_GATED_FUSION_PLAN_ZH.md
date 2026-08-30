@@ -712,3 +712,17 @@ P3 训练侧与冻结特征管线代码已推进，但训练仍关闭：
 `PASS_P3_PREFLIGHT_TRAINING_CLOSED`，`2-step` 继续禁止。下一步先评审并单独授权物理 GPU2
 的冻结特征预计算；先运行极小 limit smoke，核对运行时模块 SHA、显存、窗口数和重复生成
 一致性，通过后才允许生成完整 P3 特征资产。
+
+## 21. 2026-08-30 P3 物理 GPU2 特征 smoke 合同
+
+已建立 `audio_confidence_p3_feature_smoke_v1.json`，只授权冻结特征预计算，不授权训练：
+
+- 固定物理 GPU2，即 `CUDA_VISIBLE_DEVICES=2`、程序内逻辑 `cuda:0`；
+- 精确锁定同一物理视频上的 1 条 visual clean 与 1 条 audio clean，共 2 条；
+- 输出只能写入 `intersuit/harness/artifacts/audio_confidence_p3_feature_smoke_v1/features`；
+- 必须记录 stdout/stderr、开始时间、合同快照、运行时模块 state SHA、GPU 前后显存与内核错误；
+- 必须通过 2 条、每条 9 个完整窗口、hidden 3584、finite、来源 SHA 和独立审计门禁；
+- `two_step_training`、20/150-step、P4 7B 和 formal test 均保持关闭。
+
+任何 GPU2 非空闲、驱动异常、SHA/shape 漂移、NaN/Inf、OOM、Xid/AER/PCIe/hung task
+都会立即停止；本 smoke 通过也只表示真实特征接线可用，不自动授权完整 5,400 条预计算或训练。

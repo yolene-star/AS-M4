@@ -157,6 +157,18 @@ def main() -> None:
     contract = json.loads(args.contract.read_text(encoding="utf-8"))
     if contract["authorization"].get("feature_precompute") is not True:
         raise PermissionError("P3 contract 尚未授权 feature_precompute；停止，不加载模型/GPU")
+    scope = contract.get("feature_precompute_scope") or {}
+    max_records = int(scope.get("max_records", 0))
+    selected_record_ids = [str(value) for value in scope.get("selected_record_ids", [])]
+    if max_records <= 0 or args.limit is None or not 0 < args.limit <= max_records:
+        raise PermissionError("P3 feature precompute 必须提供不超过合同 max_records 的正 limit")
+    allowed_output = scope.get("allowed_output_root")
+    if allowed_output:
+        allowed_output_path = Path(allowed_output)
+        if not allowed_output_path.is_absolute():
+            allowed_output_path = PROJECT_ROOT / allowed_output_path
+        if args.output_root.resolve() != allowed_output_path.resolve():
+            raise PermissionError("P3 feature precompute 输出目录不在合同白名单")
     if args.device.startswith("cuda") and os.environ.get("CUDA_VISIBLE_DEVICES") != "2":
         raise RuntimeError("正式 P3 预计算必须显式设置 CUDA_VISIBLE_DEVICES=2")
     expected_manifest_sha = contract["dataset"]["condition_manifest_sha256"]
@@ -167,6 +179,14 @@ def main() -> None:
         )
     rows = json.loads(args.p2_manifest.read_text(encoding="utf-8"))
     rows = [row for row in rows if row.get("first_stage_training") is True]
+    if selected_record_ids:
+        by_id = {str(row["record_id"]): row for row in rows}
+        missing = sorted(set(selected_record_ids) - set(by_id))
+        if missing:
+            raise ValueError(f"合同指定的 P2 record_id 缺失：{missing}")
+        rows = [by_id[record_id] for record_id in selected_record_ids]
+        if args.limit != len(rows):
+            raise PermissionError("锁定 record_id smoke 要求 limit 与样本数精确一致")
     materializer = VirtualAudioMaterializer(args.media_root, verify_source_sha256=True)
     extractor = FrozenM4FeatureExtractor(args.model_path, args.media_root, args.device)
     bundle = FrozenEncoderBundle(
