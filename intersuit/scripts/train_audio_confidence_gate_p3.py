@@ -61,6 +61,12 @@ def main() -> None:
     audit = audit_feature_manifest(args.feature_manifest)
     if audit["status"] != "PASS_P3_FROZEN_FEATURE_AUDIT":
         raise RuntimeError("冻结特征独立审计未通过")
+    expected_manifest_sha = contract.get("feature_assets", {}).get("manifest_sha256")
+    if expected_manifest_sha and sha256_file(args.feature_manifest) != expected_manifest_sha:
+        raise ValueError("冻结特征 manifest SHA 与 2-step 合同不一致")
+    expected_record_count = int(contract.get("feature_assets", {}).get("record_count", 0))
+    if expected_record_count and int(audit["record_count"]) != expected_record_count:
+        raise ValueError("冻结特征记录数与 2-step 合同不一致")
     manifest = json.loads(args.feature_manifest.read_text(encoding="utf-8"))
     hidden_size = int(manifest["hidden_size"])
     torch.manual_seed(args.seed)

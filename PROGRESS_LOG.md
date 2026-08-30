@@ -4451,3 +4451,59 @@
 - 结果/验证：`.git` 仍为独立只读挂载；直接 remount 返回“只有 root 用户能使用 --options”，无交互 `sudo` 返回当前用户 `yjm` 无权在本机运行 sudo。未修改、重建或删除 `.git`。
 - 当前整体进度：Git index 写权限无法由当前会话恢复；缓存计划源码和报告仍保留，P3 实验授权状态不变。
 - 下一步：由具备 root 权限的管理员/终端对该挂载执行 remount 或重新提供可写 Git 会话，然后提交缓存计划变更。
+
+## 2026-08-30 — Git 提交确认与 GPU 前置检查阻塞
+
+- 完成操作：确认缓存计划提交 `2bdf89d` 与进度日志提交 `aff863a` 已落库，工作区干净；在 Conda `M4` 重跑缓存/预计算定向回归并执行标准 `check_m4_repro_preflight.py`。
+- 结果/验证：定向回归 `5 passed`。标准 preflight 状态为 `fail`，进程检查通过，但 `nvidia-smi` 无法与 NVIDIA 驱动通信；当前会话不可确认 GPU2 空闲、功率或驱动健康。
+- 当前整体进度：P3 缓存计划已提交；完整冻结特征预计算仍未启动，GPU2 前置门禁未通过，`two_step_training=false` 保持不变。
+- 下一步：先在宿主机/具备 NVIDIA 驱动访问权限的会话恢复并验证 `nvidia-smi`；preflight 全部通过后，再单独授权物理 GPU2 的完整特征预计算。
+
+## 2026-08-30 — GPU 阻塞记录提交再次受 Git 挂载限制
+
+- 完成操作：尝试提交本次 GPU preflight 阻塞记录。
+- 结果/验证：`.git` 在当前会话再次显示只读，`git add PROGRESS_LOG.md` 无法创建 `index.lock`；日志内容已保留在工作区。
+- 当前整体进度：缓存计划提交已存在；GPU 驱动不可见，完整特征预计算未启动。
+- 下一步：在同一可写 Git 会话中提交本条日志，然后在具备 NVIDIA 驱动访问权限的宿主机会话重新执行 preflight。
+
+## 2026-08-30 — P3 全量冻结特征预计算合同准备完成
+
+- 完成操作：根据宿主机 preflight `pass`（GPU2 空闲、450W、无训练进程、媒体无缺失）新增独立合同 `audio_confidence_p3_feature_full_v1.json`；未修改原始 P3 合同，未启动 GPU。
+- 结果/验证：新合同锁定物理 GPU2、逻辑 `cuda:0`、5,400 条首阶段记录、唯一输出目录和 `overwrite_existing=false`；明确保持 `two_step_training=false`、P4 和 formal test 关闭。JSON 语法与 `git diff --check` 通过。
+- 当前整体进度：P3 已具备完整预计算的机器合同和缓存计划，尚未生成正式特征资产。
+- 下一步：在宿主机按合同运行 5,400 条冻结特征预计算；完成后执行 `--audit-only` 独立审计并保存 GPU 前后状态、日志和内核错误检查。
+
+## 2026-08-30 — P3 全量预计算首次启动路径错误
+
+- 完成操作：按全量合同启动物理 GPU2 预计算。
+- 结果/验证：进程在模型 tokenizer 加载阶段失败，未进入特征编码循环，未生成特征包；原因是相对 `--model-path checkpoints/...` 被入口解析为不存在的 `/home/yjm/M4-main/checkpoints/...`。实际模型目录为 `/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1`，未观察到 OOM、NaN/Inf 或 GPU 稳定性错误。
+- 当前整体进度：输出目录保持为空，合同授权和 `two_step_training=false` 状态不变。
+- 下一步：改用绝对模型、媒体、manifest 和输出路径重试；重试前再次确认输出目录为空并保留本次失败日志。
+
+## 2026-08-30 — P3 全量冻结特征生成与独立审计通过
+
+- 完成操作：在宿主机 preflight 通过后，按独立全量合同在物理 GPU2 完成 5,400 条首阶段冻结特征预计算；随后执行独立 `--audit-only`、GPU 后状态和残留进程检查；新增中文结果锁 `M4_PTPA_AUDIO_CONFIDENCE_P3_FULL_FEATURE_RESULT_ZH.md`。
+- 结果/验证：状态 `PASS_P3_FROZEN_FEATURE_AUDIT`；5,400 个特征包，磁盘约 1.4G；quality 监督窗口 43,857，relevance 监督窗口 31,896；manifest SHA 为 `b04db904ac3f4864438ef87cf47df3904a85bbd240479f4149e333f025554b88`。GPU 前后均 11 MiB、450W、0% 利用率；未发现残留预计算或训练进程。
+- 当前整体进度：P3 正式冻结特征资产已生成并通过独立审计；Gate 训练尚未启动，`two_step_training=false`，P4 和 formal test 继续关闭。
+- 下一步：将训练入口绑定到正式 feature manifest，完成 manifest/source SHA 锁定、Gate-only 参数冻结和 2-step 端到端集成审计；全部门禁通过后再授权 2-step canary。
+
+## 2026-08-30 — P3 Gate-only 2-step canary 合同就绪
+
+- 完成操作：训练入口新增 feature manifest SHA 与记录数硬校验；新增独立 `audio_confidence_p3_gate_canary2_v1.json`，绑定正式 manifest `b04db904...554b88`、5,400 条记录、物理 GPU2 和 Gate-only 参数白名单。
+- 结果/验证：Conda `M4` 语法检查通过，相关 CPU 回归 `10 passed, 2 warnings`，`git diff --check` 通过；20/150-step、P4 和 formal test 仍关闭。
+- 当前整体进度：P3 已具备经过 SHA 锁定的 2-step 训练合同，准备执行最小 Gate-only canary。
+- 下一步：按合同在物理 GPU2 运行 2-step；检查 loss/gradient/gate finite、仅 Gate 参数变化、optimizer 白名单和 checkpoint 保存恢复。
+
+## 2026-08-30 — P3 Gate-only 2-step canary 通过
+
+- 完成操作：按 `audio_confidence_p3_gate_canary2_v1.json` 在物理 GPU2、Conda `M4` 上运行 2-step Gate-only 训练；完成 checkpoint、运行配置、GPU 后状态和独立进程检查；新增中文结果报告 `M4_PTPA_AUDIO_CONFIDENCE_P3_GATE_CANARY2_RESULT_ZH.md`。
+- 结果/验证：状态 `PASS_P3_GATE_ONLY_CANARY2`；loss `4.251686 -> 4.206500`，两步 router/quality/relevance loss 均 finite，`sync_loss=0`；manifest SHA `b04db904...554b88`，checkpoint SHA `0f0e3b1e...6d9c5e`。GPU2 训练后 11 MiB、450W、0% 利用率，无残留进程。
+- 当前整体进度：P3 已完成正式冻结特征资产和最小 Gate-only 训练 canary；20/150-step 指标、完整 7B forward、P4 与 formal test 仍未授权。该 canary 不证明模型收益。
+- 下一步：先做 checkpoint 恢复、参数白名单、Gate finite/非塌缩和 manifest/source SHA 的离线审计；通过后再评审 20-step canary 授权。
+
+## 2026-08-30 — P3 2-step checkpoint 离线审计通过
+
+- 完成操作：在 Conda `M4` 中独立重读 2-step `run_config.json`、canary 合同、feature manifest 和 Gate-only checkpoint；未启动 20-step 或 formal test。
+- 结果/验证：manifest SHA 与 run config/合同一致；记录数均为 5,400；checkpoint `step=2`，包含 24 个模型 state tensor 和 24 个 optimizer state，checkpoint SHA 为 `0f0e3b1e982406fc226733641a73e33c0541a38a0a13d77b1bafee1e266d9c5e`。
+- 当前整体进度：P3 已完成全量冻结特征、独立资产审计、2-step canary 和 checkpoint 基础审计；尚无 20/150-step 指标或最终答案收益证据。
+- 下一步：在可写 Git 会话提交本轮合同、训练入口校验、中文结果报告和进度日志；提交后再决定是否授权 20-step canary。

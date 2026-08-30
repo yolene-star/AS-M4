@@ -1,0 +1,50 @@
+{
+  "contract_id": "audio_confidence_p3_feature_full_v1",
+  "status": "PASS_P3_FULL_FEATURE_PRECOMPUTE_AUTHORIZED",
+  "base_code_commit": "2bdf89d",
+  "dataset": {
+    "condition_manifest_sha256": "007d5b1d936323d28adee252ce6f407d458d24b3042b1caf1bb8a0086f301e26",
+    "first_stage_record_count": 5400,
+    "second_stage_allowed": false,
+    "formal_test_allowed": false
+  },
+  "authorization": {
+    "feature_precompute": true,
+    "two_step_training": false,
+    "twenty_step_training": false,
+    "one_hundred_fifty_step_training": false,
+    "p4_7b": false
+  },
+  "feature_precompute_scope": {
+    "physical_gpu": 2,
+    "cuda_visible_devices": "2",
+    "logical_device": "cuda:0",
+    "max_records": 5400,
+    "selected_record_ids": [],
+    "selected_modalities": ["visual", "audio", "audio_visual"],
+    "selected_conditions": ["clean_correct", "mismatch", "silence", "noisy"],
+    "allowed_output_root": "intersuit/datasets/VALOR32K_AVQA_V2_AUDIT/p3/frozen_features_v1",
+    "overwrite_existing": false
+  },
+  "required_evidence": [
+    "stdout_stderr_log",
+    "start_time",
+    "contract_snapshot",
+    "cache_plan_snapshot",
+    "runtime_module_state_sha256",
+    "feature_manifest_sha256",
+    "independent_feature_audit",
+    "gpu_memory_before_after",
+    "kernel_xid_aer_hung_task_check"
+  ],
+  "stop_conditions": [
+    "any_model_or_media_sha_mismatch",
+    "any_window_or_hidden_shape_mismatch",
+    "any_nan_or_inf",
+    "cuda_oom",
+    "xid_aer_pcie_or_hung_task",
+    "attempt_to_train_or_access_formal_test",
+    "output_directory_not_empty",
+    "record_count_not_5400"
+  ]
+}
