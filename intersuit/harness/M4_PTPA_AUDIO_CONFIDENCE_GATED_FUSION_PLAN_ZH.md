@@ -689,3 +689,26 @@ P3 preflight 已通过，训练仍关闭：
 当前状态为 `PASS_P3_PREFLIGHT_TRAINING_CLOSED`。冻结特征预计算、Gate loss/collator 和 gate-only
 checkpoint 保存恢复尚未实现，因此 2-step 仍未授权。详细报告见
 `M4_PTPA_AUDIO_CONFIDENCE_P3_PREFLIGHT_ZH.md`。
+
+## 20. 2026-08-30 P3 冻结特征管线代码状态
+
+P3 训练侧与冻结特征管线代码已推进，但训练仍关闭：
+
+- 冻结特征包升级为 `as_m4_audio_confidence_frozen_features_v2`，quality 与 relevance 使用
+  独立监督 mask，避免视觉问题的空 relevance 标签进入排序损失；
+- collator 已按已有 batch 维拼接，不再错误增加额外维度；
+- 已实现 router、quality、relevance、visual suppression loss，第一阶段继续强制
+  `lambda_sync=0`；
+- 已实现 gate-only checkpoint 保存/恢复首版合同；
+- 已实现 P2 row、虚拟波形、冻结 M4/BEATs/视觉/问题编码器到单样本特征包的预计算入口；
+- 正式特征来源要求记录运行时模块 state SHA，禁止用随机投影或测试替身生成训练资产；
+- 已实现 feature manifest 的独立 SHA、shape、监督 mask、shifted 排除和编码器来源审计；
+- 已实现只消费独立审计 feature manifest 的 Gate-only 2-step 入口，按 pair group 组成 batch，
+  禁止跨问题构造排序 pair，并检查 loss、gradient 与 gate 输出有限；
+- 预计算入口读取机器合同并 fail closed；当前 `feature_precompute=false`，不会加载模型或 GPU。
+
+当前仅表示代码门禁就绪。尚未生成 5,400 条正式冻结特征、尚未通过真实资产独立审计，
+也尚未把这些特征接入 Gate-only optimizer step。因此状态仍为
+`PASS_P3_PREFLIGHT_TRAINING_CLOSED`，`2-step` 继续禁止。下一步先评审并单独授权物理 GPU2
+的冻结特征预计算；先运行极小 limit smoke，核对运行时模块 SHA、显存、窗口数和重复生成
+一致性，通过后才允许生成完整 P3 特征资产。

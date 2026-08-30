@@ -36,6 +36,12 @@ def test_p3_contract_locks_data_scope_and_keeps_training_closed() -> None:
             "p4_7b",
         )
     )
+    assert contract["feature_pipeline"]["schema"].endswith("_v2")
+    assert contract["feature_pipeline"]["independent_quality_and_relevance_masks"] is True
+    assert contract["feature_pipeline"]["code_ready"] is True
+    assert contract["feature_pipeline"]["formal_feature_assets_generated"] is False
+    assert contract["feature_pipeline"]["training_entry_code_ready"] is True
+    assert contract["feature_pipeline"]["training_entry_connected"] is False
 
 
 def test_p3_contract_parameter_count_matches_real_gate() -> None:

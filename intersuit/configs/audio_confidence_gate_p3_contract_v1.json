@@ -103,5 +103,17 @@
     "twenty_step_training": false,
     "one_hundred_fifty_step_training": false,
     "p4_7b": false
+  },
+  "feature_pipeline": {
+    "schema": "as_m4_audio_confidence_frozen_features_v2",
+    "manifest_schema": "as_m4_audio_confidence_feature_manifest_v1",
+    "independent_quality_and_relevance_masks": true,
+    "full_windows_only": true,
+    "encoder_source_state_sha256_required": true,
+    "code_ready": true,
+    "formal_feature_assets_generated": false,
+    "independent_asset_audit_passed": false,
+    "training_entry_code_ready": true,
+    "training_entry_connected": false
   }
 }
