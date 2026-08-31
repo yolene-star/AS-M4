@@ -4596,3 +4596,10 @@
 - 结果/验证：`701 passed, 2 warnings`，耗时 122.48 秒；`git diff --check` 通过。GPU2 已恢复 11 MiB，所有 baseline/checkpoint/2/20/150-step 与 formal test 授权均关闭。
 - 当前整体进度：20-step 十项指标门禁、silence 精确回退、独立资产审计和完整回归均已完成，准备提交可复现 Git 基线。
 - 下一步：提交本轮评估、silence bypass、objective-v2 与中文报告；之后构建 visual-only 控制集和 generation-level 小样本门禁。
+
+## 2026-08-31 — adapter-only 20-step 与 silence 安全基线已提交
+
+- 完成操作：精确暂存统一 pre/post 评估、独立审计、十项门禁、objective-v2、物理全零 silence bypass、合同、中文报告和测试；运行资产排除与 cached diff 检查通过；创建提交 `711ea94`（`feat: validate adapter audio bridge canary20`）。
+- 结果/验证：提交包含 17 个文件、836 行新增、22 行删除；不含 checkpoint、媒体、数据集、特征、缓存或运行日志。最终完整 CPU 回归保持 `701 passed, 2 warnings`。
+- 当前整体进度：adapter-only 20-step 的任务正收益与 silence 精确回退已形成 Git 结果基线；旧 P3 Gate 未提交资产仍保留且未混入。150-step、P4 和 formal test 继续关闭。
+- 下一步：构建独立 visual-only 控制集与 generation-level 小样本门禁，重点验证音频不会破坏纯视觉问题、correct 音频能否提高最终生成答案而不仅是 NLL。
