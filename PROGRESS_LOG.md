@@ -4575,3 +4575,10 @@
 - 结果/验证：状态 `PASS_ADAPTER_CANARY_CHECKPOINT_AUDIT`；step=2，checkpoint/合同/manifest SHA 与 summary 和 metadata 完全一致；adapter weight/bias 分别为 FP32 `[3584,768]`/`[3584]` 且 finite；optimizer 恰有 2 个参数和 2 份 finite FP32 state；冻结运行模块 SHA 与 adapter 恢复 SHA 均一致。相关定向回归 `12 passed, 2 warnings`；最终完整 CPU 回归 `695 passed, 2 warnings`，耗时 122.45 秒；`git diff --check` 通过。
 - 当前整体进度：adapter-only 已完成数据合同、真实 7B forward、2-step、checkpoint 保存恢复和独立离线审计；所有训练授权重新关闭。尚未完成 30 组训练前后统一评估，不能开放 20-step，也仍没有整体任务收益证据。
 - 下一步：先实现并注册 30 组 pre/post NLL 评估（correct-vs-mismatch、correct-vs-video-only、silence 非退化、finite 率和相对 baseline 改善），通过 CPU/mock 合同后再单独评审 20-step；不得复用失败 v1--v3 状态。
+
+## 2026-08-31 — adapter-only 音频桥接基线已提交
+
+- 完成操作：精确暂存 adapter/audio-token 接线、FP32 adapter 与 BF16 输出修复、训练/审计入口、合同、中文报告、测试和进度日志；cached diff 与运行资产排除检查通过；创建提交 `ac2d5d0`（`feat: add adapter-only audio bridge canary`）。
+- 结果/验证：提交包含 24 个文件、1795 行新增、25 行删除；不含 checkpoint、媒体、数据集、冻结特征、缓存或运行日志。提交前最终完整 CPU 回归为 `695 passed, 2 warnings`，2-step checkpoint 独立审计为 `PASS_ADAPTER_CANARY_CHECKPOINT_AUDIT`。
+- 当前整体进度：adapter-only 从数据合同到真实 7B 2-step 的可复现工程基线已落库；旧 P3 Gate 的未提交诊断资产仍留在工作区，未混入本提交。所有 GPU 训练和 formal test 授权保持关闭。
+- 下一步：新增 30 组统一 pre/post NLL 评估合同与实现，形成 20-step 的机器停止门槛；完成 CPU/mock 审计后再决定是否开放 `gpu_20step`。
