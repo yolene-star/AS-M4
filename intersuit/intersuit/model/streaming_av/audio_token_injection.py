@@ -14,6 +14,39 @@ class AudioTokenInjectionOutput(NamedTuple):
     inserted: bool
 
 
+def build_audio_token_features(
+    features: torch.Tensor,
+    feature_mask: torch.Tensor,
+    audio_windows: torch.Tensor,
+    *,
+    gate: float = 1.0,
+    silence_bypass: bool = False,
+    silence_threshold: float = 1e-6,
+) -> list[torch.Tensor | None]:
+    """Build per-sample audio tokens and make exact physical silence a no-op."""
+    if features.ndim != 3 or feature_mask.shape != features.shape[:2]:
+        raise ValueError("audio features/mask shape mismatch")
+    if audio_windows.ndim < 2 or audio_windows.shape[0] != features.shape[0]:
+        raise ValueError("audio_windows batch size mismatch")
+    if not 0.0 <= float(gate) <= 1.0:
+        raise ValueError("gate must be in [0,1]")
+    if float(silence_threshold) < 0:
+        raise ValueError("silence_threshold must be non-negative")
+    result: list[torch.Tensor | None] = []
+    for batch_idx in range(features.shape[0]):
+        physical_silence = bool(
+            silence_bypass
+            and float(audio_windows[batch_idx].detach().float().abs().amax().item())
+            <= float(silence_threshold)
+        )
+        if float(gate) == 0.0 or physical_silence:
+            result.append(None)
+            continue
+        tokens = features[batch_idx][feature_mask[batch_idx].bool()]
+        result.append(tokens * float(gate))
+    return result
+
+
 def insert_audio_tokens(
     inputs_embeds: torch.Tensor,
     attention_mask: torch.Tensor,

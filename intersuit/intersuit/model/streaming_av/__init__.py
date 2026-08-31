@@ -35,7 +35,7 @@ from .dynamic_window_selector import (
     SelectorState,
 )
 from .fusion import GatedAVFusion
-from .audio_token_injection import AudioTokenInjectionOutput, insert_audio_tokens
+from .audio_token_injection import AudioTokenInjectionOutput, build_audio_token_features, insert_audio_tokens
 from .question_conditioned_window_selector import (
     QuestionConditionedSelectorOutput,
     QuestionConditionedSelectorState,

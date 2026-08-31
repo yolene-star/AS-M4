@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
+import math
+import statistics
 import torch
 import torch.nn.functional as F
 
@@ -101,6 +103,134 @@ def counterfactual_ranking_coefficients(correct_nll: float, mismatch_nll: float,
         "hinge": hinge,
         "correct_coefficient": 2.0 if active else 1.0,
         "mismatch_coefficient": -1.0 if active else 0.0,
+    }
+
+
+def counterfactual_objective_coefficients(
+    losses: dict[str, float], *, mismatch_margin: float, video_benefit_margin: float,
+    video_benefit_weight: float, silence_anchor_weight: float,
+) -> dict[str, float | bool]:
+    """Subgradient coefficients for separate memory-safe condition forwards."""
+    required = set(CONDITION_ORDER)
+    if set(losses) != required or any(not math.isfinite(float(value)) for value in losses.values()):
+        raise ValueError("四条件 objective losses 必须完整且 finite")
+    ranking = counterfactual_ranking_coefficients(
+        losses["correct"], losses["mismatch"], margin=mismatch_margin
+    )
+    benefit_hinge = max(
+        0.0, float(video_benefit_margin) + float(losses["correct"]) - float(losses["video_only"])
+    )
+    benefit_active = benefit_hinge > 0.0
+    silence_delta = float(losses["silence"]) - float(losses["video_only"])
+    silence_sign = 1.0 if silence_delta > 0 else (-1.0 if silence_delta < 0 else 0.0)
+    return {
+        "ranking_active": bool(ranking["active"]),
+        "ranking_hinge": float(ranking["hinge"]),
+        "video_benefit_active": benefit_active,
+        "video_benefit_hinge": benefit_hinge,
+        "silence_anchor_abs_gap": abs(silence_delta),
+        "correct_coefficient": float(ranking["correct_coefficient"]) + (
+            float(video_benefit_weight) if benefit_active else 0.0
+        ),
+        "mismatch_coefficient": float(ranking["mismatch_coefficient"]),
+        "silence_coefficient": float(silence_anchor_weight) * silence_sign,
+    }
+
+
+def summarize_counterfactual_nll(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate one complete four-condition evaluation without hiding per-group failures."""
+    if not rows:
+        raise ValueError("counterfactual NLL 评估不能为空")
+    conditions = CONDITION_ORDER
+    seen: set[str] = set()
+    normalized = []
+    for row in rows:
+        group_id = str(row.get("pair_group_id", ""))
+        losses = row.get("condition_nll")
+        if not group_id or group_id in seen or not isinstance(losses, dict):
+            raise ValueError("counterfactual NLL 行的 pair_group_id 缺失/重复或 condition_nll 无效")
+        seen.add(group_id)
+        values = {condition: float(losses[condition]) for condition in conditions}
+        if any(not math.isfinite(value) for value in values.values()):
+            raise ValueError(f"pair_group_id={group_id} 含非有限 NLL")
+        normalized.append((group_id, values))
+
+    mismatch_margins = [values["mismatch"] - values["correct"] for _, values in normalized]
+    video_benefits = [values["video_only"] - values["correct"] for _, values in normalized]
+    silence_gaps = [values["silence"] - values["video_only"] for _, values in normalized]
+    condition_means = {
+        condition: statistics.fmean(values[condition] for _, values in normalized)
+        for condition in conditions
+    }
+    count = len(normalized)
+    return {
+        "group_count": count,
+        "finite_group_count": count,
+        "condition_mean_nll": condition_means,
+        "correct_better_than_mismatch_count": sum(margin > 0 for margin in mismatch_margins),
+        "correct_better_than_mismatch_accuracy": sum(margin > 0 for margin in mismatch_margins) / count,
+        "mismatch_minus_correct_mean": statistics.fmean(mismatch_margins),
+        "mismatch_minus_correct_median": statistics.median(mismatch_margins),
+        "correct_better_than_video_only_count": sum(benefit > 0 for benefit in video_benefits),
+        "correct_better_than_video_only_accuracy": sum(benefit > 0 for benefit in video_benefits) / count,
+        "video_only_minus_correct_mean": statistics.fmean(video_benefits),
+        "silence_minus_video_only_mean": statistics.fmean(silence_gaps),
+        "silence_video_only_mean_abs_gap": statistics.fmean(abs(gap) for gap in silence_gaps),
+        "silence_better_than_video_only_count": sum(gap < 0 for gap in silence_gaps),
+        "per_group": [
+            {
+                "pair_group_id": group_id,
+                "condition_nll": values,
+                "mismatch_minus_correct": values["mismatch"] - values["correct"],
+                "video_only_minus_correct": values["video_only"] - values["correct"],
+                "silence_minus_video_only": values["silence"] - values["video_only"],
+            }
+            for group_id, values in normalized
+        ],
+    }
+
+
+def compare_counterfactual_nll(pre: dict[str, Any], post: dict[str, Any]) -> dict[str, float]:
+    if int(pre.get("group_count", -1)) != int(post.get("group_count", -2)):
+        raise ValueError("pre/post group_count 不一致")
+    pre_groups = [row["pair_group_id"] for row in pre.get("per_group", [])]
+    post_groups = [row["pair_group_id"] for row in post.get("per_group", [])]
+    if pre_groups != post_groups:
+        raise ValueError("pre/post pair_group 顺序或集合不一致")
+    pre_correct = float(pre["condition_mean_nll"]["correct"])
+    post_correct = float(post["condition_mean_nll"]["correct"])
+    return {
+        "ordering_accuracy_delta": float(post["correct_better_than_mismatch_accuracy"]) - float(pre["correct_better_than_mismatch_accuracy"]),
+        "mismatch_margin_mean_delta": float(post["mismatch_minus_correct_mean"]) - float(pre["mismatch_minus_correct_mean"]),
+        "correct_vs_video_accuracy_delta": float(post["correct_better_than_video_only_accuracy"]) - float(pre["correct_better_than_video_only_accuracy"]),
+        "video_benefit_mean_delta": float(post["video_only_minus_correct_mean"]) - float(pre["video_only_minus_correct_mean"]),
+        "correct_mean_nll_reduction": pre_correct - post_correct,
+        "silence_abs_gap_delta": float(post["silence_video_only_mean_abs_gap"]) - float(pre["silence_video_only_mean_abs_gap"]),
+        "per_group_mismatch_margin_improvement_accuracy": statistics.fmean(
+            float(post_row["mismatch_minus_correct"] > pre_row["mismatch_minus_correct"])
+            for pre_row, post_row in zip(pre["per_group"], post["per_group"])
+        ),
+    }
+
+
+def evaluate_counterfactual_gate(pre: dict[str, Any], post: dict[str, Any], thresholds: dict[str, float]) -> dict[str, Any]:
+    comparison = compare_counterfactual_nll(pre, post)
+    checks = {
+        "all_groups_finite": int(post["finite_group_count"]) == int(post["group_count"]),
+        "post_ordering_accuracy": float(post["correct_better_than_mismatch_accuracy"]) >= float(thresholds["post_ordering_accuracy_min"]),
+        "ordering_accuracy_delta": comparison["ordering_accuracy_delta"] >= float(thresholds["ordering_accuracy_delta_min"]),
+        "post_mismatch_margin_mean": float(post["mismatch_minus_correct_mean"]) >= float(thresholds["post_mismatch_margin_mean_min"]),
+        "mismatch_margin_mean_delta": comparison["mismatch_margin_mean_delta"] >= float(thresholds["mismatch_margin_mean_delta_min"]),
+        "correct_vs_video_accuracy_delta": comparison["correct_vs_video_accuracy_delta"] >= float(thresholds["correct_vs_video_accuracy_delta_min"]),
+        "video_benefit_mean_delta": comparison["video_benefit_mean_delta"] >= float(thresholds["video_benefit_mean_delta_min"]),
+        "correct_mean_nll_reduction": comparison["correct_mean_nll_reduction"] >= float(thresholds["correct_mean_nll_reduction_min"]),
+        "silence_abs_gap": float(post["silence_video_only_mean_abs_gap"]) <= float(thresholds["post_silence_abs_gap_max"]),
+        "silence_abs_gap_nonworsening": comparison["silence_abs_gap_delta"] <= float(thresholds["silence_abs_gap_delta_max"]),
+    }
+    return {
+        "status": "PASS_ADAPTER_CANARY20_METRICS" if all(checks.values()) else "FAIL_ADAPTER_CANARY20_METRICS",
+        "checks": checks,
+        "comparison": comparison,
     }
 
 def build_teacher_forced_labels(tokenizer, answer: str, device='cpu') -> torch.Tensor:
@@ -210,6 +340,8 @@ def load_adapter_only_model(contract: dict[str, Any], *, device: str = "cpu", lo
                     "scene_audio_window_mode": "fixed",
                     "as_m4_fusion_position": str(contract["base_model"].get("fusion_position", "llm_input_audio_tokens")),
                     "as_m4_audio_token_gate": float(contract["base_model"].get("audio_token_gate", 1.0)),
+                    "as_m4_audio_token_silence_bypass": bool(contract["base_model"].get("audio_token_silence_bypass", False)),
+                    "as_m4_audio_token_silence_threshold": float(contract["base_model"].get("audio_token_silence_threshold", 1e-6)),
                     "force_audio_gate": None,
                 },
             )

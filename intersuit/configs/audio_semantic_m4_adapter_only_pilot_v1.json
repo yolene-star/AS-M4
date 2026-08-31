@@ -1,6 +1,6 @@
 {
   "contract_id": "audio_semantic_m4_adapter_only_pilot_v1",
-  "status": "PASS_GPU2_CANARY2_20STEP_CLOSED",
+  "status": "PASS_CANARY20_METRICS_150STEP_VISUAL_CONTROL_CLOSED",
   "audio_source": {
     "kind": "UnAV_S1R_temporal_projector_v2",
     "checkpoint": "intersuit/harness/artifacts/unav_s1r_temporal_projector_v2/summary.pt",
@@ -15,6 +15,8 @@
     "legacy_fusion_disabled": true,
     "fusion_position": "llm_input_audio_tokens",
     "audio_token_gate": 1.0,
+    "audio_token_silence_bypass": true,
+    "audio_token_silence_threshold": 0.000001,
     "gate0_exact_rollback_required": true,
     "attn_implementation": "sdpa"
   },
@@ -46,7 +48,11 @@
     "visual_task_audio_suppression": false,
     "visual_task_audio_suppression_reason": "当前 pilot 只有 audio-required 问题的 video_only 条件，没有独立 visual-only 问题控制集",
     "sync_loss_weight": 0.0,
-    "margin": 0.2
+    "margin": 0.2,
+    "video_benefit_margin": 0.05,
+    "video_benefit_weight": 1.0,
+    "silence_anchor_weight": 0.0,
+    "silence_safety": "physical_zero_waveform_exact_audio_token_bypass"
   },
   "optimization": {
     "initialization_seed": 20260831,
@@ -66,8 +72,38 @@
     "logical_device": "cuda:0",
     "working_directory": "intersuit"
   },
+  "evaluation": {
+    "group_count": 30,
+    "conditions_per_group": 4,
+    "same_initialization_seed_required": true,
+    "baseline_lock": {
+      "summary": "intersuit/harness/artifacts/audio_semantic_m4_adapter_only_pilot_v1/baseline_eval30_silence_bypass_v2/summary.json",
+      "summary_sha256": "a4eb583874b33aa9e2b630e1715e3484566691546821105c6024d24d79370625",
+      "rows_sha256": "432bbe016b1587727e73c0c3f76965fbf648f83208c7072c7b4ccdec392c7c38",
+      "runtime_contract_sha256": "aef84b57058d31ed27a3f11c9230834c2d01620d185c5db89c0e5e26d35a3fec",
+      "adapter_initialization_sha256": "bd730db27e5866a182fee9b0e2e8b940eafce87ff0172693ce5425c17fa02211"
+    },
+    "post_checkpoint_lock": {
+      "path": "intersuit/harness/artifacts/audio_semantic_m4_adapter_only_pilot_v1/objective_v2_canary20_v1/checkpoint-step-20.pt",
+      "sha256": "9169a61c48308e13f08f81435b903596f68104b797eba43896a1f2210eb8cca5",
+      "step": 20
+    },
+    "thresholds": {
+      "post_ordering_accuracy_min": 0.6,
+      "ordering_accuracy_delta_min": 0.06666666666666667,
+      "post_mismatch_margin_mean_min": 0.02,
+      "mismatch_margin_mean_delta_min": 0.02,
+      "correct_vs_video_accuracy_delta_min": 0.06666666666666667,
+      "video_benefit_mean_delta_min": 0.02,
+      "correct_mean_nll_reduction_min": 0.02,
+      "post_silence_abs_gap_max": 0.5,
+      "silence_abs_gap_delta_max": 0.0
+    }
+  },
   "authorization": {
     "cpu_contract": true,
+    "gpu_baseline_eval": false,
+    "gpu_checkpoint_eval": false,
     "gpu_forward_smoke": false,
     "gpu_2step": false,
     "gpu_20step": false,

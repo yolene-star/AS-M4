@@ -13,6 +13,9 @@ from intersuit.train.audio_semantic_m4_adapter import (
     build_teacher_forced_batch,
     build_teacher_forced_labels,
     counterfactual_ranking_coefficients,
+    counterfactual_objective_coefficients,
+    compare_counterfactual_nll,
+    evaluate_counterfactual_gate,
     group_pilot_manifest,
     load_adapter_only_checkpoint,
     load_adapter_only_model,
@@ -21,6 +24,7 @@ from intersuit.train.audio_semantic_m4_adapter import (
     m4_teacher_forced_forward,
     prepare_real_condition_batch,
     save_adapter_only_checkpoint,
+    summarize_counterfactual_nll,
 )
 
 def test_loader_and_silence(tmp_path):
@@ -58,6 +62,50 @@ def test_counterfactual_ranking_coefficients_match_hinge_subgradient():
     assert active['correct_coefficient'] == 2.0 and active['mismatch_coefficient'] == -1.0
     inactive = counterfactual_ranking_coefficients(5.0, 5.5, margin=0.2)
     assert inactive['active'] is False and inactive['correct_coefficient'] == 1.0
+
+
+def test_counterfactual_objective_coefficients_add_benefit_and_silence_anchor():
+    coefficients = counterfactual_objective_coefficients(
+        {'video_only':2.0,'correct':2.2,'mismatch':2.1,'silence':2.3},
+        mismatch_margin=0.2,video_benefit_margin=0.05,
+        video_benefit_weight=1.0,silence_anchor_weight=0.2,
+    )
+    assert coefficients['ranking_active'] and coefficients['video_benefit_active']
+    assert coefficients['correct_coefficient']==3.0
+    assert coefficients['mismatch_coefficient']==-1.0
+    assert coefficients['silence_coefficient']==0.2
+    reverse = counterfactual_objective_coefficients(
+        {'video_only':2.0,'correct':1.5,'mismatch':2.0,'silence':1.8},
+        mismatch_margin=0.2,video_benefit_margin=0.05,
+        video_benefit_weight=1.0,silence_anchor_weight=0.2,
+    )
+    assert reverse['correct_coefficient']==1.0 and reverse['silence_coefficient']==-0.2
+
+
+def test_counterfactual_nll_summary_comparison_and_gate():
+    pre_rows = [
+        {'pair_group_id':'g0','condition_nll':{'video_only':2.0,'correct':2.2,'mismatch':2.1,'silence':2.1}},
+        {'pair_group_id':'g1','condition_nll':{'video_only':3.0,'correct':3.1,'mismatch':3.2,'silence':3.2}},
+    ]
+    post_rows = [
+        {'pair_group_id':'g0','condition_nll':{'video_only':2.0,'correct':1.8,'mismatch':2.2,'silence':2.05}},
+        {'pair_group_id':'g1','condition_nll':{'video_only':3.0,'correct':2.8,'mismatch':3.3,'silence':3.05}},
+    ]
+    pre=summarize_counterfactual_nll(pre_rows); post=summarize_counterfactual_nll(post_rows)
+    assert pre['correct_better_than_mismatch_accuracy']==0.5
+    assert post['correct_better_than_mismatch_accuracy']==1.0
+    comparison=compare_counterfactual_nll(pre,post)
+    assert comparison['ordering_accuracy_delta']==0.5 and comparison['correct_mean_nll_reduction']>0
+    thresholds={
+        'post_ordering_accuracy_min':1.0,'ordering_accuracy_delta_min':0.5,
+        'post_mismatch_margin_mean_min':0.4,'mismatch_margin_mean_delta_min':0.4,
+        'correct_vs_video_accuracy_delta_min':1.0,'video_benefit_mean_delta_min':0.3,
+        'correct_mean_nll_reduction_min':0.3,'post_silence_abs_gap_max':0.1,
+        'silence_abs_gap_delta_max':0.0,
+    }
+    gate=evaluate_counterfactual_gate(pre,post,thresholds)
+    assert gate['status']=='PASS_ADAPTER_CANARY20_METRICS' and all(gate['checks'].values())
+
 
 def test_teacher_forced_batch_masks_prompt_and_real_forward_checks_loss():
     prompt=torch.tensor([[9,8]])

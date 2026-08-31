@@ -4582,3 +4582,17 @@
 - 结果/验证：提交包含 24 个文件、1795 行新增、25 行删除；不含 checkpoint、媒体、数据集、冻结特征、缓存或运行日志。提交前最终完整 CPU 回归为 `695 passed, 2 warnings`，2-step checkpoint 独立审计为 `PASS_ADAPTER_CANARY_CHECKPOINT_AUDIT`。
 - 当前整体进度：adapter-only 从数据合同到真实 7B 2-step 的可复现工程基线已落库；旧 P3 Gate 的未提交诊断资产仍留在工作区，未混入本提交。所有 GPU 训练和 formal test 授权保持关闭。
 - 下一步：新增 30 组统一 pre/post NLL 评估合同与实现，形成 20-step 的机器停止门槛；完成 CPU/mock 审计后再决定是否开放 `gpu_20step`。
+
+## 2026-08-31 — adapter-only 30 组 baseline、20-step 与 silence 安全门禁完成
+
+- 完成操作：新增 30 组四条件 NLL 汇总、pre/post 比较、独立评估审计和十项机器门禁；运行初始化 baseline、objective-v2 2-step、20-step、checkpoint 审计与 post eval。objective-v2 增加 correct-vs-video benefit hinge；首次 post 的 silence 门禁失败后，定位为训练前 20 组 silence gap 恶化，新增可配置物理全零 audio-token bypass，并重新运行 baseline/post 全量 30 组验证。
+- 结果/验证：最终状态 `PASS_ADAPTER_CANARY20_METRICS`。correct<mismatch 从 `13/30` 提升到 `18/30`，平均 margin 从 `-0.00980` 提升到 `+0.09049`；correct<video-only 从 `9/30` 提升到 `22/30`，correct 平均 NLL 下降 `0.40733`；30/30 组 silence 与 video-only 逐组精确一致，gap `0.0`。20-step 运行 178.56 秒，峰值约 22.4 GiB，checkpoint SHA `9169a61c...eb8cca5`；冻结 SHA、optimizer 白名单、保存恢复与独立 checkpoint/评估审计均通过。
+- 当前整体进度：adapter-only 已首次在同一 30 组 pre/post 合同上证明 correct-audio 排序和相对 video-only NLL 的小规模正收益，并具备结构性 silence 回退。但 train20 排序率提升 `0.45->0.70`，holdout10 仍为 `0.40->0.40`；visual-only 控制仍未评估，尚不能宣称泛化或最终生成答案收益。
+- 下一步：保持 `gpu_150step/formal_test=false`；先构建独立 visual-only 问题控制集，并做 generation-level 小样本 correct/mismatch/video-only 对照。通过后再决定 150-step 或扩大训练数据。
+
+## 2026-08-31 — adapter-only 20-step 最终完整回归通过
+
+- 完成操作：在 silence bypass、统一评估/审计和 objective-v2 变更完成后，于 Conda `M4` 运行完整 CPU 测试集并检查 diff。
+- 结果/验证：`701 passed, 2 warnings`，耗时 122.48 秒；`git diff --check` 通过。GPU2 已恢复 11 MiB，所有 baseline/checkpoint/2/20/150-step 与 formal test 授权均关闭。
+- 当前整体进度：20-step 十项指标门禁、silence 精确回退、独立资产审计和完整回归均已完成，准备提交可复现 Git 基线。
+- 下一步：提交本轮评估、silence bypass、objective-v2 与中文报告；之后构建 visual-only 控制集和 generation-level 小样本门禁。

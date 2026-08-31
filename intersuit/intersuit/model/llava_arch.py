@@ -32,6 +32,7 @@ from .streaming_av.builder import build_streaming_av_module
 from .streaming_av.audio_event_aligner import FrozenOffsetScorerInputs, compute_audio_event_features
 from .streaming_av.confidence_gate import AudioSignalFeatures, compute_audio_signal_features
 from .streaming_av.fusion import apply_audio_delta_ratio_cap
+from .streaming_av.audio_token_injection import build_audio_token_features
 from .streaming_av.selection_contract import (
     EXTERNAL_PRE_ENCODER_STAGE,
     selection_results_from_model_output,
@@ -1651,14 +1652,14 @@ class LlavaMetaForCausalLM(ABC):
             token_gate = getattr(self.config, "as_m4_audio_token_gate", 1.0)
             if fusion_position != "llm_input_audio_tokens" and getattr(self.config, "force_audio_gate", None) is not None:
                 token_gate = self.config.force_audio_gate
-            audio_token_features = []
-            for batch_idx in range(input_ids.shape[0]):
-                if batch_idx >= scene_audio_output.features.shape[0] or float(token_gate) == 0.0:
-                    audio_token_features.append(None)
-                    continue
-                valid = scene_audio_output.mask[batch_idx].bool()
-                tokens = scene_audio_output.features[batch_idx][valid]
-                audio_token_features.append(tokens * float(token_gate))
+            audio_token_features = build_audio_token_features(
+                scene_audio_output.features,
+                scene_audio_output.mask,
+                scene_audios,
+                gate=float(token_gate),
+                silence_bypass=bool(getattr(self.config, "as_m4_audio_token_silence_bypass", False)),
+                silence_threshold=float(getattr(self.config, "as_m4_audio_token_silence_threshold", 1e-6)),
+            )
 
         return self._pack_image_features_into_inputs(
             input_ids,

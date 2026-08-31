@@ -106,7 +106,7 @@ def run_training(contract, contract_path: Path, manifest_path: Path, *, steps: i
         assert_finite_adapter_parameters,
         assert_finite_adapter_gradients,
         build_adapter_only_optimizer,
-        counterfactual_ranking_coefficients,
+        counterfactual_objective_coefficients,
         group_pilot_manifest,
         load_adapter_only_checkpoint,
         load_adapter_only_model,
@@ -162,8 +162,18 @@ def run_training(contract, contract_path: Path, manifest_path: Path, *, steps: i
     )
     if tuple(trainable_names) != tuple(optimizer_names):
         raise RuntimeError('trainable/optimizer 参数白名单不一致')
+    adapter_sha_before_training = adapter_state_sha256(model)
+    if int(steps) == 20:
+        expected_initial_sha = contract.get('evaluation', {}).get('baseline_lock', {}).get('adapter_initialization_sha256')
+        if not expected_initial_sha or adapter_sha_before_training != expected_initial_sha:
+            raise RuntimeError(
+                f'20-step adapter 初始化 SHA 与 baseline 不一致: expected={expected_initial_sha}, actual={adapter_sha_before_training}'
+            )
     frozen_before = adapter_frozen_runtime_sha256(model)
     margin = float(contract['objectives']['margin'])
+    video_benefit_margin = float(contract['objectives'].get('video_benefit_margin', 0.0))
+    video_benefit_weight = float(contract['objectives'].get('video_benefit_weight', 0.0))
+    silence_anchor_weight = float(contract['objectives'].get('silence_anchor_weight', 0.0))
     max_grad_norm = float(optimization['max_grad_norm'])
     metrics = []
     video_cache = {}
@@ -184,16 +194,24 @@ def run_training(contract, contract_path: Path, manifest_path: Path, *, steps: i
                 condition: float(condition_loss(model, make_batch(conditions[condition])).detach().float().item())
                 for condition in ('video_only', 'correct', 'mismatch', 'silence')
             }
-        ranking = counterfactual_ranking_coefficients(
-            detached['correct'], detached['mismatch'], margin=margin
+        objective = counterfactual_objective_coefficients(
+            detached,
+            mismatch_margin=margin,
+            video_benefit_margin=video_benefit_margin,
+            video_benefit_weight=video_benefit_weight,
+            silence_anchor_weight=silence_anchor_weight,
         )
         optimizer.zero_grad(set_to_none=True)
         correct_loss = condition_loss(model, make_batch(conditions['correct']))
-        (float(ranking['correct_coefficient']) * correct_loss).backward()
+        (float(objective['correct_coefficient']) * correct_loss).backward()
         mismatch_train_loss = None
-        if ranking['active']:
+        if objective['ranking_active']:
             mismatch_train_loss = condition_loss(model, make_batch(conditions['mismatch']))
-            (float(ranking['mismatch_coefficient']) * mismatch_train_loss).backward()
+            (float(objective['mismatch_coefficient']) * mismatch_train_loss).backward()
+        silence_train_loss = None
+        if float(objective['silence_coefficient']) != 0.0:
+            silence_train_loss = condition_loss(model, make_batch(conditions['silence']))
+            (float(objective['silence_coefficient']) * silence_train_loss).backward()
         gradient_norms = assert_finite_adapter_gradients(model, tuple(trainable_names))
         total_norm = torch.nn.utils.clip_grad_norm_(
             [parameter for parameter in model.parameters() if parameter.requires_grad], max_grad_norm
@@ -206,13 +224,18 @@ def run_training(contract, contract_path: Path, manifest_path: Path, *, steps: i
             'step': step,
             'pair_group_id': group['pair_group_id'],
             'condition_nll_before_step': detached,
-            'ranking_active': bool(ranking['active']),
-            'ranking_hinge_before_step': float(ranking['hinge']),
-            'correct_gradient_coefficient': float(ranking['correct_coefficient']),
-            'mismatch_gradient_coefficient': float(ranking['mismatch_coefficient']),
+            'ranking_active': bool(objective['ranking_active']),
+            'ranking_hinge_before_step': float(objective['ranking_hinge']),
+            'video_benefit_active': bool(objective['video_benefit_active']),
+            'video_benefit_hinge_before_step': float(objective['video_benefit_hinge']),
+            'silence_anchor_abs_gap_before_step': float(objective['silence_anchor_abs_gap']),
+            'correct_gradient_coefficient': float(objective['correct_coefficient']),
+            'mismatch_gradient_coefficient': float(objective['mismatch_coefficient']),
+            'silence_gradient_coefficient': float(objective['silence_coefficient']),
             'gradient_norms': gradient_norms,
             'total_gradient_norm_before_clip': float(torch.as_tensor(total_norm).detach().cpu().item()),
             'mismatch_gradient_forward_used': mismatch_train_loss is not None,
+            'silence_gradient_forward_used': silence_train_loss is not None,
             'adapter_parameter_norms_after_step': parameter_norms,
         }
         metrics.append(step_metrics)
@@ -252,6 +275,7 @@ def run_training(contract, contract_path: Path, manifest_path: Path, *, steps: i
         'frozen_runtime_sha256_before': frozen_before,
         'frozen_runtime_sha256_after': frozen_after,
         'adapter_sha256_after_training': adapter_sha_before_save,
+        'adapter_sha256_before_training': adapter_sha_before_training,
         'adapter_sha256_after_restore': adapter_sha_after_restore,
         'checkpoint_path': str(checkpoint_path),
         'checkpoint_sha256': checkpoint_sha,
