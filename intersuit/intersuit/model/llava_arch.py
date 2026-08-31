@@ -1048,6 +1048,7 @@ class LlavaMetaForCausalLM(ABC):
         labels,
         image_features,
         modalities,
+        audio_token_features=None,
     ):
         _labels = labels
         _position_ids = position_ids
@@ -1106,6 +1107,17 @@ class LlavaMetaForCausalLM(ABC):
             cur_new_labels = torch.cat(cur_new_labels)
             new_input_embeds.append(cur_new_input_embeds)
             new_labels.append(cur_new_labels)
+
+        if audio_token_features is not None:
+            if len(audio_token_features) != len(new_input_embeds):
+                raise ValueError("audio_token_features batch size mismatch")
+            for batch_idx, tokens in enumerate(audio_token_features):
+                if tokens is None:
+                    continue
+                if tokens.ndim != 2 or tokens.shape[1] != new_input_embeds[batch_idx].shape[-1]:
+                    raise ValueError("audio tokens must be [A,H] matching input hidden size")
+                new_input_embeds[batch_idx] = torch.cat([tokens.to(new_input_embeds[batch_idx]), new_input_embeds[batch_idx]], dim=0)
+                new_labels[batch_idx] = torch.cat([torch.full((tokens.shape[0],), IGNORE_INDEX, device=new_labels[batch_idx].device, dtype=new_labels[batch_idx].dtype), new_labels[batch_idx]])
 
         tokenizer_model_max_length = getattr(self.config, "tokenizer_model_max_length", None)
         new_input_embeds = [x[:tokenizer_model_max_length] for x, modality in zip(new_input_embeds, modalities)]
@@ -1429,6 +1441,9 @@ class LlavaMetaForCausalLM(ABC):
                 f"Unsupported scene_audio_selection_stage={scene_audio_selection_stage!r}"
             )
         selector_mode = window_mode in SCENE_AUDIO_SELECTOR_WINDOW_MODES
+        if getattr(self.config, "as_m4_fusion_position", "visual_token_residual") == "llm_input_audio_tokens":
+            window_mode = "fixed"
+            selector_mode = False
         if not self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
             if speeches is not None:
                 return self.prepare_inputs_labels_for_multimodal_av(
@@ -1530,29 +1545,31 @@ class LlavaMetaForCausalLM(ABC):
                 silence_ratio=torch.einsum("bkt,bt->bk", weights, scene_audio_signal_features.silence_ratio),
                 norm=torch.einsum("bkt,bt->bk", weights, scene_audio_signal_features.norm),
             )
-        image_features = self.fuse_scene_audio_into_image_features(
-            image_features,
-            modalities,
-            scene_audio_output,
-            scene_audio_timestamps=scene_audio_output.timestamps,
-            frame_timestamps=frame_timestamps,
-            lookahead_sec=getattr(self.config, "streaming_av_lookahead_sec", 0.0),
-            force_audio_gate=getattr(self.config, "force_audio_gate", None),
-            audio_residual_scale=getattr(self.config, "debug_audio_residual_scale", 1.0),
-            audio_delta_ratio_cap=getattr(self.config, "audio_delta_ratio_cap", 0.0),
-            question_features=question_features,
-            scene_audio_signal_features=scene_audio_signal_features,
-            scene_audio_windows=(
-                scene_audios
-                if not selector_mode and bool(getattr(self.config, "enable_audio_event_aligner_v1", False))
-                else None
-            ),
-            frozen_offset_scorer_inputs=getattr(
-                self,
-                "_audio_event_offset_diagnostic_inputs",
-                None,
-            ) if not selector_mode else None,
-        )
+        fusion_position = getattr(self.config, "as_m4_fusion_position", "visual_token_residual")
+        if fusion_position != "llm_input_audio_tokens":
+            image_features = self.fuse_scene_audio_into_image_features(
+                image_features,
+                modalities,
+                scene_audio_output,
+                scene_audio_timestamps=scene_audio_output.timestamps,
+                frame_timestamps=frame_timestamps,
+                lookahead_sec=getattr(self.config, "streaming_av_lookahead_sec", 0.0),
+                force_audio_gate=getattr(self.config, "force_audio_gate", None),
+                audio_residual_scale=getattr(self.config, "debug_audio_residual_scale", 1.0),
+                audio_delta_ratio_cap=getattr(self.config, "audio_delta_ratio_cap", 0.0),
+                question_features=question_features,
+                scene_audio_signal_features=scene_audio_signal_features,
+                scene_audio_windows=(
+                    scene_audios
+                    if not selector_mode and bool(getattr(self.config, "enable_audio_event_aligner_v1", False))
+                    else None
+                ),
+                frozen_offset_scorer_inputs=getattr(
+                    self,
+                    "_audio_event_offset_diagnostic_inputs",
+                    None,
+                ) if not selector_mode else None,
+            )
         if selector_mode:
             selector_output = self._last_dynamic_window_selector_output
             selector_diagnostics = self._last_streaming_av_diagnostics
@@ -1629,6 +1646,20 @@ class LlavaMetaForCausalLM(ABC):
         else:
             raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
 
+        audio_token_features = None
+        if getattr(self.config, "as_m4_fusion_position", "visual_token_residual") == "llm_input_audio_tokens":
+            token_gate = getattr(self.config, "as_m4_audio_token_gate", 1.0)
+            if fusion_position != "llm_input_audio_tokens" and getattr(self.config, "force_audio_gate", None) is not None:
+                token_gate = self.config.force_audio_gate
+            audio_token_features = []
+            for batch_idx in range(input_ids.shape[0]):
+                if batch_idx >= scene_audio_output.features.shape[0] or float(token_gate) == 0.0:
+                    audio_token_features.append(None)
+                    continue
+                valid = scene_audio_output.mask[batch_idx].bool()
+                tokens = scene_audio_output.features[batch_idx][valid]
+                audio_token_features.append(tokens * float(token_gate))
+
         return self._pack_image_features_into_inputs(
             input_ids,
             position_ids,
@@ -1637,6 +1668,7 @@ class LlavaMetaForCausalLM(ABC):
             labels,
             image_features,
             modalities,
+            audio_token_features=audio_token_features,
         )
 
     def prepare_inputs_labels_for_multimodal_av(self, input_ids, position_ids, attention_mask, past_key_values, labels, images, modalities=["image"], image_sizes=None, speeches=None, speech_lengths=None):

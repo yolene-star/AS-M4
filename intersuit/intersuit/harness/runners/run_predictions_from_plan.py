@@ -1048,6 +1048,8 @@ def model_prediction(
         "as_m4_inference_simple_audio_gate",
         None,
     )
+    previous_fusion_position = getattr(model.config, "as_m4_fusion_position", "visual_token_residual")
+    previous_audio_token_gate = getattr(model.config, "as_m4_audio_token_gate", 1.0)
     if force_audio_gate is not None:
         model.config.force_audio_gate = float(force_audio_gate)
     if enable_scene_audio is not None:
@@ -1087,6 +1089,18 @@ def model_prediction(
         if inference_simple_audio_gate is not None
         else previous_inference_simple_audio_gate
     )
+    fusion_position = exp.get("env", {}).get("AS_M4_FUSION_POSITION")
+    active_fusion_position = previous_fusion_position
+    if fusion_position is not None:
+        if fusion_position not in {"visual_token_residual", "llm_input_audio_tokens"}:
+            raise ValueError("AS_M4_FUSION_POSITION 无效")
+        model.config.as_m4_fusion_position = fusion_position
+        active_fusion_position = fusion_position
+    audio_token_gate = exp.get("env", {}).get("AS_M4_AUDIO_TOKEN_GATE")
+    active_audio_token_gate = previous_audio_token_gate
+    if audio_token_gate is not None:
+        model.config.as_m4_audio_token_gate = float(audio_token_gate)
+        active_audio_token_gate = float(audio_token_gate)
     model.config.as_m4_fusion_mode = active_fusion_mode
     model.config.as_m4_fusion_projector_mode = active_fusion_projector_mode
     model.config.as_m4_simple_audio_gate = active_simple_audio_gate
@@ -1209,6 +1223,8 @@ def model_prediction(
             model.config.as_m4_fusion_projector_mode = previous_fusion_projector_mode
             model.config.as_m4_simple_audio_gate = previous_simple_audio_gate
             model.config.as_m4_inference_simple_audio_gate = previous_inference_simple_audio_gate
+            model.config.as_m4_fusion_position = previous_fusion_position
+            model.config.as_m4_audio_token_gate = previous_audio_token_gate
             if previous_module_gate_v1 is not None:
                 streaming_av_module.confidence_gate.enable_v1 = previous_module_gate_v1
             if previous_module_fusion_projector_mode is not None:
@@ -1236,6 +1252,8 @@ def model_prediction(
     token_debug["as_m4_fusion_projector_mode"] = active_fusion_projector_mode
     token_debug["as_m4_simple_audio_gate"] = active_simple_audio_gate
     token_debug["as_m4_inference_simple_audio_gate"] = active_inference_simple_audio_gate
+    token_debug["as_m4_fusion_position"] = active_fusion_position
+    token_debug["as_m4_audio_token_gate"] = active_audio_token_gate
     token_debug["first_token_logits"] = first_token_logits
     return prediction, diagnostics, {"prompt": prompt_debug, "tokens": token_debug}
 

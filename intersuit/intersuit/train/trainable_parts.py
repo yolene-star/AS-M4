@@ -7,6 +7,7 @@ from typing import Iterable
 
 SCENE_AUDIO_SELECTOR_ONLY_ALIAS = "scene_audio_selector"
 AUDIO_CONFIDENCE_GATE_ONLY_ALIAS = "audio_confidence_gate"
+SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS = "scene_audio_m4_adapter"
 SCENE_AUDIO_SELECTOR_PARAMETER_SUFFIXES = (
     "streaming_av_module.question_conditioned_window_selector.audio_projection.weight",
     "streaming_av_module.question_conditioned_window_selector.question_projection.weight",
@@ -69,6 +70,35 @@ def enable_audio_confidence_gate_only(model) -> tuple[str, ...]:
         parameter.requires_grad_(name in allowed_set)
     assert_exact_trainable_parameters(model, allowed)
     return allowed
+
+
+def scene_audio_m4_adapter_parameter_names(model) -> tuple[str, ...]:
+    names = tuple(sorted(
+        name for name, _ in model.named_parameters()
+        if name.endswith("scene_audio_encoder.m4_adapter.weight")
+        or name.endswith("scene_audio_encoder.m4_adapter.bias")
+    ))
+    if len(names) != 2:
+        raise RuntimeError(f"scene_audio_m4_adapter 参数解析失败：expected=2, actual={len(names)}")
+    return names
+
+
+def enable_scene_audio_m4_adapter_only(model) -> tuple[str, ...]:
+    """只解冻 768->M4 hidden adapter，冻结 BEATs/semantic projector/fusion。"""
+    allowed = scene_audio_m4_adapter_parameter_names(model)
+    allowed_set = set(allowed)
+    for name, parameter in model.named_parameters():
+        parameter.requires_grad_(name in allowed_set)
+    assert_exact_trainable_parameters(model, allowed)
+    return allowed
+
+
+def assert_scene_audio_m4_adapter_only_optimizer(optimizer, model) -> tuple[str, ...]:
+    expected = scene_audio_m4_adapter_parameter_names(model)
+    actual = optimizer_parameter_names(optimizer, model)
+    if actual != expected:
+        raise RuntimeError(f"scene_audio_m4_adapter optimizer 审计失败：unexpected={sorted(set(actual)-set(expected))}, missing={sorted(set(expected)-set(actual))}")
+    return actual
 
 
 def assert_exact_trainable_parameters(model, expected_names: Iterable[str]) -> tuple[str, ...]:

@@ -461,13 +461,17 @@ class FrozenBEATsV4SceneAudioEncoder(FrozenBEATsSceneAudioEncoder):
             parameter.requires_grad = False
 
     def project(self, raw_features: torch.Tensor) -> torch.Tensor:
+        output_dtype = getattr(self, "m4_output_dtype", raw_features.dtype)
         raw = _ensure_batched_features(raw_features).to(
             device=self.m4_adapter.weight.device,
             dtype=self.m4_adapter.weight.dtype,
         )
-        residual = self.semantic_projector(raw.float())
+        semantic_parameter = next(self.semantic_projector.parameters())
+        residual = self.semantic_projector(
+            raw.to(device=semantic_parameter.device, dtype=semantic_parameter.dtype)
+        ).float()
         semantic = F.normalize(raw.float() + 0.1 * residual, dim=-1)
-        return self.m4_adapter(semantic.to(dtype=self.m4_adapter.weight.dtype))
+        return self.m4_adapter(semantic.to(dtype=self.m4_adapter.weight.dtype)).to(dtype=output_dtype)
 
     def forward(
         self,

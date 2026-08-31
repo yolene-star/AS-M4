@@ -44,6 +44,7 @@ from intersuit.constants import SPEECH_TOKEN_INDEX, DEFAULT_SPEECH_TOKEN
 from intersuit.train.llava_trainer import LLaVATrainer
 from intersuit.train.trainable_parts import (
     AUDIO_CONFIDENCE_GATE_ONLY_ALIAS,
+    SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS,
     SCENE_AUDIO_SELECTOR_ONLY_ALIAS,
     enable_audio_confidence_gate_only,
     enable_scene_audio_selector_only,
@@ -2142,6 +2143,14 @@ def train(attn_implementation=None):
                     raise ValueError("audio_confidence_gate 要求 enable_scene_audio=true")
                 allowed_names = enable_audio_confidence_gate_only(model)
                 rank0_print(f"audio_confidence_gate trainable allowlist: {allowed_names}")
+            if SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS in tunable_parts:
+                if tunable_parts != [SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS]:
+                    raise ValueError("scene_audio_m4_adapter 是严格 adapter-only 模式，不得与其他 tunable part 组合")
+                if not model_args.enable_scene_audio or str(model_args.scene_audio_encoder_type).lower() != "beats_v4":
+                    raise ValueError("scene_audio_m4_adapter 要求 enable_scene_audio=true 且 scene_audio_encoder_type=beats_v4")
+                from .trainable_parts import enable_scene_audio_m4_adapter_only
+                allowed_names = enable_scene_audio_m4_adapter_only(model)
+                rank0_print(f"scene_audio_m4_adapter trainable allowlist: {allowed_names}")
             if "mm_mlp_adapter" in tunable_parts:
                 for p in model.get_model().mm_projector.parameters():
                     p.requires_grad = True

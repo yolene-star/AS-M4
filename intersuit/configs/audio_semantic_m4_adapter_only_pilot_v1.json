@@ -1,0 +1,86 @@
+{
+  "contract_id": "audio_semantic_m4_adapter_only_pilot_v1",
+  "status": "PASS_GPU2_CANARY2_20STEP_CLOSED",
+  "audio_source": {
+    "kind": "UnAV_S1R_temporal_projector_v2",
+    "checkpoint": "intersuit/harness/artifacts/unav_s1r_temporal_projector_v2/summary.pt",
+    "sha256": "0bf779dbc1678328d935089f8d41c16e216266b694dd86e51415bfb96f92a610",
+    "input_dim": 768,
+    "output_dim": 768
+  },
+  "base_model": {
+    "checkpoint": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "m4_hidden_size": 3584,
+    "adapter_source": "new_adapter_only",
+    "legacy_fusion_disabled": true,
+    "fusion_position": "llm_input_audio_tokens",
+    "audio_token_gate": 1.0,
+    "gate0_exact_rollback_required": true,
+    "attn_implementation": "sdpa"
+  },
+  "data": {
+    "conditions": ["video_only", "correct", "mismatch", "silence"],
+    "task_scope": "audio_required_only",
+    "sample_limit_pilot": 30,
+    "pairing": "same_question_same_video_correct_vs_mismatch",
+    "formal_test_accessed": false,
+    "video_only_condition_semantics": "same_audio_required_question_without_scene_audio",
+    "visual_only_question_control": {
+      "status": "NOT_BUILT",
+      "sample_limit": 0,
+      "required_before_visual_suppression": true
+    }
+  },
+  "trainable_scope": {
+    "alias": "scene_audio_m4_adapter",
+    "allowed_parameter_suffixes": [
+      "scene_audio_encoder.m4_adapter.weight",
+      "scene_audio_encoder.m4_adapter.bias"
+    ],
+    "expected_parameter_tensor_count": 2,
+    "frozen": ["beats", "semantic_projector", "legacy_audio_projector", "fusion", "gate", "m4_qwen2", "vision_tower"]
+  },
+  "objectives": {
+    "lm_loss": true,
+    "correct_vs_mismatch_margin": true,
+    "visual_task_audio_suppression": false,
+    "visual_task_audio_suppression_reason": "当前 pilot 只有 audio-required 问题的 video_only 条件，没有独立 visual-only 问题控制集",
+    "sync_loss_weight": 0.0,
+    "margin": 0.2
+  },
+  "optimization": {
+    "initialization_seed": 20260831,
+    "gradient_checkpointing": true,
+    "gradient_checkpointing_use_reentrant": false,
+    "chunked_lm_loss": true,
+    "chunked_lm_loss_tokens": 256,
+    "chunked_lm_loss_checkpoint": false,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "checkpoint_dir": "intersuit/harness/artifacts/audio_semantic_m4_adapter_only_pilot_v1/checkpoints"
+  },
+  "execution": {
+    "physical_gpu": 2,
+    "cuda_visible_devices": "2",
+    "logical_device": "cuda:0",
+    "working_directory": "intersuit"
+  },
+  "authorization": {
+    "cpu_contract": true,
+    "gpu_forward_smoke": false,
+    "gpu_2step": false,
+    "gpu_20step": false,
+    "gpu_150step": false,
+    "formal_test": false
+  },
+  "stop_conditions": [
+    "any_nonfinite_loss_gradient_or_output",
+    "any_frozen_parameter_change",
+    "optimizer_parameter_outside_allowlist",
+    "correct_not_above_mismatch",
+    "visual_only_audio_effect_exceeds_registered_cap",
+    "gate0_not_exact_rollback",
+    "missing_or_mismatched_source_sha"
+  ]
+}
