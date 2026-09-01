@@ -4603,3 +4603,10 @@
 - 结果/验证：提交包含 17 个文件、836 行新增、22 行删除；不含 checkpoint、媒体、数据集、特征、缓存或运行日志。最终完整 CPU 回归保持 `701 passed, 2 warnings`。
 - 当前整体进度：adapter-only 20-step 的任务正收益与 silence 精确回退已形成 Git 结果基线；旧 P3 Gate 未提交资产仍保留且未混入。150-step、P4 和 formal test 继续关闭。
 - 下一步：构建独立 visual-only 控制集与 generation-level 小样本门禁，重点验证音频不会破坏纯视觉问题、correct 音频能否提高最终生成答案而不仅是 NLL。
+
+## 2026-09-01 — 当前进度只读复核
+
+- 完成操作：只读复核最新 Git 提交、工作区、进度日志和训练/评估/预计算进程；未访问 GPU、未启动训练、推理或 formal test。
+- 结果/验证：最新功能提交仍为 `711ea94`，进度提交为 `12b4105`；当前无 adapter 训练、评估、预计算或 M4 推理进程。已提交 adapter 主线保持 `PASS_ADAPTER_CANARY20_METRICS`，完整 CPU 回归仍为 `701 passed, 2 warnings`。
+- 当前整体进度：20-step 已证明 30 组 teacher-forced NLL 上的 correct-audio 与 video-only 小规模正收益，silence 30/30 精确回退；但 holdout10 排序率仍未提升，visual-only 与最终生成答案收益尚未验证。工作区剩余变更均为未纳入 adapter 提交的旧 P3 Gate/融合诊断资产。
+- 下一步：先构建独立 visual-only 控制集和 generation-level 小样本三条件对照；通过前保持 `gpu_150step/P4/formal_test=false`。
