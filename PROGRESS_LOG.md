@@ -4867,3 +4867,10 @@
 - 结果/验证：`8 passed, 2 warnings`；whitespace 检查通过；未启动 GPU、训练或推理。
 - 当前整体进度：本轮代码、配置、测试和中文报告具备提交条件，运行资产未纳入提交范围。
 - 下一步：精确暂存工作区文件，检查 staged diff 后提交到当前分支并推送远端 GitHub。
+
+- 2026-09-10 — 提交并推送 GitHub 完成
+
+- 完成操作：将本轮 41 个代码、配置、测试和中文报告文件提交为 `1fcc1b6`，并推送到 `origin/feat/audio-event-aligner-v1`。
+- 结果/验证：GitHub push 成功；未提交 checkpoint、媒体、数据集或缓存资产。
+- 当前整体进度：本轮工作区改动已同步到远端分支，后续可在该提交基础上继续 MUSIC-AVQA NLL 诊断。
+- 下一步：继续执行 MUSIC-AVQA 两组四条件 NLL 与 video-only 泄漏诊断，不直接启动 150-step 或 formal test。
