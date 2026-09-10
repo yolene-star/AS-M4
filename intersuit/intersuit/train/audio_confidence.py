@@ -33,16 +33,30 @@ class GateFeatureCollator:
             "quality_rank", "quality_mask", "relevance_rank", "relevance_mask",
             "sync_rank",
         )
-        # 每个磁盘特征包自身带 batch 维；collator 沿 batch 维拼接，不能再额外 stack。
-        result = {key: torch.cat([torch.as_tensor(sample[key]) for sample in samples], dim=0) for key in keys}
+        # 每个磁盘包带 batch 维；混合 group 时允许不同窗口数，沿时间维补零并更新 valid_mask。
+        max_steps = max(int(torch.as_tensor(sample["audio"]).shape[1]) for sample in samples)
+        result = {}
+        for key in keys:
+            values = []
+            for sample in samples:
+                value = torch.as_tensor(sample[key])
+                if value.ndim >= 2 and value.shape[1] < max_steps and key not in {"question"}:
+                    pad_shape = (value.shape[0], max_steps - value.shape[1]) + tuple(value.shape[2:])
+                    pad_value = False if value.dtype == torch.bool else 0
+                    value = torch.cat([value, torch.full(pad_shape, pad_value, dtype=value.dtype)], dim=1)
+                values.append(value)
+            result[key] = torch.cat(values, dim=0)
         if "signal_features" in samples[0]:
             signal = samples[0]["signal_features"]
-            result["signal_features"] = {
-                key: torch.cat(
-                    [torch.as_tensor(sample["signal_features"][key]) for sample in samples], dim=0
-                )
-                for key in signal
-            }
+            result["signal_features"] = {}
+            for key in signal:
+                values = []
+                for sample in samples:
+                    value = torch.as_tensor(sample["signal_features"][key])
+                    if value.shape[1] < max_steps:
+                        value = torch.cat([value, torch.zeros((value.shape[0], max_steps - value.shape[1]), dtype=value.dtype)], dim=1)
+                    values.append(value)
+                result["signal_features"][key] = torch.cat(values, dim=0)
         if all("metadata" in sample for sample in samples):
             result["pair_group_id"] = [
                 str(sample["metadata"]["pair_group_id"])
@@ -287,12 +301,46 @@ class PairGroupBatchSampler(Sampler[list[int]]):
         return len(self.groups)
 
 
+class MixedPairGroupBatchSampler(Sampler[list[int]]):
+    """混合多个 pair group，避免 Router batch 只有单一类别。"""
+
+    def __init__(self, records: list[Mapping[str, Any]], *, groups_per_batch: int = 4, shuffle: bool, seed: int) -> None:
+        if groups_per_batch <= 0:
+            raise ValueError("groups_per_batch 必须为正数")
+        groups: dict[str, list[int]] = {}
+        for index, record in enumerate(records):
+            groups.setdefault(str(record["pair_group_id"]), []).append(index)
+        if not groups:
+            raise ValueError("没有可用 pair_group")
+        self.groups = [tuple(indices) for _, indices in sorted(groups.items())]
+        self.groups_per_batch = int(groups_per_batch)
+        self.shuffle = bool(shuffle)
+        self.seed = int(seed)
+        self.epoch = 0
+
+    def __iter__(self):
+        order = torch.arange(len(self.groups))
+        if self.shuffle:
+            generator = torch.Generator().manual_seed(self.seed + self.epoch)
+            order = order[torch.randperm(len(order), generator=generator)]
+        self.epoch += 1
+        for start in range(0, len(order), self.groups_per_batch):
+            batch = []
+            for group_index in order[start:start + self.groups_per_batch].tolist():
+                batch.extend(self.groups[group_index])
+            yield batch
+
+    def __len__(self) -> int:
+        return (len(self.groups) + self.groups_per_batch - 1) // self.groups_per_batch
+
+
 def gate_only_train_step(
     model: torch.nn.Module,
     batch: Mapping[str, Any],
     optimizer: torch.optim.Optimizer,
     *,
     device: torch.device | str,
+    lambda_relevance: float = 1.0,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """执行一个 Gate-only optimizer step，并严格检查 loss/gradient/output。"""
 
@@ -313,7 +361,7 @@ def gate_only_train_step(
         tensor_batch["audio"], tensor_batch["video"], tensor_batch["question"],
         signal_features=signal, valid_mask=tensor_batch["valid_mask"],
     )
-    loss, metrics = compute_gate_losses(output, tensor_batch)
+    loss, metrics = compute_gate_losses(output, tensor_batch, lambda_relevance=lambda_relevance)
     if not torch.isfinite(loss):
         raise RuntimeError("Gate-only loss 出现 NaN/Inf")
     loss.backward()

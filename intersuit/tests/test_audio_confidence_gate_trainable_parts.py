@@ -9,6 +9,8 @@ from intersuit.train.trainable_parts import (
     assert_exact_trainable_parameters,
     audio_confidence_gate_parameter_names,
     enable_audio_confidence_gate_only,
+    enable_scene_audio_m4_adapter_only,
+    assert_scene_audio_m4_adapter_only_optimizer,
 )
 
 
@@ -99,3 +101,13 @@ def test_gate_only_audits_detect_missing_or_extra_parameters() -> None:
     del incomplete.model.streaming_av_module.first_stage_confidence_gate.relevance_mlp
     with pytest.raises(RuntimeError, match="Gate-only 参数解析失败"):
         audio_confidence_gate_parameter_names(incomplete)
+
+
+def test_m4_adapter_only_allowlist_is_exact() -> None:
+    model = _Model()
+    model.model.scene_audio_encoder = nn.Module()
+    model.model.scene_audio_encoder.m4_adapter = nn.Linear(4, 6)
+    allowed = enable_scene_audio_m4_adapter_only(model)
+    assert allowed == ("model.scene_audio_encoder.m4_adapter.bias", "model.scene_audio_encoder.m4_adapter.weight")
+    optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad), lr=1e-3)
+    assert assert_scene_audio_m4_adapter_only_optimizer(optimizer, model) == allowed

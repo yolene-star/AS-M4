@@ -20,6 +20,7 @@ from intersuit.train.audio_confidence import (
     FrozenFeatureManifestDataset,
     GateFeatureCollator,
     PairGroupBatchSampler,
+    MixedPairGroupBatchSampler,
     gate_only_train_step,
     save_gate_only_checkpoint,
 )
@@ -42,8 +43,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feature-manifest", type=Path, default=DEFAULT_FEATURE_MANIFEST)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--steps", type=int, choices=(2,), default=2)
+    parser.add_argument("--steps", type=int, choices=(2, 20), default=2)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--router-learning-rate", type=float, default=5e-2)
+    parser.add_argument("--lambda-relevance", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=20260830)
     return parser.parse_args()
 
@@ -53,6 +56,8 @@ def main() -> None:
     contract = json.loads(args.contract.read_text(encoding="utf-8"))
     if contract["authorization"].get("two_step_training") is not True:
         raise PermissionError("P3 contract 尚未授权 two_step_training；停止，不加载特征或 GPU")
+    if int(contract.get("runtime", {}).get("steps", args.steps)) != args.steps:
+        raise ValueError("训练步数与 canary 合同不一致")
     if args.device != "cuda:0":
         raise ValueError("P3 2-step 正式入口只接受逻辑 cuda:0（物理 GPU2）")
     import os
@@ -82,11 +87,17 @@ def main() -> None:
     if hidden_size != 3584 or len(trainable) != expected_tensors or sum(p.numel() for p in trainable) != expected_parameters:
         raise RuntimeError("Gate 参数白名单数量与 P3 合同不一致")
     dataset = FrozenFeatureManifestDataset(args.feature_manifest)
-    sampler = PairGroupBatchSampler(dataset.records, shuffle=True, seed=args.seed)
+    sampler = MixedPairGroupBatchSampler(dataset.records, groups_per_batch=4, shuffle=True, seed=args.seed)
     loader = DataLoader(
         dataset, batch_sampler=sampler, collate_fn=GateFeatureCollator(), num_workers=0
     )
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    router_parameters = list(model.question_router.parameters())
+    router_ids = {id(parameter) for parameter in router_parameters}
+    base_parameters = [parameter for parameter in model.parameters() if id(parameter) not in router_ids]
+    optimizer = torch.optim.AdamW(
+        [{"params": base_parameters, "lr": args.learning_rate},
+         {"params": router_parameters, "lr": args.router_learning_rate}],
+    )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     start = datetime.now(timezone.utc).astimezone().isoformat()
     run_config = {
@@ -96,6 +107,8 @@ def main() -> None:
         "device": args.device,
         "physical_gpu": 2,
         "learning_rate": args.learning_rate,
+        "router_learning_rate": args.router_learning_rate,
+        "lambda_relevance": args.lambda_relevance,
         "feature_manifest_sha256": sha256_file(args.feature_manifest),
         "feature_audit": audit,
         "contract_sha256": sha256_file(args.contract),
@@ -111,7 +124,10 @@ def main() -> None:
         except StopIteration:
             iterator = iter(loader)
             batch = next(iterator)
-        loss, metrics = gate_only_train_step(model, batch, optimizer, device=args.device)
+        loss, metrics = gate_only_train_step(
+            model, batch, optimizer, device=args.device,
+            lambda_relevance=args.lambda_relevance,
+        )
         history.append({
             "step": step,
             "loss": float(loss.cpu()),
@@ -123,7 +139,7 @@ def main() -> None:
         metadata={"feature_manifest_sha256": run_config["feature_manifest_sha256"]},
     )
     report = {
-        "status": "PASS_P3_GATE_ONLY_CANARY2",
+        "status": f"PASS_P3_GATE_ONLY_CANARY{args.steps}",
         "history": history,
         "checkpoint": checkpoint.name,
         "checkpoint_sha256": sha256_file(checkpoint),

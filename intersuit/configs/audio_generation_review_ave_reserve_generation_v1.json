@@ -1,0 +1,57 @@
+{
+  "contract_id": "audio_generation_review_ave_reserve_generation_v1",
+  "status": "SMOKE2_EXECUTION_PASS_SELECTIVITY_NOT_PROVEN_CLOSED",
+  "dataset_contract": {
+    "source_dataset": "AVE_HF_EXPANDED",
+    "source_split": "reserve",
+    "manifest": "intersuit/harness/artifacts/audio_generation_review_ave_reserve_v1/manifest.jsonl",
+    "manifest_sha256": "e97d0b2e7ed0dbe8dc3d8a190a13d5b6696c0f26eb33b041e0eebac4d4ca9b5c",
+    "groups": 20,
+    "records": 80
+  },
+  "model_contract": {
+    "base_checkpoint": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "adapter_checkpoint": "intersuit/harness/artifacts/audio_semantic_m4_adapter_only_pilot_v1/objective_v2_canary20_v1/checkpoint-step-20.pt",
+    "adapter_checkpoint_sha256": "9169a61c48308e13f08f81435b903596f68104b797eba43896a1f2210eb8cca5",
+    "adapter_scope": ["scene_audio_encoder.m4_adapter.weight", "scene_audio_encoder.m4_adapter.bias"],
+    "fusion_position": "llm_input_audio_tokens",
+    "legacy_fusion_disabled": true,
+    "silence_bypass": true,
+    "audio_token_gate": 1.0,
+    "audio_token_silence_bypass": true,
+    "audio_token_silence_threshold": 0.000001,
+    "attn_implementation": "sdpa"
+  },
+  "generation": {
+    "do_sample": false,
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 64,
+    "same_prompt_across_conditions": true,
+    "same_video_across_conditions": true
+  },
+  "metrics": [
+    "nonempty_finite_output",
+    "normalized_exact_match_to_event_label",
+    "correct_vs_mismatch_accuracy",
+    "correct_vs_video_only_accuracy",
+    "silence_equals_video_only",
+    "output_change_rate_by_condition"
+  ],
+  "authorization": {
+    "cpu_contract_audit": true,
+    "gpu_generation_smoke": false,
+    "gpu_150step": false,
+    "formal_test": false
+  },
+  "stop_conditions": [
+    "manifest_sha_mismatch",
+    "mixed_source_or_split",
+    "adapter_scope_mismatch",
+    "non_deterministic_generation",
+    "empty_or_nonfinite_output",
+    "correct_worse_than_mismatch",
+    "correct_worse_than_video_only",
+    "silence_not_equal_video_only"
+  ]
+}

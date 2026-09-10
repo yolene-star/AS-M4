@@ -1,0 +1,34 @@
+{
+  "contract_id": "audio_generation_review_ave_reserve_v1",
+  "status": "CPU_CONTRACT_ONLY",
+  "source_dataset": "AVE_HF_EXPANDED",
+  "source_manifest": "intersuit/datasets/AS_M4_STAGE2/reserve_manifest.json",
+  "source_split": "reserve",
+  "groups": 20,
+  "conditions": ["correct", "mismatch", "video_only", "silence"],
+  "exclude_manifest": "intersuit/harness/artifacts/audio_semantic_m4_adapter_only_pilot_v1/manifest.jsonl",
+  "mismatch": {
+    "same_dataset": true,
+    "same_split": true,
+    "different_physical_media": true,
+    "different_event_label": true,
+    "fixed_seed": 20260901
+  },
+  "question_contract": "Which sound event is audible in this video?",
+  "answer_contract": "answer equals event_label",
+  "authorization": {
+    "cpu_audit": true,
+    "gpu_generation_smoke": false,
+    "gpu_150step": false,
+    "formal_test": false
+  },
+  "stop_conditions": [
+    "mixed_source_dataset",
+    "mixed_split",
+    "pilot_media_overlap",
+    "missing_media_or_sha",
+    "incomplete_conditions",
+    "mismatch_same_label_or_media",
+    "answer_event_label_mismatch"
+  ]
+}

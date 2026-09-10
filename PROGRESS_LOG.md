@@ -4610,3 +4610,260 @@
 - 结果/验证：最新功能提交仍为 `711ea94`，进度提交为 `12b4105`；当前无 adapter 训练、评估、预计算或 M4 推理进程。已提交 adapter 主线保持 `PASS_ADAPTER_CANARY20_METRICS`，完整 CPU 回归仍为 `701 passed, 2 warnings`。
 - 当前整体进度：20-step 已证明 30 组 teacher-forced NLL 上的 correct-audio 与 video-only 小规模正收益，silence 30/30 精确回退；但 holdout10 排序率仍未提升，visual-only 与最终生成答案收益尚未验证。工作区剩余变更均为未纳入 adapter 提交的旧 P3 Gate/融合诊断资产。
 - 下一步：先构建独立 visual-only 控制集和 generation-level 小样本三条件对照；通过前保持 `gpu_150step/P4/formal_test=false`。
+- 2026-09-01 16:00:45 CST — 参考日志与进度复核及后续规划
+
+- 完成操作：只读核对最新进度日志、Git 提交/工作区、权威复现状态与当前运行进程；未启动 Python、GPU、训练、推理或 formal test。
+- 结果/验证：最新 adapter 功能提交为 `711ea94`，最近进度记录为 `c85652f`；完整 CPU 回归基线为 `701 passed, 2 warnings`，当前无训练/评估/预计算进程。adapter-only 20-step 已在 30 组 teacher-forced NLL 上通过，但 holdout10 排序未提升；visual-only 控制和 generation-level 最终答案收益仍缺证据。工作区剩余 9 个 tracked 修改及 30 个 untracked 文件属于旧 P3 Gate/融合诊断资产，尚未纳入 adapter 基线。
+- 当前整体进度：主线处于“canary20 正收益后的独立外推验证门”，而非 150-step 或正式训练阶段；已有收益只能解释为小样本 NLL 桥接信号，不能外推为泛化或最终回答改善。
+- 下一步规划：
+  1. 先冻结并审计 visual-only 问题控制集，确保与 audio-required 集分布、视频和答案字段可追溯且不访问 formal test。
+  2. 在同一 30 组/新增控制组上注册 generation-level 三条件（correct/mismatch/video-only，另含 silence 安全检查）合同；先做 CPU/mock 门禁，再用物理 GPU2 进行一次性小样本推理。
+  3. 预注册停止标准：生成答案 finite/非空，correct 相对 mismatch 与 video-only 均不得退化，visual-only 不得因音频桥接恶化；任一失败即停止，不开放 150-step。
+  4. 通过后再做独立 checkpoint/结果审计和完整 CPU 回归，提交可复现基线；只有 holdout 与 generation 两层均有稳定收益，才评审 `gpu_150step`，否则保留 canary20 并转向数据/目标函数分析。
+- 人话结论：现在最重要的不是继续训练更久，而是证明模型真的能把“正确音频”变成更好的最终回答，同时不会伤害本来只靠画面就能答的问题；这两项没过，继续加步数只会放大不确定性。
+- 2026-09-01 16:05:00 CST — adapter-only 数据集构建方案说明
+
+- 完成操作：基于现有 30 组/120 条 adapter pilot manifest、AVE 条件字段和既有 visual-only 标注角色，设计 visual-only 控制集与 generation-level 三条件评估集；未生成数据、未启动 GPU。
+- 结果/验证：确认现有 `video_only` 仅表示 audio-required 问题去掉场景音频，不能充当 visual-only 控制；新数据需按物理视频、问题/答案、官方 split 和 pair_group 做去重与隔离，并保留 source SHA。
+- 当前整体进度：数据构建方案已明确，仍处于合同设计阶段；`gpu_150step/P4/formal_test=false`。
+- 下一步：实现确定性候选筛选、四条件 manifest 构造和 generation-level scorer，先完成 CPU/schema 审计，再评审物理 GPU2 小样本推理。
+- 2026-09-01 16:12:00 CST — 数据来源追溯核对
+
+- 完成操作：追溯 adapter pilot manifest、AS-M4_STAGE2、AVE_HF_EXPANDED 及现有 audio/visual 标注候选清单的来源路径；未下载、未生成新数据。
+- 结果/验证：当前 30 组 pilot 直接来自已审计 `intersuit/datasets/AS_M4_STAGE2/dev_manifest.json`；其视频/音频资产对应本地 `AVE_HF_EXPANDED`，而真正 visual-only 候选应从既有 `prepare_audio_visual_event_manifests.py` 产出的 AVE/LLP `visual_only` 标注中筛选，不能把 pilot 的 `video_only` 当作 visual-only。
+- 当前整体进度：数据来源边界已明确；visual-only 与 generation-level 独立评估集仍未构建。
+- 下一步：冻结候选来源清单、split/物理媒体去重规则和 SHA 审计后再生成评估 manifest。
+- 2026-09-01 16:22:00 CST — review 数据源统一性复核与方案修正
+
+- 完成操作：核查 AS-M4_STAGE2 reserve、AVE_HF_EXPANDED 和 LLP_PILOT_MEDIA_V2 的任务/标注结构；发现 AS-M4_STAGE2 的 `visual` 行由 AVE 事件标签模板生成，不能直接证明 visual-only。已删除未验证的初版 review 构建器，未生成或修改数据。
+- 结果/验证：review 数据源改为单一 `LLP_PILOT_MEDIA_V2`；其本地 qualified media 为 150 个片段（train 100、validation 50），对应同一 AVVP 标注中的 `audio_only` 与 `visual_only` 角色。当前本地 unified manifest 可定位 50 个 validation clip 的 dense audio/visual 窗口；不跨 AVE、AS-M4_STAGE2 或其他数据集拼接。
+- 当前整体进度：review 数据集仍未构建；来源统一性和“visual-only 必须有独立视觉标注”的内容门禁已明确。
+- 下一步：仅从 LLP validation 片段冻结 generation/audio-only 与 visual-only 两个互斥子集，按 clip/physical media 分组，补齐本地视频/音频路径、SHA、窗口和标签审计后，再生成统一 review manifest。
+- 2026-09-01 16:30:00 CST — 更正 review 含义并完成数据集审查口径复核
+
+- 完成操作：根据用户澄清，将“review”重新定义为数据集审查流程，而非新建一个 review 数据集；复核 LLP_PILOT_MEDIA_V2 validation 的格式、媒体、标注角色和 split 结构，未生成数据、未启动 GPU。
+- 结果/验证：统一来源要求应作为审查门禁：每个实验分组必须来自同一数据集、同一官方 split、同一标注体系和一致的媒体版本。LLP validation 本地 50 个 clip 全部存在，均为 H264/AAC、44.1kHz，50 个唯一 physical media；现有 dense 标注覆盖 36 个 audio_only clip、16 个 visual_only clip，但这只是候选证据，尚未批准直接用于实验。
+- 当前整体进度：尚未通过“review 数据集合格”门禁；此前将 review 解释为数据集名称的表述作废。
+- 下一步：针对每个拟用实验分组输出独立审查报告，逐项检查来源统一、split 隔离、格式 schema、媒体可用性、标签与问题语义、correct/mismatch 构造和最终实验是否可回答；任何一项不满足就退回，不拼凑数据。
+- 2026-09-01 16:45:00 CST — LLP 统一来源候选数据集 review 完成
+
+- 完成操作：针对 LLP_PILOT_MEDIA_V2 validation 执行来源统一、split、物理媒体、格式、标注角色、adapter 音频输入契约、权限和实验可回答性审查；新增中文审查报告，未生成 manifest、未启动 GPU。
+- 结果/验证：来源统一、validation 隔离、50/50 媒体存在、H.264/AAC/44.1 kHz 通过；visual-only 仅 16 个 clip 且需逐窗口复核；adapter 输入契约失败（缺少已审计 16 kHz mono waveform）；媒体权限失败（`feature_extraction_allowed=false`、`effect_access_allowed=false`）。审查状态为 `BLOCKED_DATASET_REVIEW`。
+- 当前整体进度：已完成“review 是审查流程”的第一份正式报告；LLP 不能直接进入 adapter generation smoke 或 150-step。
+- 下一步：不拼接其他来源；只有在权限、音频转换契约、visual-only 规模和问答格式全部补齐后，重新执行同一来源的独立 review。
+- 2026-09-01 17:00:00 CST — 修正测试内数据来源统一口径
+
+- 完成操作：根据用户澄清，修正 review/实验数据规则的解释。要求是“每一个独立测试内部只能使用一个数据集”，并非要求所有测试共享同一个数据集。
+- 结果/验证：后续计划允许 audio generation 测试使用 `AS_M4_STAGE2`，visual-only 控制测试使用另一个经过审查的数据集；但每个测试内部必须保持单一数据集、单一 split、单一标注体系和一致媒体版本，不得跨来源拼接。
+- 当前整体进度：数据审查口径已明确；LLP 候选仍只对应 visual-only 测试，不能混入 AS-M4_STAGE2 的 audio generation 测试。
+- 下一步：分别为 audio generation 和 visual-only 两个独立测试建立来源、格式、内容语义、分组隔离和 mismatch 构造审查，不再把“跨测试来源不同”误判为违规。
+- 2026-09-01 17:12:00 CST — 发现并修正 AS-M4_STAGE2 reserve 混合来源问题
+
+- 完成操作：按“单个测试内部单一数据集”规则重新统计 `AS_M4_STAGE2/reserve_manifest.json` 的 audio 来源；未生成数据、未启动 GPU。
+- 结果/验证：reserve audio 共 134 条，但混合 `AVUT` 37、`AVE_HF_EXPANDED` 72、`MUSIC-AVQA-v2.0` 25，不能整体作为一个测试输入。`AVE_HF_EXPANDED` 子集有 72 条 audio 记录、72 个 physical media、事件标签和音频 SHA，最适合作为独立 audio generation 测试来源；AVUT 的答案多为选项字母，MUSIC-AVQA 物理媒体重复较多，不作为本轮主测试。
+- 当前整体进度：两个测试的来源边界进一步明确：audio generation 只锁 `AVE_HF_EXPANDED/reserve`，visual-only 另锁 LLP validation；两者不合并。
+- 下一步：分别审查 AVE_HF_EXPANDED audio 测试的标签/问题/音频格式与 mismatch 可构造性，以及 LLP visual-only 测试的窗口语义；任一测试独立不满足就停止。
+- 2026-09-01 17:35:00 CST — 两个独立测试的数据集 review 阶段完成
+
+- 完成操作：分别审查 `AVE_HF_EXPANDED/reserve` audio generation 候选与 LLP validation visual-only 候选；新增两份中文审查报告，未生成实验 manifest、未启动 GPU。
+- 结果/验证：AVE audio 测试 72 条/72 个 physical media、路径和 16 kHz 音频 SHA 完整，与 pilot 无媒体重叠，结论为 `PASS_WITH_SCOPE_LIMIT`；LLP visual-only 仅 16 个 clip，且 `feature_extraction_allowed=false`、`effect_access_allowed=false`、音频仍为 44.1 kHz AAC，结论为 `BLOCKED`。
+- 当前整体进度：audio generation 与 visual-only 已按“每个测试内部单一数据集”分开审查；前者可进入合同设计，后者不能进入 generation smoke。
+- 下一步：先为 AVE audio 测试写入 20 组 deterministic mismatch/条件完整性合同并做 CPU 审计；visual-only 仅在权限和格式问题解决后重新 review，不能跨数据集补齐。
+- 2026-09-01 17:55:00 CST — AVE audio generation review manifest 构建与 CPU 审计通过
+
+- 完成操作：按单个测试单一数据集规则，从 `AS_M4_STAGE2/reserve_manifest.json` 过滤 `source_dataset=AVE_HF_EXPANDED`、`split=reserve`，确定性构建 20 组 audio generation review manifest，并运行现有 adapter manifest 独立审计；未加载 7B、未访问 GPU、未运行 generation。
+- 结果/验证：状态 `PASS_AUDIO_GENERATION_REVIEW_BUILD` / `PASS_ADAPTER_PILOT_MANIFEST_AUDIT`；20 组/80 条，四条件完整，20 个 correct 标签各不重复，source dataset/split 唯一，训练 pilot physical media 无重叠，输出 SHA `e97d0b2e...4ca9b5c`。
+- 当前整体进度：AVE audio generation 测试已从数据 review 进入“可申请 generation smoke”阶段；LLP visual-only 测试仍为 `BLOCKED`，不能与本测试合并。
+- 下一步：先对该 20 组 manifest 做专用合同快照和 generation 参数审计，再由用户/机器授权决定是否在物理 GPU2 运行一次性 generation smoke；继续保持 `gpu_150step=false`、`formal_test=false`。
+- 2026-09-01 18:20:00 CST — generation 合同审计首轮失败与字段语义修正
+
+- 完成操作：运行 AVE generation 合同 CPU 审计；未加载 7B、未访问 GPU。
+- 结果/验证：首轮审计报告 `FAIL_AUDIO_GENERATION_REVIEW_CONTRACT_AUDIT`，20 组均被误判为 mismatch 无效；根因为审计器错误比较了目标问题的 `event_label`，而 manifest 设计中 mismatch 源标签正确保存在 `mismatch_source_event_label`，目标 `event_label` 必须保持不变以保证 teacher-forcing 答案一致。已修正审计器，未修改 manifest。
+- 当前整体进度：数据和合同未被判定失败；正在重跑修正后的 CPU 审计。
+- 下一步：确认修正后合同通过，再冻结 runtime generation 参数和 GPU2 smoke 授权申请。
+- 2026-09-01 18:25:00 CST — AVE generation 合同审计修正后通过
+
+- 完成操作：修正 mismatch 审计器的字段语义后，重新执行 Python 语法检查、generation 合同审计和 `git diff --check`；使用 Conda `M4`，未加载 7B、未访问 GPU。
+- 结果/验证：状态 `PASS_AUDIO_GENERATION_REVIEW_CONTRACT_AUDIT`；manifest SHA `e97d0b2e7ed0dbe8dc3d8a190a13d5b6696c0f26eb33b041e0eebac4d4ca9b5c`、合同 SHA `d047a631de270b2f51b3f31d1ed7db842890cc4423da7b95833d6e6ae3dd2538`；来源、split、20 组/80 条、四条件、mismatch、确定性 generation 参数均通过。
+- 当前整体进度：AVE audio generation 测试已具备申请一次性 GPU2 generation smoke 的完整 CPU 合同；LLP visual-only 测试仍 blocked，不能合并。
+- 下一步：先检查宿主机 preflight 和物理 GPU2 空闲状态；若用户/机器授权明确，再运行一次性 smoke，并保存开始时间、配置、stdout/stderr、GPU 前后状态和内核错误检查。
+- 2026-09-01 18:35:00 CST — AVE generation smoke 前置检查阻塞
+
+- 完成操作：在 Conda `M4` 中执行标准 `check_m4_repro_preflight.py`；未加载 7B、未访问 GPU 计算、未启动推理。
+- 结果/验证：无训练进程检查通过，稳定 GPU 白名单为 0/2/3/4，允许功率 300W/450W；但 `nvidia-smi` 无法与 NVIDIA 驱动通信，preflight 状态为 `fail`。
+- 当前整体进度：AVE generation 合同和数据审计仍为通过，但物理 GPU2 generation smoke 被宿主机驱动可见性阻塞；不能在当前会话启动 GPU2。
+- 下一步：由具备 NVIDIA 驱动访问权限的宿主机会话恢复/确认 `nvidia-smi`，重新通过 preflight 后，再单独决定是否授权一次性 generation smoke；`gpu_150step` 和 `formal_test` 继续关闭。
+- 2026-09-01 18:55:00 CST — AVE generation smoke 执行入口前的输出审计器完成
+
+- 完成操作：新增离线 generation 输出审计器和 CPU 合同测试；重新确认 GPU2 空闲可见但未加载 7B、未启动推理。
+- 结果/验证：审计器要求输出键集合与 20 组四条件 manifest 完全一致，检查非空预测、答案归一化匹配、四条件完整性和 silence/video-only 精确回退；CPU 定向测试待运行，generation 合同仍保持 `gpu_generation_smoke=false`。
+- 当前整体进度：AVE audio generation 路线已具备数据、合同和结果审计三层门禁；LLP visual-only 仍 blocked。
+- 下一步：运行新增 CPU/mock 测试并检查 diff；通过后仅准备 2 组/8 条 GPU2 smoke 授权，不直接扩大到 20 组。
+- 2026-09-01 19:05:00 CST — AVE generation 输出审计器 CPU 测试通过
+
+- 完成操作：在 Conda `M4` 中运行新增 `test_audio_generation_review_contract.py`，并执行 `git diff --check`。
+- 结果/验证：CPU/mock 测试 `2 passed`；输出审计器可重算单一来源 manifest 的预测键集合、非空输出、归一化答案匹配、四条件完整性和 silence/video-only 精确一致性。
+- 当前整体进度：AVE audio generation 测试已具备数据审查、generation 合同审计和输出独立审计；GPU2 当前可见空闲，但 smoke 授权仍为 false。
+- 下一步：在用户/机器授权后，仅运行锁定的 2 组/8 条 GPU2 generation smoke；保存完整运行证据并先独立审计，不扩大到 20 组或 150-step。
+- 2026-09-02 00:15:00 CST — AVE generation smoke 被 Conda GPU 可见性不一致阻塞
+
+- 完成操作：完成 generation runner 的运行时 silence-bypass/adapter checkpoint SHA 锁定，Conda `M4` CPU 回归 `14 passed, 2 warnings`、合同审计通过；随后运行标准 preflight 与 Conda 内 GPU 诊断。未启动 7B 或 generation。
+- 结果/验证：宿主机直接 `nvidia-smi` 显示 GPU2 空闲（11 MiB、450W），但 `conda run -n M4 nvidia-smi` 报无法与 NVIDIA driver 通信；同一 M4 环境的 PyTorch `2.5.1+cu121` 返回 `cuda_available=false`、`device_count=0` 并提示无法初始化 NVML。标准 preflight 因此为 fail。
+- 当前整体进度：AVE generation 的数据、合同、runner 和 CPU 审计已就绪，但 M4 Conda 环境不能访问 CUDA，按 preflight 规则禁止启动 GPU2 smoke。
+- 下一步：先恢复或切换到能让 Conda `M4` 同时通过 `nvidia-smi` 与 `torch.cuda.is_available()` 的宿主机执行会话，再重新运行 preflight；在此之前不修改 `gpu_generation_smoke=false`、不运行 150-step 或 formal test。
+- 2026-09-02 00:20:00 CST — generation smoke 准备提交受 Git 索引只读阻塞
+
+- 完成操作：尝试精确暂存 AVE generation 数据审查、合同、runner、审计器、测试和进度记录；未尝试暂存旧 P3 Gate/融合资产。
+- 结果/验证：`git add` 返回 `fatal: 不能创建 '/home/yjm/M4-main/.git/index.lock'：只读文件系统`；未创建提交，代码与报告仍保留在工作区，运行资产未进入 Git。
+- 当前整体进度：GPU smoke 仍被 Conda `M4` CUDA 不可见性阻塞；本轮准备代码也等待可写 Git index 会话提交。
+- 下一步：先在可访问 NVIDIA driver 的 M4 Conda 宿主机会话恢复 preflight；同时在可写 Git index 会话精确提交本轮文件。两者通过后才运行 2 组/8 条 GPU2 smoke。
+- 2026-09-02 — GPU/ Git 外部门禁复核仍失败
+
+- 完成操作：重新检查 Conda `M4` 的 PyTorch CUDA、Conda 内 `nvidia-smi` 和 Git index 写入能力；未加载 7B、未启动 generation。
+- 结果/验证：PyTorch 仍为 `cuda_available=false`、`device_count=0` 并提示无法初始化 NVML；`conda run -n M4 nvidia-smi` 仍无法与 NVIDIA driver 通信；最小 Git index 写测试仍不能创建 `.git/index.lock`，因为文件系统只读。
+- 当前整体进度：AVE 2 组/8 条 GPU2 smoke 继续被正确阻止，代码/合同/CPU 测试状态不变；不能通过宿主机直接 nvidia-smi 或绕过 Conda 环境启动 Python 来替代 preflight。
+- 下一步：等待能同时提供 M4 Conda CUDA 访问与可写 Git index 的会话；恢复后先重跑 preflight 和精确 staged diff，再执行一次性 2 组/8 条 smoke。
+- 2026-09-02 01:20:00 CST — 宿主机 M4 CUDA 初始化卡死的根因收敛
+
+- 完成操作：在获得只读宿主机检查授权后对比 GPU 驱动、设备节点和 M4 Conda CUDA 初始化；尝试向本轮启动的诊断进程发送 TERM，未启动 7B、generation、训练或 formal test。
+- 结果/验证：宿主机 `nvidia-smi` 正常，5 张 GPU 与 `/dev/nvidia*` 设备节点均存在，排除驱动卸载和设备节点丢失；但多个 M4 Conda/PyTorch CUDA/NVML 初始化进程长期停留，其中 Python 进程为 `D` 状态。说明当前阻塞在 M4 Conda CUDA 初始化/底层驱动或 PCIe I/O 路径，而不是 Codex 沙箱、数据、合同或模型代码。已发送 TERM；后续宿主机进程确认请求未获执行通道批准，不能确认 D 状态进程何时退出。
+- 当前整体进度：AVE generation smoke 必须继续停止。不能通过 host `nvidia-smi` 正常来替代 M4 PyTorch 可用性，也不能继续启动更多 CUDA 诊断进程。
+- 下一步：由宿主机管理员检查 D 状态任务对应的内核 wait channel、NVRM/Xid/AER/PCIe 错误、GPU reset/驱动恢复条件；确认 `conda run -n M4 python -c "import torch; assert torch.cuda.is_available()"` 能快速返回前，禁止重跑 preflight、smoke、150-step 或 formal test。
+- 2026-09-02 — GPU/Git 阻塞恢复方案固化
+
+- 完成操作：不触发 CUDA/NVML 的前提下复核当前沙箱进程、Git 状态和 `.git` 挂载；新增中文宿主机恢复手册。
+- 结果/验证：当前沙箱未观察到残留 M4 CUDA 诊断进程，但宿主机状态仍需管理员确认；`.git` 明确为单独只读挂载，目录/文件 Unix 权限属于用户但无法写 index，确认是会话挂载权限问题。恢复手册分别给出 GPU D 状态/内核日志检查、协调恢复、最小 CUDA 门禁以及 Git 可写会话方案。
+- 当前整体进度：AVE generation smoke 继续关闭；数据、合同、runner 和 CPU 审计保持就绪。
+- 下一步：由管理员按恢复手册处理宿主机 CUDA 初始化和 Git 会话权限；两项门禁恢复后，只运行物理 GPU2 的 2 组/8 条 smoke。
+- 2026-09-02 — 参考计划书和日志后的下一步规划
+
+- 完成操作：综合复核 P0--P6 权威计划、adapter-only canary20 结果、AVE generation 数据/合同审计、LLP visual-only review 和宿主机恢复手册；未启动 GPU、训练、推理或 formal test。
+- 当前结论：主线科学状态仍为“canary20 的 teacher-forced NLL 小规模收益，尚无 generation-level 或 visual-only 保真证据”。AVE generation 测试已完成 20 组/80 条单一 `AVE_HF_EXPANDED/reserve` manifest、合同与 CPU 审计；LLP visual-only 仍 blocked。执行层有两个独立阻塞：M4 Conda CUDA 初始化曾进入 D 状态，需宿主机确认；`.git` 为只读挂载，尚不能提交本轮改动。
+- 下一步规划：1）先由宿主机管理员清理/确认 D 状态与 CUDA 初始化，验证 M4 PyTorch CUDA 和标准 preflight；2）恢复可写 Git 会话，精确提交 AVE generation 数据、合同、runner、审计器和测试，排除旧 P3/融合诊断资产；3）仅授权物理 GPU2、2 组/8 条 generation smoke，保存完整运行证据并独立审计；4）若 smoke 通过，再扩大到完整 20 组 generation eval，仍不开放 150-step；5）visual-only 只有在权限、音频格式、问题语义和数量 review 全部通过后，才作为独立测试运行；6）只有 generation-level 与 visual-only 两层均通过，且 holdout 不退化，才评审 `gpu_150step`，否则保留 canary20 结果并转向数据/目标分析。
+- 人话结论：当前最重要的是把“模型看起来学会了”验证成“最终答案真的变好，而且不会伤害视觉问题”；GPU 恢复和代码提交是执行前提，但都不能替代这两项科学验证。
+- 2026-09-02 — 服务器重启后 GPU/Git 门禁复核
+
+- 完成操作：服务器重启后重新检查宿主机 GPU、Conda `M4` CUDA、Git 挂载和残留进程；未启动 7B、generation 或训练。
+- 结果/验证：宿主机 `nvidia-smi` 显示 5 张卡均 11 MiB、450W；但 `CUDA_VISIBLE_DEVICES=2 conda run -n M4` 中 PyTorch `cuda_available=false`、`device_count=0`，并且 `.git` 仍为独立 `ext4 ro` 挂载。当前沙箱无残留 M4/CUDA 任务。
+- 当前整体进度：服务器重启未解除 Codex 会话的 GPU 设备透传和 Git index 只读限制；AVE generation smoke 仍禁止启动，数据/合同/CPU 审计状态不变。
+- 下一步：需要提供带 GPU 设备透传和可写 Git index 的执行会话；恢复后先跑 M4 CUDA 最小门禁、标准 preflight 和 staged diff，再运行 2 组/8 条 smoke。
+- 2026-09-02 — 重启后受控恢复验证仍未通过
+
+- 完成操作：使用 20/30 秒超时分别运行 `CUDA_VISIBLE_DEVICES=2 conda run -n M4` 的 PyTorch 可见性检查、标准 `check_m4_repro_preflight.py` 和 Git 可写性检查；未加载模型、未启动 generation。
+- 结果/验证：PyTorch 检查快速返回 `False 0` 并提示无法初始化 NVML；标准 preflight 仍为 `fail`（仅 `nvidia_smi` 检查失败）；`.git` 仍为 `ext4 ro`，目录和 index 均不可写。没有残留训练/推理进程。
+- 当前整体进度：服务器重启未恢复当前 Codex 会话的 GPU 设备透传或 Git index 写权限；AVE generation smoke、150-step 和 formal test 继续关闭。
+- 下一步：需要管理员或重新创建执行会话，确保 M4 Conda 进程可见 `/dev/nvidia*` 且 Git index 可写；恢复后再按最小 CUDA 门禁→preflight→staged diff→2 组/8 条 smoke 顺序推进。
+- 2026-09-02 — generation 代码 CPU 回归复核通过
+
+- 完成操作：在 Conda `M4` 中运行 audio generation review 合同、adapter 接口和输出审计相关 CPU 测试，并对构建/合同/输出审计/runner 执行语法检查；未触发 CUDA/NVML、未加载 7B、未启动 generation。
+- 结果/验证：定向回归 `14 passed, 2 warnings`；Python 语法检查通过；`git diff --check` 通过。数据 manifest、合同 SHA 和 runner 逻辑在 GPU 阻塞期间未发生回归。
+- 当前整体进度：AVE generation 路线的 CPU/数据/合同门禁保持通过；唯一执行阻塞仍是 M4 Conda CUDA 不可见和 `.git` 只读挂载。
+- 下一步：等待可用 GPU 设备透传与可写 Git 会话；恢复后不重复 CPU 工作，直接重跑最小 CUDA 门禁和标准 preflight，再运行 2 组/8 条 smoke。
+- 2026-09-02 — 用户授权 AVE generation smoke2
+
+- 完成操作：用户明确授权后，仅开放 `audio_generation_review_ave_reserve_generation_v1` 的 `gpu_generation_smoke=true`，状态改为 `GPU_GENERATION_SMOKE2_AUTHORIZED`。
+- 当前范围：物理 GPU2、逻辑 `cuda:0`、2 个 pair group、8 条四条件记录；完整 20 组、150-step 和 formal test 继续关闭。
+- 下一步：在宿主机权限上下文运行最小 CUDA 门禁和标准 preflight；任一失败立即停止，不加载 7B。
+- 2026-09-02 — AVE generation smoke2 v1 在模型加载前因路径解析失败
+
+- 完成操作：CUDA 最小门禁和标准 preflight 通过后，按授权启动物理 GPU2 的 2 组/8 条 smoke；运行在读取 manifest 阶段失败，未加载模型、未执行 generation。
+- 结果/验证：runner 从 `intersuit/` 工作目录对仓库根相对路径调用 `Path.resolve()`，错误得到 `intersuit/intersuit/harness/...`，触发 `FileNotFoundError`。v1 独立日志目录保留；已改为相对仓库根解析并增加回归测试。
+- 当前整体进度：数据与合同未失败，GPU 未产生实验结果；等待 CPU 回归通过后使用新 v2 输出目录重试。
+- 下一步：运行路径解析定向测试和合同审计，通过后重新 preflight，并在 `gpu_smoke2_v2` 重试同一 2 组/8 条范围。
+- 2026-09-02 — AVE generation smoke2 v2 在第一条生成前发现 generate 调用合同错误
+
+- 完成操作：路径修复、15 项 CPU 回归和 preflight 通过后，在 GPU2 启动 v2；7B、视觉塔和 adapter checkpoint 成功加载，但第一条 generation 调用前失败，无预测输出。
+- 结果/验证：runner 用 `input_ids=` 关键字调用项目自定义 `LlavaQwenForCausalLM.generate(inputs=...)`，导致自定义 streaming AV 路径收到 `inputs=None` 并在 `input_ids.shape` 报错。已改为将 prompt ids 作为第一个位置参数传入；v2 日志保留。
+- 当前整体进度：GPU/模型加载链路已验证，实验仍无有效输出；等待回归后使用全新 v3 目录重试。
+- 下一步：运行语法和定向回归、重新 preflight，再重试同一 2 组/8 条范围。
+- 2026-09-02 — AVE generation smoke2 v3 受执行审批超时阻塞
+
+- 完成操作：修正自定义 `generate(inputs=...)` 的调用方式后，定向回归 `15 passed, 2 warnings`、语法检查和 `git diff --check` 通过；GPU2 重试前为 11 MiB、0%、450W。随后两次提交同一已授权 v3 smoke 命令。
+- 结果/验证：两次宿主机执行审批均在截止时间内未完成，命令未执行；未创建 v3 实验结果、未加载模型、未改变权重。未改用替代包装命令绕过审批。
+- 当前整体进度：v1 路径错误和 v2 generate 调用错误均已修复，v3 准备就绪，但执行通道审批阻塞；完整 20 组、150-step 和 formal test 继续关闭。
+- 下一步：待执行审批恢复后，原样运行物理 GPU2 的 v3 2 组/8 条 smoke；完成后立即运行离线输出审计和 GPU/内核稳定性检查。
+- 2026-09-02 — AVE generation smoke2 v3 执行审批再次超时
+
+- 完成操作：按用户“继续”要求提交已授权的物理 GPU2、2 组/8 条 generation smoke v3；未启动模型、未占用 GPU、未产生预测结果。
+- 结果/验证：宿主机执行审批再次在截止时间内未完成，命令未执行；未采用替代命令或包装方式绕过审批。v3 runner 的路径和 `generate` 调用修复仍已通过 15 项 CPU 回归。
+- 当前整体进度：AVE generation smoke 仍处于执行审批阻塞，不是数据或代码失败；完整 20 组、150-step 和 formal test 继续关闭。
+- 下一步：审批通道恢复后原样执行 v3；若继续超时，需要用户/管理员在执行层恢复审批，而不是继续重复调用。
+- 2026-09-02 — v3 执行前轻量状态检查
+
+- 完成操作：检查 `gpu_smoke2_v3` 输出目录、`git diff --check` 和 `.git` 文件属性；未启动模型或 CUDA。
+- 结果/验证：v3 输出目录为空，未产生结果；whitespace 检查通过；`.git/index` 文件权限显示可写但挂载策略仍可能拒绝创建 lock。GPU 只读检查本次因执行审批超时未运行，不能据此推断 GPU 状态变化。
+- 当前整体进度：AVE generation smoke 仍被执行审批通道阻塞，数据/合同/runner/CPU 回归状态不变。
+- 下一步：恢复执行审批后直接运行已授权 v3；不再重复提交会超时的相同长命令，也不绕过审批。
+- 2026-09-02 — v3 smoke 前最终 CPU/资产复核
+
+- 完成操作：检查 v3 输出目录、AVE manifest/adapter checkpoint SHA，并运行 generation 合同 CPU 测试；未启动模型或 CUDA。
+- 结果/验证：v3 输出目录仍为空；manifest SHA `e97d0b2e7ed0dbe8dc3d8a190a13d5b6696c0f26eb33b041e0eebac4d4ca9b5c`、adapter checkpoint SHA `9169a61c48308e13f08f81435b903596f68104b797eba43896a1f2210eb8cca5` 均保持锁定；CPU 测试 `3 passed`，`git diff --check` 通过。
+- 当前整体进度：AVE v3 smoke 的执行资产完整且未产生半成品结果；唯一阻塞仍是执行审批通道。
+- 下一步：审批恢复后只运行预注册的 2 组/8 条 v3 smoke，并立即做独立输出审计；不扩大范围、不运行 150-step/formal test。
+- 2026-09-02 — 用户宿主机 M4 preflight 通过
+
+- 完成操作：用户在宿主机终端、`intersuit` 工作目录执行 `CUDA_VISIBLE_DEVICES=2 conda run -n M4 python scripts/check_m4_repro_preflight.py`。
+- 结果/验证：返回 `status=pass`；GPU2（PCI `00000000:CE:00.0`）11 MiB、0% 利用率、450W；无训练进程；数据审计无缺失图像/音频。该结果证明宿主机 M4 CUDA 执行门禁已恢复。
+- 当前整体进度：AVE generation v3 smoke 具备实际执行条件，仍未产生有效 generation 结果。
+- 下一步：在同一宿主机终端运行锁定的 `gpu_smoke2_v3` 2 组/8 条命令，随后回传 `run.log` 或终端输出，以便执行独立输出审计和 GPU 后状态检查。
+- 2026-09-02 — AVE generation smoke2 v3 完成并停止扩大
+
+- 完成操作：在用户提供宿主机 preflight 通过证据后，物理 GPU2 完成 v3 的 2 组/8 条 generation；随后独立审计输出、GPU 后状态、残留进程和内核错误，并新增中文结果报告。未训练、未访问 formal test。
+- 结果/验证：工程状态 `PASS_AUDIO_GENERATION_SMOKE` / `PASS_AUDIO_GENERATION_OUTPUT_AUDIT`；8 条输出均非空，silence 与 video-only 两组逐字一致，运行 16.73 秒、峰值约 22.4 GiB，GPU 后恢复 11 MiB、无残留模型进程、无新增内核 GPU/PCIe 错误。科学上 correct 与 mismatch 均为 `1/2`，状态 `SELECTIVITY_NOT_PROVEN`。
+- 当前整体进度：已首次取得 adapter 20-step checkpoint 的 generation-level 真实输出，但没有证明 correct>mismatch，不能扩大到完整 20 组。`gpu_generation_smoke` 已重新关闭，150-step/formal test 仍关闭。
+- 下一步：分析两组输出的视觉泄漏和评分口径，增加只读 logit/NLL 诊断以判断音频是否仅改变措辞而未改变答案选择；诊断前不扩大样本、不训练。
+- 2026-09-02 — 修正 smoke 输出审计中的完整 manifest/子集 SHA 说明
+
+- 完成操作：复核 v3 smoke 结果报告与输出审计发现，审计器使用的是前 2 组/8 条 smoke 子 manifest，而不是完整 20 组 manifest；未重跑 GPU。
+- 结果/验证：确认完整合同 manifest SHA 为 `e97d0b2e...4ca9b5c`，smoke 子 manifest SHA 为 `a7ceaa7f...8893ec7`。结果报告现明确区分两者，消除证据歧义。
+- 当前整体进度：v3 工程 smoke 和科学结论不变：correct/mismatch 均 `1/2`，选择性未证明；不扩大到 20 组。
+- 下一步：转入只读 logit/NLL 与视觉泄漏分析，不重跑当前 smoke、不训练。
+- 2026-09-02 — AVE generation smoke2 v3 科学失效原因排查
+
+- 完成操作：只读分析 v3 的 2 组输出、对应 AVE reserve manifest 及 AS-M4_STAGE2 同视频视觉行；未重跑 GPU、未修改 checkpoint。
+- 结果/验证：两个目标（Accordion、Acoustic guitar）在 AVE 数据中均同时存在同视频 `visual` 行，且视觉问题标签与 audio 问题标签完全一致；reserve audio 的 72/72 条都有对应同标签 visual 模板行。v3 中 video-only/silence 仍能输出或泛化到 guitar/其他声音描述，mismatch 也输出目标标签，说明当前 AVE generation 测试存在系统性视觉标签泄漏，不能把 correct/mismatch 命中率解释为音频选择性。\n- 运行工程审计仍通过：8/8 输出非空，silence/video-only 逐组一致，GPU 后 11 MiB/0%/450W，无新增内核错误。
+- 当前整体进度：v3 的工程链路有效，但 AVE generation 评估设计不适合证明“音频驱动的最终答案”；状态应保持 `SELECTIVITY_NOT_PROVEN`，不扩大 20 组、不运行 150-step。
+- 下一步：暂停 AVE generation 扩大，先重新设计单一来源的“音频问题但同视频无同标签视觉监督”测试；优先审查 `AVUT` 人工音频问题（答案格式为选项）或在 AVE 内构造经过人工确认的 audio-only 语义子集。任何新来源先独立 review，再构造 manifest 和 generation smoke。
+- 2026-09-03 — 当前进度与下一步主线确认
+
+- 完成操作：复核最新日志、AVE generation smoke2 v3 结果、输出审计和当前工作区；未启动 GPU、训练或新的推理。
+- 当前结论：v3 工程链路已通过（8/8 输出非空、silence/video-only 精确回退、GPU 稳定），但实验科学有效性未通过：AVE reserve 的 72/72 audio 样本均有同视频同标签 visual 模板行，存在系统性视觉泄漏；correct/mismatch 均为 1/2，不能证明音频选择性。现有未提交改动仍混有旧 P3/融合诊断资产，不能直接整体提交。
+- 下一步规划：1）冻结并审查新的单一来源 audio-only 候选，优先检查 AVUT 人工问题或 AVE 中无同标签 visual 监督的样本；2）逐项验证问题/答案语义、视觉泄漏、音频格式、物理媒体隔离和 mismatch 合法性；3）仅对通过 review 的新来源重建 2 组 CPU/mock 和 generation 合同；4）GPU smoke 通过且 correct>mismatch 后，才扩大评估；5）在此之前不再使用当前 AVE manifest，不运行 150-step/formal test。
+- 2026-09-03 — AVUT audio-only 候选审查阻塞
+
+- 完成操作：只读审查 AS-M4_STAGE2 reserve 中 37 条 AVUT 人工 audio 记录的问题语义、答案格式、媒体存在性和音频依赖；未生成数据、未启动 GPU。
+- 结果/验证：媒体和人工来源字段通过，但只有 7/37 条问题含明显听觉词；其余多为视频内容/人物/时间/字幕知识，答案主要为 A/B/C/D 且 choices 文本未冻结。审查状态 `BLOCKED_AUDIO_ONLY_SEMANTICS`，AVUT 不进入当前 generation smoke。
+- 当前整体进度：当前 AVE generation 因视觉泄漏已停止；AVUT 作为替代来源也未通过，不应继续通过拼接或人工猜测修补。
+- 下一步：回到已审计音频数据清单，寻找同一数据集内部同时具备明确 audio-only 问答文本、音频 SHA 和无同标签视觉监督的候选；若不存在，保留 canary20 为 NLL 结果，不开放 150-step。
+- 2026-09-03 — MUSIC-AVQA audio-only 候选审查完成
+
+- 完成操作：只读审查 `AS_M4_STAGE2/reserve_manifest.json` 中 MUSIC-AVQA-v2.0 的 25 条 audio 记录；未生成数据、未启动 GPU。
+- 结果/验证：来源单一、16 kHz 音频路径和问题听觉词通过；但仅 11 个 physical media，答案仅 `no/four`，同视频重复问题及 `_flip` 派生媒体，且全部为 Counting 子任务。状态 `BLOCKED_FOR_CURRENT_GENERATION_CONTRACT`，不进入当前 AVE 事件 generation smoke。
+- 当前整体进度：AVE generation 因视觉泄漏停止；AVUT 因语义/答案格式停止；MUSIC-AVQA 也不兼容当前事件识别 generation 合同。当前没有合格替代来源可直接重建 smoke。
+- 下一步：停止继续搜索现有混合 reserve 子集；转向两条明确路线：A）把当前 canary20 限定为 teacher-forced NLL 工程结果；B）若要 generation-level 结论，重新注册一个与数据集原生任务一致的独立测试合同（不跨任务、不改答案语义）。
+- 2026-09-03 — 选项二：MUSIC-AVQA 原生 Audio/Counting 最小合同通过
+
+- 完成操作：定位真正的 MUSIC-AVQA 原始标注 `train_balance.json`，审查本地 120 个媒体对应的 720 条 QA，并从 MUSIC-AVQA dev 构建同题不同答案的 2 组/8 条原生 Audio/Counting 反事实 manifest；完成原始标注、音频 SHA、物理媒体和 adapter pilot 隔离审计。未启动 GPU。
+- 结果/验证：状态 `PASS_MUSIC_AVQA_NATIVE_COUNTING_BUILD` / `PASS_MUSIC_AVQA_NATIVE_COUNTING_AUDIT`；目标答案为 `three`、`more than ten`，mismatch 来源答案均为 `four`；manifest SHA `680de30c...7eb973`，原始标注 SHA `34218d7a...9ef00`，原生 Audio/Counting 有效标注 5,492 条。`git diff --check` 通过。
+- 当前整体进度：已按数据集原生任务重新建立一个测试内部单一来源的科学可解释合同；GPU generation 尚未授权，AVE 旧测试不再扩大。
+- 下一步：实现 MUSIC-AVQA 计数短答案专用 generation 输出审计和 CPU/mock 测试；通过后再申请物理 GPU2 的 2 组/8 条 smoke，要求 correct 严格优于 mismatch。
+- 2026-09-03 — MUSIC-AVQA 与现有音频编码器适配性复核
+
+- 完成操作：只读复核当前 `BEATs_iter3_plus_AS2M + UnAV S1-R temporal projector v2 + M4 adapter` 的训练目标、UnAV-100 标签覆盖和各乐器类 validation Recall；未启动 GPU。
+- 结果/验证：UnAV-100 明确覆盖 accordion、guitar、cello、drum、flute、piano、saxophone、trumpet、violin 和 singing 等音乐事件，v2 对相关类别有中等到较高 Recall，说明表示层适合乐器存在/类别识别。但 projector 只训练 1 秒事件语义，adapter 只训练答案相关性，均未训练跨窗口去重和乐器种类计数；MUSIC-AVQA Audio/Counting 属于未验证的组合/OOD 任务。
+- 当前整体进度：MUSIC-AVQA 两组 CPU 数据合同仍有效，但 GPU smoke 不应直接启动；合同状态降为 `REPRESENTATION_COMPATIBLE_COUNTING_NOT_VALIDATED_GPU_CLOSED`。
+- 下一步：先在同一 MUSIC-AVQA dev 两组上做 teacher-forced NLL 的 correct/mismatch/video-only/silence 诊断，并检查 video-only 是否能从画面直接推断计数；NLL 选择性通过后才评审 generation smoke。若失败，改用 MUSIC-AVQA 原生声音存在性任务，而非继续计数。
+
+- 2026-09-10 — 参考计划书与日志的状态复核
+
+- 完成操作：复核 AS-M4 总体计划、adapter-only canary20 结果、AVE generation smoke2 v3 报告、MUSIC-AVQA 原生 Audio/Counting 计划及当前工作区；未启动 GPU、训练或推理。
+- 结果/验证：确认当前科学主结论仍是 canary20 仅证明 teacher-forced NLL 小规模收益；AVE generation 的工程链路通过但存在视觉标签泄漏，不能证明音频选择性；MUSIC-AVQA 原生计数合同已构建并审计通过，但尚未完成 NLL 诊断或 GPU smoke。当前工作区仍有未提交的 P3 gate/生成相关代码和报告资产。
+- 当前整体进度：主线停在“原生 MUSIC-AVQA 两组/8 条 GPU 前的 NLL 与 video-only 泄漏诊断”阶段；150-step、formal test 和大规模 generation 继续关闭。
+- 下一步：先完成 MUSIC-AVQA 两组的 teacher-forced NLL 四条件诊断与计数短答案审计；仅当 correct 严格优于 mismatch 且 silence/video-only 回退成立，才申请物理 GPU2 generation smoke，并随后再决定是否扩大评测。
+
+- 2026-09-10 — GitHub 提交前定向回归
+
+- 完成操作：在 Conda `M4` 中运行 P3 gate、generation contract 和 mixed pair sampler 定向测试，并执行 `git diff --check`。
+- 结果/验证：`8 passed, 2 warnings`；whitespace 检查通过；未启动 GPU、训练或推理。
+- 当前整体进度：本轮代码、配置、测试和中文报告具备提交条件，运行资产未纳入提交范围。
+- 下一步：精确暂存工作区文件，检查 staged diff 后提交到当前分支并推送远端 GitHub。

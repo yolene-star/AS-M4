@@ -525,6 +525,59 @@ def prepare_real_condition_batch(
         "use_cache": False,
     }
 
+
+def prepare_real_generation_batch(
+    row: dict[str, Any], tokenizer, model, image_processor, *, device: str,
+    video_loader=None, audio_loader=None, video_cache: dict[str, torch.Tensor] | None = None,
+) -> dict[str, Any]:
+    """Materialize a prompt-only counterfactual batch for deterministic generation."""
+    from intersuit.constants import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
+    from intersuit.conversation import conv_templates
+    from intersuit.mm_utils import tokenizer_image_token
+
+    condition = str(row.get("condition"))
+    if condition not in CONDITION_ORDER:
+        raise ValueError(f"unknown adapter generation condition={condition}")
+    question = str(row.get("question", "")).replace(DEFAULT_IMAGE_TOKEN, "").strip()
+    if not question:
+        raise ValueError("generation question 不能为空")
+    conversation = conv_templates["qwen_1_5"].copy()
+    conversation.append_message(conversation.roles[0], f"{DEFAULT_IMAGE_TOKEN}\n{question}")
+    conversation.append_message(conversation.roles[1], None)
+    input_ids = tokenizer_image_token(
+        conversation.get_prompt(), tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+    ).unsqueeze(0).to(device)
+    cache = video_cache if video_cache is not None else {}
+    video_path = str(row["video_path"])
+    images = cache.get(video_path)
+    if images is None:
+        if video_loader is None:
+            from intersuit.harness.runners.run_predictions_from_plan import _load_video_tensor
+            video_loader = _load_video_tensor
+        images = video_loader(video_path, image_processor, model, device)
+        cache[video_path] = images
+    scene_audios = None
+    scene_audio_timestamps = None
+    if condition != "video_only":
+        if audio_loader is None:
+            from intersuit.harness.runners.run_predictions_from_plan import _load_scene_audio_tensor
+            audio_loader = _load_scene_audio_tensor
+        loaded, timestamps, _metadata = audio_loader(
+            {"scene_audio_path": row.get("audio_source_path"), "scene_audio_sample_rate": 16000,
+             "scene_audio_window_sec": 1.0, "scene_audio_hop_sec": 0.5},
+            debug_condition="silence" if condition == "silence" else "original",
+        )
+        if loaded is None or timestamps is None:
+            raise RuntimeError(f"condition={condition} 音频物化失败")
+        scene_audios = loaded.to(device=device, dtype=next(model.parameters()).dtype).unsqueeze(0)
+        scene_audio_timestamps = timestamps.to(device=device, dtype=torch.float32).unsqueeze(0)
+    return {
+        "input_ids": input_ids,
+        "attention_mask": torch.ones_like(input_ids, device=input_ids.device),
+        "images": [images], "modalities": ["video"], "scene_audios": scene_audios,
+        "scene_audio_timestamps": scene_audio_timestamps,
+    }
+
 def adapter_only_forward(model, adapter, audio_v2: torch.Tensor, answer_labels: torch.Tensor,
                          *, video_context: torch.Tensor | None = None):
     """Minimal contract hook: model must expose frozen LM logits from adapted audio."""
