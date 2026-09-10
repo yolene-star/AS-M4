@@ -4874,3 +4874,24 @@
 - 结果/验证：GitHub push 成功；未提交 checkpoint、媒体、数据集或缓存资产。
 - 当前整体进度：本轮工作区改动已同步到远端分支，后续可在该提交基础上继续 MUSIC-AVQA NLL 诊断。
 - 下一步：继续执行 MUSIC-AVQA 两组四条件 NLL 与 video-only 泄漏诊断，不直接启动 150-step 或 formal test。
+
+- 2026-09-10 — GitHub 远端实时核验受审批阻塞
+
+- 完成操作：尝试通过 `git ls-remote` 实时查询 GitHub 远端分支；未修改代码或提交内容。
+- 结果/验证：执行审批器因容量原因拒绝本次网络核验；本地 remote 明确为 `git@github.com:Yolene-star/AS-M4.git`，当前分支跟踪 `origin/feat/audio-event-aligner-v1`，本地 HEAD 为 `157ae0c`。此前 push 命令已返回成功。
+- 当前整体进度：本地与此前 push 回执一致，但本轮无法再次从 GitHub 拉取远端 SHA 作独立核验。
+- 下一步：审批恢复后运行 `git ls-remote origin refs/heads/feat/audio-event-aligner-v1`，确认远端 SHA 与 `157ae0c` 完全一致。
+
+- 2026-09-10 — 主实验收敛为 UnAV-100 与 OmniMMI/M4 两条线
+
+- 完成操作：按用户决策停止 MUSIC-AVQA 路线；只读盘点 UnAV-100 selector、冻结音频特征、projector 结果及 OmniMMI PT/PA 原始 M4 结果与场景音频接线资产；新增中文权威主实验计划，在旧总计划和 MUSIC-AVQA 计划顶部写入状态覆盖说明，并将 MUSIC-AVQA 执行配置改为 `STOPPED_BY_MAINLINE_DECISION`、全部后续授权关闭。未启动 GPU、训练、推理或新增模型结构。
+- 结果/验证：UnAV-100 已有 Random/Energy/Eventness/Oracle 的 K=4/K=8 定位证据，K=8 Event Coverage 分别为 `0.178958/0.298830/0.319828/0.999802`；Temporal 和 learned selector 缺同 schema 冻结结果。OmniMMI 原始 M4 已有 PT 官方 Accuracy `57.0%`、PA Accuracy `21.5%`/Precision `31.82%`/IoU `14.02%`，但缺 Audio-required/Visual-only/Joint 固定标注、四条件合同和 AS-M4 同口径结果。
+- 当前整体进度：主线状态为 `MAINLINE_FROZEN_UNAV100_PLUS_OMNIMMI_M4`；MUSIC-AVQA、AVE generation、AVUT 和 LLP 只保留历史诊断。150-step、正式大规模训练和新增结构继续关闭。
+- 下一步：先生成 UnAV-100 六策略已有/缺失资产清单，再从 OmniMMI PT/PA 原始标注筛选并人工复核 Audio-required、Visual-only 和 Audio-Visual Joint，冻结 correct/mismatch/video-only/silence 合同；仅在 CPU/mock 审计通过后准备小规模 smoke/canary。
+
+- 2026-09-10 — 两线主实验计划提交受执行审批阻塞
+
+- 完成操作：尝试精确暂存并提交本次 UnAV-100 + OmniMMI/M4 主线计划、MUSIC-AVQA 停止配置和进度日志；未尝试推送远端。
+- 结果/验证：执行审批器因审批模型容量不足拒绝 Git 写入操作；未创建新提交，文档和配置改动仍完整保留在工作区。未采用替代命令绕过审批。
+- 当前整体进度：主线切换和配置 fail-closed 已完成且 JSON 校验通过，但尚未形成 Git commit。
+- 下一步：待用户明确允许并且审批服务恢复后，原样提交上述 5 个文件；不扩大文件范围。

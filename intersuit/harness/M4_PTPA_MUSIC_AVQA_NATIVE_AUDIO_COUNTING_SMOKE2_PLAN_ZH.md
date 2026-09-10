@@ -1,5 +1,7 @@
 # MUSIC-AVQA 原生 Audio/Counting smoke2 计划
 
+> 2026-09-10 状态更新：`STOPPED_BY_MAINLINE_DECISION`。本路线停止，不再继续 NLL、generation smoke、扩大评测或计数适配。当前主实验转入 `UnAV-100` 机制验证和 `OmniMMI/M4` 原任务验证；本文件仅保留为历史审计记录。
+
 日期：2026-09-03（Asia/Shanghai）
 
 ## 结论

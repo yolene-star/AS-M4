@@ -1,6 +1,9 @@
 {
   "contract_id": "music_avqa_native_audio_counting_smoke2_v1",
-  "status": "REPRESENTATION_COMPATIBLE_COUNTING_NOT_VALIDATED_GPU_CLOSED",
+  "status": "STOPPED_BY_MAINLINE_DECISION",
+  "route_active": false,
+  "stopped_on": "2026-09-10",
+  "stop_reason": "主实验收敛到 UnAV-100 机制验证与 OmniMMI/M4 原任务验证",
   "task": {
     "source_dataset": "MUSIC-AVQA-v2.0",
     "source_split": "dev",
@@ -37,10 +40,14 @@
     "answer_scoring": "normalized native count answer match"
   },
   "authorization": {
-    "cpu_build_and_audit": true,
+    "cpu_build_and_audit": false,
     "gpu_generation_smoke": false,
     "gpu_150step": false,
     "formal_test": false
+  },
+  "historical_completed": {
+    "cpu_build_and_audit": true,
+    "manifest_frozen": true
   },
   "stop_conditions": [
     "mixed_dataset_or_split",
