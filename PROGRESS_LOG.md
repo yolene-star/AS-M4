@@ -4895,3 +4895,24 @@
 - 结果/验证：执行审批器因审批模型容量不足拒绝 Git 写入操作；未创建新提交，文档和配置改动仍完整保留在工作区。未采用替代命令绕过审批。
 - 当前整体进度：主线切换和配置 fail-closed 已完成且 JSON 校验通过，但尚未形成 Git commit。
 - 下一步：待用户明确允许并且审批服务恢复后，原样提交上述 5 个文件；不扩大文件范围。
+
+- 2026-09-10 — UnAV-100 证据清单与 OmniMMI 盲审预筛完成
+
+- 完成操作：用户要求继续后，将两线主实验计划提交为 `23d7184`；新增 UnAV-100 六策略证据/缺失清单；新增 OmniMMI PT/PA 音频依赖盲审预筛脚本、四条件合同骨架、CPU 审计器、定向测试和中文报告。只读取 PT/PA 原始标注，未读取模型预测、未启动 GPU、训练或新增模型结构。
+- 结果/验证：UnAV 清单确认 Random/Energy/Eventness/Oracle 已有 K=4/K=8 冻结结果，Temporal 与 learned selector 仍缺同 schema 正式结果。OmniMMI 共生成 872 条待审记录（PT 672、PA 200）；词边界修复后候选为 Audio-required 23、Audio-Visual Joint 28、Visual-only 391、Ambiguous 430，manifest SHA `931bf89d4d9b0cc8731f409bd5c80f40a7afc3e268a62d22e060fcd20887bf6d`。首轮测试发现并修正 `using/sing`、`wearing/ring`、`basket/ask` 子串误判；最终定向测试 `5 passed`，合同审计状态 `PENDING_HUMAN_MODALITY_REVIEW`，GPU/训练授权全部关闭。
+- 当前整体进度：UnAV-100 的“已有/缺失”盘点已经完成；OmniMMI 四条件字段和安全门禁已固定，但正式模态标签、音轨/mismatch 审计与最终 manifest 尚未冻结，不能启动 smoke。
+- 下一步：优先人工复核 51 条显式音频线索候选，并分层抽取 Visual-only 控制；随后检查音轨、冻结 mismatch 一一映射和最终三类 manifest，再运行 CPU contract 审计。
+
+- 2026-09-10 — UnAV/OmniMMI 预筛里程碑提交受审批服务阻塞
+
+- 完成操作：两次精确申请暂存并提交本轮 8 个代码/配置/测试/中文报告文件；未申请推送，未扩大文件范围。
+- 结果/验证：第一次审批超时，按审批器提示原样重试一次；第二次因审批服务流断开被拒绝，请求 ID `8c9b6310-a8f1-4fb7-9497-4cf4d1b66b3e`。未创建提交，全部改动仍保留在工作区，测试与合同审计结果不变。
+- 当前整体进度：科学与工程准备已完成到人工模态 review 前门禁；Git 里程碑提交是执行层阻塞，不影响本地文件。
+- 下一步：不再重复提交；待用户再次明确授权且审批服务恢复后，只提交同一组文件。
+
+- 2026-09-10 — OmniMMI 显式音频候选媒体前置审计
+
+- 完成操作：新增候选媒体审计脚本和测试，对 51 条 Audio-required/Joint 自动候选对应的本地视频执行文件、视频流、音轨、时长和 SHA 审计；未读取模型预测、未启动 GPU。
+- 结果/验证：51 条候选涉及 47 个物理视频；文件和视频流全部存在。`ego_34.mp4` 无音轨，对应 `pt:60:1` 已在四条件合同中显式标记为不合格，不允许补造正确音频；其余 50 条、46 个有音轨视频可进入人工复核。最终状态 `PASS_CANDIDATE_MEDIA_PREFLIGHT_WITH_EXCLUSIONS`，累计定向测试 `6 passed`，合同审计仍为 `PENDING_HUMAN_MODALITY_REVIEW`。
+- 当前整体进度：OmniMMI 盲审预筛、候选媒体门禁和四条件骨架均已完成；GPU/训练继续关闭。正式子集仍需对 50 条有音轨候选做问题级听看复核，并抽取 Visual-only 控制。
+- 下一步：生成按 review ID/媒体路径排序的人工复核工作包，先完成显式音频候选的 final modality 判定，再冻结三类 manifest 和 mismatch 映射。

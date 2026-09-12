@@ -1,0 +1,81 @@
+{
+  "contract_id": "omnimmi_m4_four_condition_contract_v1",
+  "status": "PENDING_MODALITY_REVIEW_AND_MANIFEST_FREEZE",
+  "mainline": "UnAV-100 mechanism plus OmniMMI/M4 original-task validation",
+  "tasks": ["pt", "pa"],
+  "models": {
+    "original_m4": {
+      "role": "official absolute reference",
+      "checkpoint_sha256_required": true,
+      "scene_audio_expected_to_change_output": false
+    },
+    "as_m4": {
+      "role": "scene-audio candidate",
+      "checkpoint_sha256_required": true,
+      "same_non_audio_inputs_across_conditions": true
+    }
+  },
+  "subsets": [
+    "audio_required",
+    "visual_only",
+    "audio_visual_joint",
+    "overall"
+  ],
+  "review": {
+    "candidate_manifest": "intersuit/harness/artifacts/omnimmi_audio_requirement_review_v1/review_manifest.jsonl",
+    "final_manifest": null,
+    "final_manifest_sha256": null,
+    "prediction_blind": true,
+    "ambiguous_excluded_from_primary_subsets": true,
+    "formal_labels_frozen": false
+  },
+  "media_exclusions": [
+    {
+      "review_id": "pt:60:1",
+      "video": "ego_34.mp4",
+      "reason": "local media has no audio stream",
+      "eligible_for_audio_required_or_joint": false
+    }
+  ],
+  "conditions": [
+    "correct_audio",
+    "mismatch_audio",
+    "video_only",
+    "silence"
+  ],
+  "pairing": {
+    "same_video_question_prompt_frames_and_decode": true,
+    "mismatch_different_physical_video": true,
+    "mismatch_mapping_frozen_before_predictions": true,
+    "silence_physical_zero": true,
+    "missing_audio_exact_video_only_fallback": true
+  },
+  "required_reports": [
+    "audio_required",
+    "visual_only",
+    "audio_visual_joint",
+    "overall",
+    "pt_preservation",
+    "pa_preservation",
+    "turn_taking_preservation"
+  ],
+  "acceptance": {
+    "as_m4_audio_required_above_original_m4": true,
+    "correct_audio_above_mismatch_audio": true,
+    "correct_audio_above_video_only": true,
+    "silence_matches_video_only": true,
+    "visual_only_no_material_regression": true,
+    "pt_pa_turn_taking_no_material_regression": true
+  },
+  "authorization": {
+    "cpu_candidate_build": true,
+    "human_modality_review": true,
+    "cpu_contract_audit": false,
+    "gpu_smoke": false,
+    "gpu_canary": false,
+    "full_evaluation": false,
+    "training_150step": false,
+    "formal_training": false,
+    "new_model_structure": false
+  }
+}
