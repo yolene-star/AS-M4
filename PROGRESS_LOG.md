@@ -4923,3 +4923,10 @@
 - 结果/验证：工作包状态 `PENDING_HUMAN_MODALITY_REVIEW`；所有条目仍为 `final_modality=null`、`review_status=pending_human_review`；定向测试通过。音频候选沿用 46 个有音轨视频审计；Visual-only 控制的媒体审计明确标记为待补充，未伪造通过状态。
 - 当前整体进度：已完成计划中的候选筛选、音轨门禁和盲审包准备；正式三类子集、四条件最终 manifest 和 mismatch 映射仍未冻结，GPU smoke 继续关闭。
 - 下一步：完成人工听看复核，并对 40 条 Visual-only 控制补做媒体审计；复核通过后才生成正式 manifest 和 CPU contract audit。
+
+- 2026-09-12 — Visual-only 控制媒体审计完成并排除无音轨样本
+
+- 完成操作：对人工复核工作包中的 40 条 Visual-only 控制执行独立文件、视频流、音轨、时长和 SHA 审计；未读取模型预测、未启动 GPU。
+- 结果/验证：40 条涉及 39 个物理视频；文件和视频流全部存在。`ego_63.mp4` 无音轨，对应 `pt:185:8` 已加入四条件合同排除清单；剩余 39 条控制媒体通过前置审计。音频候选的 `ego_34.mp4/pt:60:1` 排除保持不变。
+- 当前整体进度：四条件候选媒体门禁已完成（音频候选 50 条、Visual-only 控制 39 条合格）；正式模态标签和 mismatch 映射仍未冻结，GPU smoke 继续关闭。
+- 下一步：对 89 条合格候选进行人工听看模态复核；完成后冻结 final modality、三类子集 manifest 和四条件展开。

@@ -35,6 +35,13 @@
       "video": "ego_34.mp4",
       "reason": "local media has no audio stream",
       "eligible_for_audio_required_or_joint": false
+    },
+    {
+      "review_id": "pt:185:8",
+      "video": "ego_63.mp4",
+      "reason": "visual control media has no audio stream; cannot satisfy four-condition contract",
+      "eligible_for_audio_required_or_joint": false,
+      "eligible_for_visual_control_four_condition": false
     }
   ],
   "conditions": [

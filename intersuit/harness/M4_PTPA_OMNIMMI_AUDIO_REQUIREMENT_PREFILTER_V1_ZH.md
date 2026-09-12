@@ -80,6 +80,7 @@
 - 50 条有音轨 Audio/Joint 候选：PT 17、PA 33；
 - 40 条 Visual-only 控制：PT 20、PA 20，按稳定 SHA256(review_id) 抽样；
 - 共 90 条，均保持 `final_modality=null`、`review_status=pending_human_review`；
-- 音频候选已有媒体 SHA/音轨审计；Visual-only 控制的媒体审计状态单独标记为待补充，不能当作已通过。
+- 音频候选和 39 条合格 Visual-only 控制已有媒体 SHA/音轨审计；`pt:185:8` 因无音轨排除，不能当作四条件控制。
+- 控制集审计另发现 `ego_63.mp4` 无音轨，对应 `pt:185:8` 已加入排除清单；因此四条件控制候选当前为 39 条，剩余 39 条均通过文件、视频流和音轨前置审计。
 
 当前仍不能生成正式 `audio_required / visual_only / audio_visual_joint` manifest，也不能冻结 mismatch 映射。
