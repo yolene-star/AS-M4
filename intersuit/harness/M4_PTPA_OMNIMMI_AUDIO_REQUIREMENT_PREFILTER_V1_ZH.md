@@ -72,3 +72,14 @@
 51 条显式音频线索候选涉及 47 个物理视频。文件存在性和视频流检查全部通过；其中 `ego_34.mp4` 没有音轨，对应 `pt:60:1` 必须从 Audio-required/Joint 正式候选中排除。其余 50 条、46 个有音轨视频进入人工听看复核。
 
 审计状态为 `PASS_CANDIDATE_MEDIA_PREFLIGHT_WITH_EXCLUSIONS`。该排除已写入四条件合同，不允许后续用 silence、外部音频或其他视频音轨补造正确音频。
+
+## 9. 人工复核工作包
+
+已生成 `intersuit/harness/artifacts/omnimmi_audio_requirement_review_v1/manual_review_packet.jsonl`：
+
+- 50 条有音轨 Audio/Joint 候选：PT 17、PA 33；
+- 40 条 Visual-only 控制：PT 20、PA 20，按稳定 SHA256(review_id) 抽样；
+- 共 90 条，均保持 `final_modality=null`、`review_status=pending_human_review`；
+- 音频候选已有媒体 SHA/音轨审计；Visual-only 控制的媒体审计状态单独标记为待补充，不能当作已通过。
+
+当前仍不能生成正式 `audio_required / visual_only / audio_visual_joint` manifest，也不能冻结 mismatch 映射。

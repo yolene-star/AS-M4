@@ -4916,3 +4916,10 @@
 - 结果/验证：51 条候选涉及 47 个物理视频；文件和视频流全部存在。`ego_34.mp4` 无音轨，对应 `pt:60:1` 已在四条件合同中显式标记为不合格，不允许补造正确音频；其余 50 条、46 个有音轨视频可进入人工复核。最终状态 `PASS_CANDIDATE_MEDIA_PREFLIGHT_WITH_EXCLUSIONS`，累计定向测试 `6 passed`，合同审计仍为 `PENDING_HUMAN_MODALITY_REVIEW`。
 - 当前整体进度：OmniMMI 盲审预筛、候选媒体门禁和四条件骨架均已完成；GPU/训练继续关闭。正式子集仍需对 50 条有音轨候选做问题级听看复核，并抽取 Visual-only 控制。
 - 下一步：生成按 review ID/媒体路径排序的人工复核工作包，先完成显式音频候选的 final modality 判定，再冻结三类 manifest 和 mismatch 映射。
+
+- 2026-09-12 — OmniMMI 人工复核工作包生成
+
+- 完成操作：在不读取模型预测的前提下，生成 90 条稳定排序人工复核工作包：50 条有音轨 Audio/Joint 候选（PT 17、PA 33）和 40 条 Visual-only 控制（PT 20、PA 20）；新增构建脚本与测试。未启动 GPU、训练或正式评测。
+- 结果/验证：工作包状态 `PENDING_HUMAN_MODALITY_REVIEW`；所有条目仍为 `final_modality=null`、`review_status=pending_human_review`；定向测试通过。音频候选沿用 46 个有音轨视频审计；Visual-only 控制的媒体审计明确标记为待补充，未伪造通过状态。
+- 当前整体进度：已完成计划中的候选筛选、音轨门禁和盲审包准备；正式三类子集、四条件最终 manifest 和 mismatch 映射仍未冻结，GPU smoke 继续关闭。
+- 下一步：完成人工听看复核，并对 40 条 Visual-only 控制补做媒体审计；复核通过后才生成正式 manifest 和 CPU contract audit。
