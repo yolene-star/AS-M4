@@ -23,6 +23,9 @@
   ],
   "review": {
     "candidate_manifest": "intersuit/harness/artifacts/omnimmi_audio_requirement_review_v1/review_manifest.jsonl",
+    "manual_review_sheet": "intersuit/harness/artifacts/omnimmi_audio_requirement_review_v1/manual_review_sheet.csv",
+    "manual_review_sheet_sha256": "e1db9421268dba9b540925455c781fad0e11cc2d07b0477b4eb8412b73758894",
+    "manual_review_rows": 89,
     "final_manifest": null,
     "final_manifest_sha256": null,
     "prediction_blind": true,

@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ALLOWED_MODALITIES = {"audio_required", "visual_only", "audio_visual_joint"}
+EXCLUDED_MODALITY = "ambiguous_excluded"
 CONDITIONS = ("correct_audio", "mismatch_audio", "video_only", "silence")
 
 
@@ -27,16 +28,20 @@ def freeze_rows(packet_path: Path) -> list[dict]:
     rows = [json.loads(line) for line in packet_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not rows:
         raise ValueError("人工复核工作包为空")
-    pending = [row["review_id"] for row in rows if row.get("review_status") != "approved"]
+    pending = [row["review_id"] for row in rows if row.get("review_status") not in {"approved", "excluded"}]
     if pending:
         raise ValueError(f"仍有 {len(pending)} 条记录未通过人工复核，例如 {pending[:3]}")
-    invalid = [row["review_id"] for row in rows if row.get("final_modality") not in ALLOWED_MODALITIES]
+    invalid = [
+        row["review_id"] for row in rows
+        if (row.get("review_status") == "approved" and row.get("final_modality") not in ALLOWED_MODALITIES)
+        or (row.get("review_status") == "excluded" and row.get("final_modality") != EXCLUDED_MODALITY)
+    ]
     if invalid:
         raise ValueError(f"存在未冻结或不允许的 final_modality: {invalid[:3]}")
     excluded = [row for row in rows if row.get("media_audit", {}).get("has_audio") is False]
     if excluded:
         raise ValueError(f"含无音轨记录，必须先从 packet 移除：{[row['review_id'] for row in excluded[:3]]}")
-    return rows
+    return [row for row in rows if row.get("review_status") == "approved"]
 
 
 def build_manifest(rows: list[dict]) -> list[dict]:

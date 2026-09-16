@@ -4924,6 +4924,13 @@
 - 当前整体进度：自动化准备已同步远端，实验仍停在人工模态复核前，不得启动 GPU smoke。
 - 下一步：完成 89 条合格候选的人工复核后，再生成正式 manifest 并运行 CPU contract audit。
 
+- 2026-09-16 — OmniMMI 89 条人工复核 CSV 与回填门禁完成
+
+- 完成操作：导出排除两个无音轨记录后的 89 条人工复核 CSV；新增 CSV 回填校验器，并扩展正式 manifest 冻结器支持显式 `ambiguous_excluded`。未读取模型预测、未启动 GPU、训练或正式评测。
+- 结果/验证：CSV SHA `e1db9421268dba9b540925455c781fad0e11cc2d07b0477b4eb8412b73758894`；导入器强制完整 ID 集、唯一性、reviewer/note、approved 三类标签或 excluded 标签；定向测试 `5 passed`，`git diff --check` 通过。
+- 当前整体进度：人工复核入口、回填校验和正式冻结门禁均已就绪；CSV 仍为空白，89 条 final modality 尚未产生，GPU smoke 继续关闭。
+- 下一步：由人工逐条听看并填写 CSV；回填后运行导入器和冻结器，再冻结 mismatch 映射与 CPU contract audit。
+
 - 2026-09-10 — OmniMMI 显式音频候选媒体前置审计
 
 - 完成操作：新增候选媒体审计脚本和测试，对 51 条 Audio-required/Joint 自动候选对应的本地视频执行文件、视频流、音轨、时长和 SHA 审计；未读取模型预测、未启动 GPU。

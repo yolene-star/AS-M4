@@ -84,3 +84,19 @@
 - 控制集审计另发现 `ego_63.mp4` 无音轨，对应 `pt:185:8` 已加入排除清单；因此四条件控制候选当前为 39 条，剩余 39 条均通过文件、视频流和音轨前置审计。
 
 当前仍不能生成正式 `audio_required / visual_only / audio_visual_joint` manifest，也不能冻结 mismatch 映射。
+
+## 10. 人工复核 CSV 与回填门禁
+
+已导出排除两个无音轨记录后的 89 条 CSV：
+
+```text
+intersuit/harness/artifacts/omnimmi_audio_requirement_review_v1/manual_review_sheet.csv
+SHA256=e1db9421268dba9b540925455c781fad0e11cc2d07b0477b4eb8412b73758894
+```
+
+人工必须填写 `review_status`、`final_modality`、`reviewer` 和 `review_note`：
+
+- 正式三类使用 `review_status=approved`；
+- 无法稳定分类的记录使用 `review_status=excluded` 和 `final_modality=ambiguous_excluded`；
+- 任何空值、重复/未知/缺失 ID、非法模态或缺少 reviewer/note 都会 fail-closed；
+- 正式冻结器只接收回填并校验通过的 reviewed packet，自动跳过显式 excluded 项。
