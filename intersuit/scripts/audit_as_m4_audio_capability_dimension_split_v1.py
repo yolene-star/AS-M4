@@ -25,13 +25,13 @@ EXPECTED_DATASET_BY_DIMENSION = {
     "budgeted_window_selection": "UnAV-100",
     "modality_dependency": "LLP/AVVP",
     "audio_selectivity_robustness": "LLP/AVVP",
-    "downstream_task_utility": "OmniMMI",
+    "video_understanding_regression": "OmniMMI",
 }
 
 EXPECTED_SPLIT_BY_DATASET = {
     "UnAV-100": "validation",
     "LLP/AVVP": "validation",
-    "OmniMMI": "pt_pa_reviewed_subset",
+    "OmniMMI": "pt_pa_full",
 }
 
 
@@ -117,6 +117,15 @@ def audit_contract(contract: dict[str, Any]) -> dict[str, Any]:
             if not resolve_path(asset).is_file():
                 missing_assets.append(f"{dataset}:{asset}")
     require(not missing_assets, "缺少冻结资产：" + ", ".join(missing_assets))
+    omnimmi_gate = gates["OmniMMI"]
+    require(
+        omnimmi_gate.get("manual_modality_labels_required") is False,
+        "OmniMMI 视频回归线不得要求人工模态标签",
+    )
+    require(
+        omnimmi_gate.get("comparison") == ["original_m4", "as_m4_behavior_off_video_only"],
+        "OmniMMI 回归比较未锁定原始 M4 与 AS-M4 video-only",
+    )
 
     llp_gate = gates["LLP/AVVP"]
     llp_manifest = resolve_path(llp_gate["manifest"])

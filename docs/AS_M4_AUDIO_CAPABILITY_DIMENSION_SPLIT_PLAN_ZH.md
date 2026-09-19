@@ -12,7 +12,7 @@
 
 1. `UnAV-100` 回答“模型能否在长视频里找到应该听的时间窗口”；
 2. `LLP/AVVP` 回答“模型能否判断应该依赖声音、画面还是二者”；
-3. `OmniMMI` 回答“这些机制是否改善 M4 原任务的最终输出”。
+3. `OmniMMI` 只回答“相对原始 M4，视频理解与原任务能力是否下降”。
 
 三层证据相互补充但不能相互替代。机制指标不得外推为最终问答收益，最终问答指标也不得反推定位或模态选择能力。
 
@@ -24,7 +24,7 @@
 | 固定预算选窗 | UnAV-100 | validation | Coverage@K、first-hit rank、headroom recovery、selector latency |
 | 模态依赖识别 | LLP/AVVP | validation | audio-only / visual-only / audio-visual macro Recall、balanced accuracy |
 | 音频选择性与抗干扰 | LLP/AVVP | validation | correct-mismatch margin、correct-silence margin、visual-only flip rate |
-| 最终问答效用 | OmniMMI | PT/PA reviewed subset | PT Accuracy、PA Accuracy/Precision/IoU、四条件配对差值 |
+| 视频理解回归 | OmniMMI | PT/PA full | PT Accuracy delta、PA Accuracy/Precision/IoU delta、空输出率 delta |
 
 强制规则：
 
@@ -58,11 +58,19 @@ LLP/AVVP 唯一承担模态依赖和音频选择性。统一窗口 manifest 已�
 
 LLP 不承担长视频稀疏定位、K 预算 selector 排名或 UnAV 六策略矩阵。
 
-## 5. OmniMMI 最终任务线
+## 5. OmniMMI 视频能力回归线
 
-OmniMMI 保持独立，只承担最终问答效用。继续完成 89 条候选的人工听看复核，冻结 Audio-required、Visual-only、Audio-Visual Joint、ambiguous/excluded 标签以及 correct/mismatch/video-only/silence 四条件 manifest。
+OmniMMI 保持独立，只承担相对原始 M4 的视频理解能力回归检查，不承担音频收益、音频依赖或模态选择性证明。使用 PT/PA 原始完整评测集和官方 evaluator，不需要新增 `audio_required/visual_only/audio_visual_joint` 人工标签；此前准备的 89 条人工复核工作包退出当前主线，只保留为历史候选资产。
 
-OmniMMI 不进入 UnAV 或 LLP 的机制指标，也不使用其样本补齐类别或分母。
+主比较必须固定为：
+
+1. 原始 M4 checkpoint 的原始视频理解结果；
+2. 待评 AS-M4 checkpoint 在 `behavior_off/video_only` 下的结果；
+3. 两者使用相同视频、问题、prompt、帧采样、解码参数和官方评分入口；
+4. 报告 PT Accuracy 与 PA Accuracy/Precision/IoU 的绝对差值、配对置信区间、空输出率和逐样本翻转；
+5. 非劣容差必须在读取新的 AS-M4 预测前冻结，不能根据结果回调。
+
+`correct_audio/mismatch_audio/silence` 不属于这条回归线的必需条件；它们如需评测，归入 LLP 音频选择性维度或另立诊断，不得改变 OmniMMI 的视频回归结论。OmniMMI 不进入 UnAV 或 LLP 的机制指标，也不使用其样本补齐类别或分母。
 
 ## 6. 执行阶段与门禁
 
@@ -71,14 +79,14 @@ OmniMMI 不进入 UnAV 或 LLP 的机制指标，也不使用其样本补齐类�
 - 冻结本计划和机器可读合同；
 - 审计每个维度只有一个数据集、一个 split 和唯一指标所有权；
 - 统计 LLP validation 的模态分布，但不把旧 S1 结果视为通过；
-- 核对 UnAV 冻结资产和 OmniMMI 人工 review 状态；
+- 核对 UnAV 冻结资产和 OmniMMI 原始 M4 基线状态；
 - 本阶段只允许 CPU/mock，不加载 7B，不运行 GPU。
 
 ### B. evaluator smoke
 
 - UnAV：冻结小子集验证六策略输入输出、K=4/K=8 和 Random 可复现性；
 - LLP：冻结小子集验证四条件、模态标签、mismatch 冲突、silence 回退和视频聚类统计；
-- OmniMMI：只有人工 review 与正式 manifest 冻结后才允许 smoke。
+- OmniMMI：冻结原始 M4 与 AS-M4 的同输入回归合同和非劣容差后，才允许小规模 runner smoke；无需人工模态复核。
 
 ### C. 完整冻结评测
 
@@ -88,15 +96,15 @@ OmniMMI 不进入 UnAV 或 LLP 的机制指标，也不使用其样本补齐类�
 
 ### D. 模型训练决策
 
-只有 UnAV 定位/选窗、LLP 模态选择性和 OmniMMI 最终效用的证据链均完整后，才重新评审 150-step 或正式训练。当前 `gpu_smoke=false`、`gpu_150step=false`、`formal_training=false`。
+只有 UnAV 定位/选窗、LLP 模态选择性和 OmniMMI 视频能力非劣的证据链均完整后，才重新评审 150-step 或正式训练。当前 `gpu_smoke=false`、`gpu_150step=false`、`formal_training=false`。
 
 ## 7. 当前状态
 
 - UnAV：`READY_PARTIAL_MATRIX`，缺 Temporal 与 learned selector 同口径结果；
 - LLP：`BLOCKED_EVALUATOR_RECONSTRUCTION`，数据标注可用，但权限、waveform 和新 evaluator 门禁未完成；
-- OmniMMI：`PENDING_HUMAN_MODALITY_REVIEW`，89 条人工复核尚未回填；
+- OmniMMI：`READY_BASELINE_REGRESSION_CONTRACT_PENDING`，原始 M4 基线已有，待冻结同输入回归合同和非劣容差；无需新增人工标签；
 - 全局：`CPU_CONTRACT_ONLY`。
 
 ## 8. 人话结论
 
-UnAV 考“该听哪一段”，LLP 考“该不该听、声音是否真的有用”，OmniMMI 考“听完以后回答是否更好”。三套卷子考不同能力，每门课只用一套卷子评分，不把分数混成一个看似漂亮但无法解释的总分。
+UnAV 考“该听哪一段”，LLP 考“该不该听、声音是否真的有用”，OmniMMI 只做原能力体检，检查 AS-M4 是否把视频理解弄坏。三套卷子考不同能力，每门课只用一套卷子评分，不把分数混成一个看似漂亮但无法解释的总分。

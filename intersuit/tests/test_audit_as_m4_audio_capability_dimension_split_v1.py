@@ -51,7 +51,7 @@ def valid_contract(tmp_path: Path) -> dict:
         "dataset_gates": {
             "UnAV-100": {"status": "READY_PARTIAL_MATRIX", "required_assets": assets[:5]},
             "LLP/AVVP": {"status": "BLOCKED_EVALUATOR_RECONSTRUCTION", "manifest": str(manifest), "manifest_split": "val", "required_modalities": ["audio_only", "visual_only", "audio_visual", "background"]},
-            "OmniMMI": {"status": "PENDING_HUMAN_MODALITY_REVIEW", "required_assets": assets[5:]},
+            "OmniMMI": {"status": "READY_BASELINE_REGRESSION_CONTRACT_PENDING", "required_assets": assets[5:], "manual_modality_labels_required": False, "comparison": ["original_m4", "as_m4_behavior_off_video_only"]},
         },
         "authorization": {"cpu_contract_audit": True, "gpu_smoke": False, "gpu_150step": False, "formal_training": False},
     }

@@ -5007,3 +5007,15 @@
 - 结果/验证：Git commit 为 `260f449`（`plan split audio capability evaluation by dataset`）；提交仅包含 6 个代码/文档/配置文件，未包含 checkpoint、权重、媒体、数据集、缓存或训练日志。
 - 当前整体进度：单维度单测试集设计已形成可复现代码里程碑；真实 CPU 合同通过，但所有数据门禁状态保持不变。
 - 下一步：从 LLP/AVVP 的媒体权限、16 kHz waveform 和 modality evaluator 重建开始推进，之后再申请独立的小规模 GPU smoke。
+- 2026-09-19 — 澄清多基准测评所需人工标签范围
+
+- 完成操作：核对 LLP/AVVP 统一 manifest 的生成逻辑、官方 dense audio/visual 标注、旧 visual-only generation review 与 OmniMMI 人工复核合同；未启动 GPU、训练或推理。
+- 结果/验证：UnAV-100 与 LLP/AVVP 在当前分工下不需要新增人工事件/模态标签。LLP 的 `audio_only/visual_only/audio_visual/background` 是由官方 `AVVP_eval_audio.csv` 与 `AVVP_eval_visual.csv` 的同标签逐窗口集合差直接生成，不是由事件名猜测。旧报告要求 visual-only 人工复核，针对的是把 LLP 标签改造成 M4 generation 问答控制集，不应自动成为本次窗口级模态能力 evaluator 的标签门禁。仍确实需要人工标签的是 OmniMMI 89 条问题级 `audio_required/visual_only/audio_visual_joint/ambiguous_excluded`，因为 OmniMMI 原生标注没有“回答该问题需要哪种模态”。
+- 当前整体进度：需要区分“人工标签门禁”和“工程输入门禁”。LLP 尚需处理媒体使用权限、16 kHz waveform、mismatch 与 evaluator，但这些不是新增人工标签；OmniMMI 人工复核只服务最终问答效用维度。
+- 下一步：若维持 OmniMMI 最终问答线，则完成 89 条人工复核；若只测 UnAV+LLP 的机制能力，则无需准备新的人工标签，但不能声称已经验证最终问答收益。
+- 2026-09-19 — 将 OmniMMI 改为纯视频理解回归线并移除人工标签门禁
+
+- 完成操作：按用户澄清修订多基准权威计划、旧计划覆盖说明、机器合同、审计器和测试；OmniMMI 从 `downstream_task_utility` 改为 `video_understanding_regression`，固定比较原始 M4 与 AS-M4 `behavior_off/video_only`。使用 `M4` Conda 环境重新运行语法检查、5 项定向测试和真实合同审计；未启动 GPU、训练或推理。
+- 结果/验证：`5 passed`，真实审计继续为 `PASS_CPU_CONTRACT_DATASET_GATES_CLOSED`。OmniMMI 使用 PT/PA full 和官方 evaluator，只报告 PT/PA 指标 delta、空输出率 delta、配对翻转与后续预注册的非劣结论；`manual_modality_labels_required=false`。89 条人工复核、四条件音频 manifest 和 mismatch 映射退出当前 OmniMMI 主线，不再阻塞视频能力回归。
+- 当前整体进度：UnAV 负责定位/选窗，LLP 负责模态依赖/音频选择性，OmniMMI 只负责确认视频理解没有相对原始 M4 下降。OmniMMI 当前仅缺同输入回归合同、预注册非劣容差和 AS-M4 full PT/PA 预测，不缺人工标签。
+- 下一步：在读取新的 AS-M4 预测前冻结 PT/PA 非劣容差及同输入合同，然后运行小规模 runner smoke；通过后才跑完整 PT/PA 回归。

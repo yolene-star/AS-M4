@@ -1,6 +1,6 @@
 # AS-M4 主实验收敛计划：UnAV-100 机制验证与 OmniMMI/M4 原任务验证
 
-> 2026-09-19 状态更新：本计划已被 `docs/AS_M4_AUDIO_CAPABILITY_DIMENSION_SPLIT_PLAN_ZH.md` 覆盖。UnAV-100 继续负责时间定位与预算选窗；LLP/AVVP 从历史诊断升级为独立的模态依赖与音频选择性副基准；OmniMMI 继续负责最终问答效用。强制执行“单维度单测试集”，禁止跨数据集混合分母或综合总分。
+> 2026-09-19 状态更新：本计划已被 `docs/AS_M4_AUDIO_CAPABILITY_DIMENSION_SPLIT_PLAN_ZH.md` 覆盖。UnAV-100 继续负责时间定位与预算选窗；LLP/AVVP 从历史诊断升级为独立的模态依赖与音频选择性副基准；OmniMMI 只负责相对原始 M4 的视频理解回归/非劣检查，不再要求问题级模态人工标签。强制执行“单维度单测试集”，禁止跨数据集混合分母或综合总分。
 
 日期：2026-09-10（Asia/Shanghai）
 
