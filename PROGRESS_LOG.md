@@ -5019,3 +5019,9 @@
 - 结果/验证：`5 passed`，真实审计继续为 `PASS_CPU_CONTRACT_DATASET_GATES_CLOSED`。OmniMMI 使用 PT/PA full 和官方 evaluator，只报告 PT/PA 指标 delta、空输出率 delta、配对翻转与后续预注册的非劣结论；`manual_modality_labels_required=false`。89 条人工复核、四条件音频 manifest 和 mismatch 映射退出当前 OmniMMI 主线，不再阻塞视频能力回归。
 - 当前整体进度：UnAV 负责定位/选窗，LLP 负责模态依赖/音频选择性，OmniMMI 只负责确认视频理解没有相对原始 M4 下降。OmniMMI 当前仅缺同输入回归合同、预注册非劣容差和 AS-M4 full PT/PA 预测，不缺人工标签。
 - 下一步：在读取新的 AS-M4 预测前冻结 PT/PA 非劣容差及同输入合同，然后运行小规模 runner smoke；通过后才跑完整 PT/PA 回归。
+- 2026-09-19 — OmniMMI 视频回归定位修正已提交
+
+- 完成操作：提交 OmniMMI 职责修正、计划/合同/审计器/测试与进度记录；未推送远端。
+- 结果/验证：Git commit 为 `4ed9dff`（`refine OmniMMI as video regression benchmark`）；提交不含 checkpoint、媒体、数据集、缓存或运行产物。
+- 当前整体进度：OmniMMI 人工模态标签门禁已从主线正式移除，后续只需建立非劣回归合同并生成同口径 AS-M4 PT/PA 结果。
+- 下一步：冻结非劣容差、checkpoint SHA、prompt/帧采样/解码参数和官方 evaluator 版本，再执行回归 smoke。
