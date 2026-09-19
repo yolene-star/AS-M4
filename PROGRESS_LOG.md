@@ -4931,6 +4931,13 @@
 - 当前整体进度：人工复核入口、回填校验和正式冻结门禁均已就绪；CSV 仍为空白，89 条 final modality 尚未产生，GPU smoke 继续关闭。
 - 下一步：由人工逐条听看并填写 CSV；回填后运行导入器和冻结器，再冻结 mismatch 映射与 CPU contract audit。
 
+- 2026-09-18 — 找回已有音频依赖与事件时间标注资产
+
+- 完成操作：检索本地数据、脚本和 manifest，定位 LLP/AVVP 与 AVE 的统一音画事件标注资产；未修改数据、未启动 GPU、训练或推理。
+- 结果/验证：LLP 统一 manifest 已显式包含 `modality_role`、`audio_required`、`visible_event_present`、`event_label`、`window_start/window_end` 和 split；统计为 52,182 条窗口记录，其中 audio_visual 29,138、audio_only 16,059、visual_only 5,788、background 1,197。AVE `Annotations.txt` 展开为 65,455 条 1 秒窗口，含事件类别/时间边界，但全部是 audio_visual、`audio_required=true`。这正是已有的音频依赖与时间标注资产。
+- 当前整体进度：确认 OmniMMI 的人工模态复核不是唯一可用来源；LLP 可直接作为机制/音频依赖验证集，AVE 可作为同步事件定位集，但二者不是 OmniMMI 原任务的最终问答标签。
+- 下一步：评估将 LLP audio_only/visual_only/audio_visual 作为 UnAV/场景音频机制验证的正式候选，并检查其媒体、split、物理视频污染和现有 checkpoint 复用边界；OmniMMI 四条件最终任务线仍保持独立。
+
 - 2026-09-10 — OmniMMI 显式音频候选媒体前置审计
 
 - 完成操作：新增候选媒体审计脚本和测试，对 51 条 Audio-required/Joint 自动候选对应的本地视频执行文件、视频流、音轨、时长和 SHA 审计；未读取模型预测、未启动 GPU。
@@ -4951,3 +4958,46 @@
 - 结果/验证：40 条涉及 39 个物理视频；文件和视频流全部存在。`ego_63.mp4` 无音轨，对应 `pt:185:8` 已加入四条件合同排除清单；剩余 39 条控制媒体通过前置审计。音频候选的 `ego_34.mp4/pt:60:1` 排除保持不变。
 - 当前整体进度：四条件候选媒体门禁已完成（音频候选 50 条、Visual-only 控制 39 条合格）；正式模态标签和 mismatch 映射仍未冻结，GPU smoke 继续关闭。
 - 下一步：对 89 条合格候选进行人工听看模态复核；完成后冻结 final modality、三类子集 manifest 和四条件展开。
+
+- 2026-09-18 — 当前主要任务复核
+
+- 完成操作：对照权威主计划、LLP/AVE 标注报告和最新进度日志，确认 LLP/AVVP 是已发现但尚未纳入主计划授权的机制候选资源；未启动 GPU、训练或推理。
+- 结果/验证：当前主线仍为 UnAV-100 机制验证与 OmniMMI/M4 原任务验证。UnAV 需要统一六策略 evaluator 并补 Temporal/learned selector 缺失项；OmniMMI 需要完成人工模态复核、四条件 manifest 和 mismatch 映射。LLP/AVVP 只能作为待决策的机制增强候选，不能自动替代 UnAV 或 OmniMMI。
+- 当前整体进度：最近的可执行阻塞仍是 OmniMMI 89 条候选的人工标签；所有 GPU smoke、150-step 和正式训练继续关闭。
+- 下一步：先由用户决定是否把 LLP/AVVP 正式纳入 UnAV 机制线；在计划未更新前，继续按原主计划推进，不混用 LLP 结果解释 OmniMMI 最终任务。
+- 2026-09-18 — 汇总当前实验进展
+
+- 完成操作：检查最新进度日志、实验产物、checkpoint 时间戳和运行进程；未启动 GPU、训练或推理。
+- 结果/验证：确认当前无训练/推理进程；主线仍冻结在 `MAINLINE_FROZEN_UNAV100_PLUS_OMNIMMI_M4`。UnAV-100 已有 Random/Energy/Eventness/Oracle 的 K=4/K=8 机制证据，Temporal 与 learned selector 缺正式同口径结果；OmniMMI 已完成 89 条候选人工复核工作包和 fail-closed 门禁，但 CSV 仍未回填，正式模态标签、三类 manifest 和 mismatch 映射尚未冻结。LLP/AVE 已找回作为候选机制资源，但尚未纳入主计划授权。
+- 当前整体进度：GPU smoke、150-step、正式大规模训练和新增结构均保持关闭；现有 12k/32k no-freeze 基线 checkpoint 仍保留，可用于后续回退或对照。
+- 下一步：先完成 OmniMMI 89 条人工听看复核并运行冻结器/CPU contract audit；另需决定是否把 LLP/AVVP 正式纳入 UnAV 机制线，再补齐 UnAV Temporal/learned selector 统一 evaluator。
+- 2026-09-19 — 当前科研现状流程图生成待选择 Figma 计划
+
+- 完成操作：依据当前主线整理简要流程图内容，覆盖已完成的 12k/32k 基线、UnAV-100 与 OmniMMI 两条主线、LLP/AVE 候选资源、当前阻塞和后续实验解锁条件；未启动 GPU、训练或推理。
+- 结果/验证：Figma FigJam 生成器要求先在界面组件中选择所属团队或组织计划，因此本轮尚未创建图文件；流程图结构和 Mermaid 内容已准备完成。
+- 当前整体进度：科研状态未变化；UnAV-100 仍缺 Temporal/learned selector 同口径结果，OmniMMI 仍阻塞于 89 条人工复核及正式 manifest 冻结。
+- 下一步：用户在 Figma 组件中选择计划后，立即生成可编辑 FigJam 流程图。
+- 2026-09-19 — 改用对话内 Mermaid 绘制科研现状流程图
+
+- 完成操作：放弃需要团队计划选择的 Figma 路线，改用对话内 Mermaid 组织当前科研流程；内容涵盖基线、UnAV-100、OmniMMI、LLP/AVE 候选、阻塞点及实验解锁条件。未启动 GPU、训练或推理。
+- 结果/验证：流程图采用静态节点与有向边表达，绿色为已完成、黄色为待完成、红色为当前关闭、蓝色为下一步，避免引入未授权实验结论。
+- 当前整体进度：实验状态未变化；主线仍处于数据与评测合同冻结阶段。
+- 下一步：完成 OmniMMI 89 条人工复核，并决定 LLP/AVVP 是否纳入机制线，再补齐 UnAV-100 的统一评测缺口。
+- 2026-09-19 — 评估 LLP/AVVP 是否可替代 UnAV-100
+
+- 完成操作：对照 UnAV-100 六策略证据清单、LLP/AVVP 统一窗口 manifest、LLP S1 结果与失败分析；未启动 GPU、训练或推理。
+- 结果/验证：结论为不能完整替代。LLP/AVVP 的逐窗口 audio-only/visual-only/audio-visual 标注适合替代或增强“模态依赖/音画可见性”验证，但其 10 秒短片、25 类、现有弱标签 prototype 污染与 S1 semantic margin 失败，不能等价覆盖 UnAV-100 的长视频稀疏事件定位、K 窗口预算选择、六策略统一矩阵和已冻结统计基线。LLP pilot 还存在特征/效果使用权限、16 kHz waveform 与 visual-only 规模门禁。
+- 当前整体进度：建议保持 UnAV-100 为 selector/时间定位主基准，把 LLP/AVVP 纳入互补的模态选择性副基准；不使用 LLP 结果替代 UnAV 已有或缺失的 Temporal/learned selector 证据。
+- 下一步：若用户决定纳入 LLP/AVVP，先更新主计划并冻结其独立任务合同、split、媒体权限和统一 evaluator；OmniMMI 原任务验证仍保持独立。
+- 2026-09-19 — 确定 UnAV-100 与 LLP/AVVP 按测评维度分工
+
+- 完成操作：根据用户提出的“组合测评、单维度单测试集”原则，整理互斥的评测职责划分；未启动 GPU、训练或推理。
+- 结果/验证：建议 UnAV-100 唯一承担时间定位与预算选窗维度，LLP/AVVP 唯一承担模态依赖与音频选择性维度；两者不在同一指标内混样本、不合并分母、不平均为一个总分。OmniMMI 如保留，则独立承担最终问答效用维度。
+- 当前整体进度：该划分能同时利用 UnAV 的长视频时间边界与六策略冻结资产，以及 LLP 的 audio-only/visual-only/audio-visual 逐窗口标注，同时避免跨数据集口径混用。
+- 下一步：将分工写入权威主计划，并分别冻结 UnAV selector evaluator 与 LLP modality evaluator 的指标、split、媒体和 checkpoint 合同；LLP 需先解决使用权限、16 kHz waveform 及现有 S1 evaluator 失败问题。
+- 2026-09-19 — 多基准分维度测评计划落地并完成真实 CPU 合同审计
+
+- 完成操作：新增中文权威计划 `docs/AS_M4_AUDIO_CAPABILITY_DIMENSION_SPLIT_PLAN_ZH.md`，覆盖旧主计划中“LLP 只作历史诊断”的决定；新增机器可读合同、fail-closed 审计器和 5 项定向测试。使用 `M4` Conda 环境确认解释器为 `/home/yjm/miniconda3/envs/M4/bin/python`，运行语法检查、pytest 和真实统一 manifest 审计；未启动 GPU、训练或 7B 推理。
+- 结果/验证：定向测试 `5 passed`；真实审计状态 `PASS_CPU_CONTRACT_DATASET_GATES_CLOSED`。合同冻结 5 个互斥测评维度、21 个唯一指标，禁止跨数据集混样本/分母/总分。LLP 官方 validation 在源 manifest 中显式映射为 `val`，共 649 个物理视频、18,280 个窗口：audio-only 5,991、visual-only 1,832、audio-visual 10,044、background 413。首次审计因错误假设源 split 字面值为 `validation` 而 fail-closed，确认实际字段后以显式 `validation -> val` 映射修正并重新通过，未放宽数据边界。
+- 当前整体进度：UnAV-100 状态为 `READY_PARTIAL_MATRIX`，唯一承担时间定位与预算选窗；LLP/AVVP 状态为 `BLOCKED_EVALUATOR_RECONSTRUCTION`，唯一承担模态依赖与音频选择性；OmniMMI 状态为 `PENDING_HUMAN_MODALITY_REVIEW`，唯一承担最终问答效用。GPU smoke、150-step 和正式训练继续关闭。
+- 下一步：为 LLP 冻结媒体/效果使用权限和 16 kHz mono waveform，再实现新的四条件 modality evaluator；同时补 UnAV Temporal/learned selector 同口径结果，并完成 OmniMMI 89 条人工复核。任何一条线不得用另一数据集替代其失败或缺失证据。
