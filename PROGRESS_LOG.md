@@ -5055,3 +5055,9 @@
 - 结果/验证：相关测试最终 `10 passed`；真实 GPU smoke 证据保留在 `gpu_role_stratified_20260920/run`，音频/视觉各 1 组、14 条 NLL、权重冻结 SHA 前后一致。审计明确 `pipeline_pass=true`、`selectivity_evidence_pass=false`，audio-only 正例不足且 correct 音频不优于 mismatch/video-only；GPU 授权已关闭。
 - 当前整体进度：LLP 从“没有真实 runner”推进到“真实模型链路通过但科学选择性门禁未通过”；OmniMMI 回退 smoke、UnAV 四策略 CPU 重算仍保持通过。
 - 下一步：针对 LLP 选择性失败做离线诊断（提示模板、窗口对齐、音频编码/融合和 checkpoint 路径），不直接扩大样本、不训练、不宣称模型音频能力提升。
+- 2026-09-20 — LLP runner阶段里程碑已提交
+
+- 完成操作：提交 LLP modality teacher-forced runner、NLL 审计器、合同修正、CPU tests 和进度记录；未推送远端。
+- 结果/验证：Git commit 为 `4bd23b9`（`add LLP modality teacher forced smoke runner`），不含媒体、checkpoint、缓存或 GPU 运行产物。
+- 当前整体进度：LLP 真实链路代码已形成可复现里程碑，但当前 smoke 的科学选择性门禁仍失败，继续保持 full validation、训练和结构扩展关闭。
+- 下一步：仅做离线失败分析与 runner/提示/对齐诊断；若需扩大 LLP smoke，必须先有新的合同和用户明确授权。
