@@ -148,7 +148,17 @@ def audit_contract(contract: dict[str, Any]) -> dict[str, Any]:
 
     authorization = contract.get("authorization", {})
     require(authorization.get("cpu_contract_audit") is True, "CPU 合同审计未授权")
-    for key in ("gpu_smoke", "gpu_150step", "formal_training"):
+    require(authorization.get("gpu_smoke") is False, "完成后必须重新关闭 GPU smoke")
+    require(
+        authorization.get("completed_gpu_smoke")
+        == {
+            "scope": ["OmniMMI:PT:limit2:original_m4", "OmniMMI:PT:limit2:as_m4_behavior_off"],
+            "status": "PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK",
+            "evidence": "intersuit/harness/artifacts/omnimmi_video_regression_v1/pt_limit2_20260919/pair_audit.json",
+        },
+        "已完成 GPU smoke 证据未精确冻结",
+    )
+    for key in ("gpu_150step", "formal_training"):
         require(authorization.get(key) is False, f"当前阶段必须关闭：{key}")
 
     return {
@@ -166,6 +176,7 @@ def audit_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "dataset_gate_status": {dataset: gate["status"] for dataset, gate in gates.items()},
         "cross_dataset_composite_score": False,
         "gpu_authorized": False,
+        "completed_gpu_smoke": authorization["completed_gpu_smoke"],
         "training_authorized": False,
     }
 

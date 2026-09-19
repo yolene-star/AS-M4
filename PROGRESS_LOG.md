@@ -5025,3 +5025,21 @@
 - 结果/验证：Git commit 为 `4ed9dff`（`refine OmniMMI as video regression benchmark`）；提交不含 checkpoint、媒体、数据集、缓存或运行产物。
 - 当前整体进度：OmniMMI 人工模态标签门禁已从主线正式移除，后续只需建立非劣回归合同并生成同口径 AS-M4 PT/PA 结果。
 - 下一步：冻结非劣容差、checkpoint SHA、prompt/帧采样/解码参数和官方 evaluator 版本，再执行回归 smoke。
+- 2026-09-19 — 多基准测试 readiness 只读检查
+
+- 完成操作：读取最新合同审计，检查活动训练/推理进程、GPU 查询、磁盘和工作区状态；未启动测试、GPU、训练或推理。
+- 结果/验证：当前无活动训练/推理进程，工作区干净，项目盘可用约 732 GB；CPU 合同保持 `PASS_CPU_CONTRACT_DATASET_GATES_CLOSED`。GPU 查询失败，`nvidia-smi` 报无法与 NVIDIA driver 通信，因此当前不能启动 GPU smoke，且未重复调用 `nvidia-smi`。UnAV 为 `READY_PARTIAL_MATRIX`，LLP 为 `BLOCKED_EVALUATOR_RECONSTRUCTION`，OmniMMI 为 `READY_BASELINE_REGRESSION_CONTRACT_PENDING`。
+- 当前整体进度：已经进入测试准备阶段，但执行顺序应为 CPU evaluator/preflight、极小 smoke、完整冻结评测，不能直接跳到 full test。
+- 下一步：先实现并运行 UnAV 统一 evaluator CPU smoke、LLP modality evaluator CPU/mock 和 OmniMMI 非劣合同；同时由宿主机恢复/确认 NVIDIA driver 后，再显式选择单卡执行 GPU smoke。
+- 2026-09-19 — 宿主机 GPU 与 M4 单卡 CUDA readiness 复核通过
+
+- 完成操作：根据用户提供的宿主机 `nvidia-smi` 输出，使用沙箱外只读查询复核 5 张卡状态；随后显式设置 `CUDA_VISIBLE_DEVICES=2`，在 `M4` Conda 环境执行单元素 CUDA 初始化测试。未加载模型、未运行推理或训练。
+- 结果/验证：GPU 0–4 均约 11 MiB 占用、49,140 MiB 总显存、450W power limit；物理 GPU 2 映射为逻辑 `cuda:0`，`torch.cuda.is_available()=True`、设备数 1、设备名 RTX 4090、CUDA tensor 读回成功。此前 `nvidia-smi` 失败确认是 Codex 沙箱访问限制，不是宿主机驱动故障。
+- 当前整体进度：单卡 GPU smoke 的硬件与 M4 环境门禁已恢复；仍需先完成各 evaluator 的 CPU/mock 与冻结测试清单，再按物理 GPU 2 启动极小 smoke。
+- 下一步：优先执行不加载 7B 的 UnAV 统一 evaluator CPU smoke 和 LLP modality evaluator 合同；随后在 GPU 2 上运行预注册的小样本模型 smoke。
+- 2026-09-19 — UnAV/LLP CPU smoke 与 OmniMMI PT 配对 GPU smoke 完成
+
+- 完成操作：新增 UnAV 统一 evaluator，从 K=4/K=8 冻结逐样本资产重算 Random/Energy/Eventness/Oracle；新增 LLP modality evaluator 合同、32 组/224 条 manifest 构建器及离线预测审计器，并运行 synthetic contract mock；新增 OmniMMI 视频回归合同与配对 smoke 审计器。在物理 GPU 2 上用同一 `diagnose_omnimmi_pt.py`、32 帧、temperature=1.0、beta=0.2 分别运行原始 M4 与 AS-M4 behavior-off，各 2 条 PT。所有 Python 操作均使用 `M4` Conda 环境。
+- 结果/验证：UnAV 状态 `PASS_UNAV_UNIFIED_CPU_EXISTING_STRATEGIES`，K=4 Random 五 seed 逐样本重算为 `0.084379`，修正旧文档 `0.084179` 笔误；Temporal/learned selector 仍明确缺失。LLP manifest 为四类各 8 组、共 224 条，mismatch 跨物理视频且 donor 窗口不含目标音频标签，CPU mock 为 `PASS_LLP_MODALITY_CPU_MOCK_ONLY`，不作为模型证据。OmniMMI 配对 smoke 为 `PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK`：2/2 预测一致、2/2 全词表末位 logits 最大绝对差为 0。合计相关定向测试 `23 passed`。
+- 当前整体进度：三条线的测试入口均已形成；OmniMMI behavior-off 小规模严格回退已证实，smoke 授权已重新关闭。完整 PT/PA、LLP 模型效果评测、150-step 和训练继续关闭。
+- 下一步：UnAV 补 Temporal/learned selector；LLP 将当前 manifest 接入真实 M4 runner 后单独申请 32 组以内 GPU smoke；OmniMMI 若扩大，先单独授权完整 behavior-off 与 standard correct-audio PT/PA，并按已冻结的 -1pp 非劣容差评估。

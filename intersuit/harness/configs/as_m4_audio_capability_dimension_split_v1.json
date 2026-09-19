@@ -40,7 +40,7 @@
   ],
   "dataset_gates": {
     "UnAV-100": {
-      "status": "READY_PARTIAL_MATRIX",
+      "status": "CPU_EXISTING_STRATEGIES_PASS_PARTIAL_MATRIX",
       "required_assets": [
         "intersuit/harness/AS_M4_UNAV100_MECHANISM_EVIDENCE_INVENTORY_ZH.md",
         "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_a_k4/summary.json",
@@ -51,26 +51,34 @@
       "missing": ["temporal_schema_compatible_scores", "learned_selector_frozen_evaluation"]
     },
     "LLP/AVVP": {
-      "status": "BLOCKED_EVALUATOR_RECONSTRUCTION",
+      "status": "CPU_MANIFEST_MOCK_PASS_MODEL_SMOKE_CLOSED",
       "manifest": "intersuit/harness/artifacts/audio_visual_event_manifests/unified_audio_visual_manifest.jsonl",
       "manifest_split": "val",
       "required_modalities": ["audio_only", "visual_only", "audio_visual", "background"],
-      "missing": ["effect_use_permission", "audited_16khz_mono_waveforms", "modality_evaluator_v1", "visual_only_visibility_review"]
+      "missing": ["model_runner_integration", "gpu_model_effect_smoke", "full_validation_media"]
     },
     "OmniMMI": {
-      "status": "READY_BASELINE_REGRESSION_CONTRACT_PENDING",
+      "status": "PT_LIMIT2_EXACT_ROLLBACK_PASS_FULL_CLOSED",
       "required_assets": [
         "intersuit/harness/M4_PTPA_BEST_AUDIO_BRANCH_V1_ZH.md",
         "intersuit/harness/configs/as_m4_original_video_only_dev760.json"
       ],
       "manual_modality_labels_required": false,
       "comparison": ["original_m4", "as_m4_behavior_off_video_only"],
-      "missing": ["frozen_same_input_regression_contract", "pre_registered_non_inferiority_margins", "as_m4_full_pt_pa_predictions"]
+      "missing": ["as_m4_full_pt_pa_predictions"]
     }
   },
   "authorization": {
     "cpu_contract_audit": true,
     "gpu_smoke": false,
+    "completed_gpu_smoke": {
+      "scope": [
+        "OmniMMI:PT:limit2:original_m4",
+        "OmniMMI:PT:limit2:as_m4_behavior_off"
+      ],
+      "status": "PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK",
+      "evidence": "intersuit/harness/artifacts/omnimmi_video_regression_v1/pt_limit2_20260919/pair_audit.json"
+    },
     "gpu_150step": false,
     "formal_training": false
   }

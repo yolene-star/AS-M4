@@ -86,7 +86,7 @@ OmniMMI 保持独立，只承担相对原始 M4 的视频理解能力回归检�
 
 - UnAV：冻结小子集验证六策略输入输出、K=4/K=8 和 Random 可复现性；
 - LLP：冻结小子集验证四条件、模态标签、mismatch 冲突、silence 回退和视频聚类统计；
-- OmniMMI：冻结原始 M4 与 AS-M4 的同输入回归合同和非劣容差后，才允许小规模 runner smoke；无需人工模态复核。
+- OmniMMI：物理 GPU 2 上 PT limit=2 的原始 M4 与 AS-M4 behavior-off 配对 smoke 已通过，2/2 预测与 2/2 全词表末位 logits 精确一致；无需人工模态复核。smoke 授权已重新关闭，完整 PT/PA 仍关闭。
 
 ### C. 完整冻结评测
 
@@ -100,10 +100,10 @@ OmniMMI 保持独立，只承担相对原始 M4 的视频理解能力回归检�
 
 ## 7. 当前状态
 
-- UnAV：`READY_PARTIAL_MATRIX`，缺 Temporal 与 learned selector 同口径结果；
-- LLP：`BLOCKED_EVALUATOR_RECONSTRUCTION`，数据标注可用，但权限、waveform 和新 evaluator 门禁未完成；
-- OmniMMI：`READY_BASELINE_REGRESSION_CONTRACT_PENDING`，原始 M4 基线已有，待冻结同输入回归合同和非劣容差；无需新增人工标签；
-- 全局：`CPU_CONTRACT_ONLY`。
+- UnAV：`CPU_EXISTING_STRATEGIES_PASS_PARTIAL_MATRIX`，四个既有策略已逐样本重算，缺 Temporal 与 learned selector 同口径结果；
+- LLP：`CPU_MANIFEST_MOCK_PASS_MODEL_SMOKE_CLOSED`，32 组/224 条 manifest 和 mock evaluator 已通过，缺真实 M4 runner 接线与完整 validation 媒体；
+- OmniMMI：`PT_LIMIT2_EXACT_ROLLBACK_PASS_FULL_CLOSED`，原始 M4 与 AS-M4 behavior-off 两条配对 smoke 的预测及 logits 精确一致；无需新增人工标签；
+- 全局：`OMNIMMI_PT_LIMIT2_SMOKE_PASS_FULL_CLOSED`；150-step、训练和完整 PT/PA 继续关闭。
 
 ## 8. 人话结论
 

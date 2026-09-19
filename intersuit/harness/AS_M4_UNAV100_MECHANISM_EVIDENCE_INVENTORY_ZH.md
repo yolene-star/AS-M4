@@ -44,7 +44,7 @@ Energy、Eventness、Oracle 相对 Random 的物理视频 cluster bootstrap 95% 
 
 | 策略 | Event Coverage | 相对 Random |
 | --- | ---: | ---: |
-| Random mean | 0.084179 | — |
+| Random mean | 0.084379 | — |
 | Energy | 0.202441 | +11.8062pp |
 | Eventness | 0.202994 | +11.8615pp |
 | Oracle | 0.967883 | +88.3504pp |

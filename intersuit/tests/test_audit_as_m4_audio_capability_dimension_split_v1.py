@@ -53,7 +53,7 @@ def valid_contract(tmp_path: Path) -> dict:
             "LLP/AVVP": {"status": "BLOCKED_EVALUATOR_RECONSTRUCTION", "manifest": str(manifest), "manifest_split": "val", "required_modalities": ["audio_only", "visual_only", "audio_visual", "background"]},
             "OmniMMI": {"status": "READY_BASELINE_REGRESSION_CONTRACT_PENDING", "required_assets": assets[5:], "manual_modality_labels_required": False, "comparison": ["original_m4", "as_m4_behavior_off_video_only"]},
         },
-        "authorization": {"cpu_contract_audit": True, "gpu_smoke": False, "gpu_150step": False, "formal_training": False},
+        "authorization": {"cpu_contract_audit": True, "gpu_smoke": False, "completed_gpu_smoke": {"scope": ["OmniMMI:PT:limit2:original_m4", "OmniMMI:PT:limit2:as_m4_behavior_off"], "status": "PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK", "evidence": "intersuit/harness/artifacts/omnimmi_video_regression_v1/pt_limit2_20260919/pair_audit.json"}, "gpu_150step": False, "formal_training": False},
     }
 
 

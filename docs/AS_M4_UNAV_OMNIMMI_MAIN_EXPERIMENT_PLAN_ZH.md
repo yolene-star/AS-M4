@@ -48,7 +48,7 @@ MUSIC-AVQA、AVE generation、AVUT 和 LLP 只保留为历史诊断证据，不�
 - K=8 Event Coverage：Random `0.178958`、Energy `0.298830`、Eventness `0.319828`、Oracle `0.999802`；
 - K=8 Positive-window Recall：Energy `0.281106`、Eventness `0.298202`、Oracle `0.998846`；
 - K=8 相对 Random：Energy `+11.9871pp`、Eventness `+14.0870pp`、Oracle `+82.0843pp`，三者 cluster bootstrap 95% CI 下界均大于 0；
-- K=4 Event Coverage：Random `0.084179`、Energy `0.202441`、Eventness `0.202994`、Oracle `0.967883`；
+- K=4 Event Coverage：Random `0.084379`、Energy `0.202441`、Eventness `0.202994`、Oracle `0.967883`；
 - K=4/K=8 已双重复现，未加载 M4、未更新模型参数、未访问 official test；
 - 冻结 BEATs 全量特征提取已通过：7,941 条记录、334,769 个窗口，train/validation 为 6,224/1,717；
 - 独立 projector 训练曾取得 validation window accuracy `0.416953`，但它不等于 selector 定位结果，也不作为当前主矩阵的 learned selector 成绩。

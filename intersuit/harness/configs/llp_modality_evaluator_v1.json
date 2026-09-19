@@ -1,0 +1,40 @@
+{
+  "contract_id": "llp_modality_evaluator_v1",
+  "status": "CPU_MANIFEST_SMOKE_AUTHORIZED_GPU_EFFECT_CLOSED",
+  "dataset": "LLP/AVVP",
+  "canonical_split": "validation",
+  "source_manifest_split": "val",
+  "manual_labels_required": false,
+  "pilot_scope": {
+    "media_manifest": "intersuit/datasets/LLP_PILOT_MEDIA_V2/final_media_v2/llp_pilot150_media_qualified_effect_locked.jsonl",
+    "unified_event_manifest": "intersuit/harness/artifacts/audio_visual_event_manifests/unified_audio_visual_manifest.jsonl",
+    "audio_16k_root": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/audio_16k_mono",
+    "official_validation_media": 50,
+    "records_per_role": 8,
+    "selection_seed": 20260919
+  },
+  "roles": ["audio_only", "visual_only", "audio_visual", "background"],
+  "queries": {
+    "audio_presence": {
+      "conditions": ["correct_audio", "mismatch_audio", "video_only", "silence"],
+      "target_field": "audio_required"
+    },
+    "visual_presence": {
+      "conditions": ["video_only", "correct_audio", "mismatch_audio"],
+      "target_field": "visible_event_present"
+    }
+  },
+  "mismatch_rules": {
+    "different_physical_media": true,
+    "target_label_absent_from_donor_audio_window": true,
+    "donor_audio_window_nonempty": true,
+    "same_split": true
+  },
+  "authorization": {
+    "cpu_manifest_build": true,
+    "cpu_mock_evaluator": true,
+    "gpu_model_effect_eval": false,
+    "formal_full_validation": false,
+    "training": false
+  }
+}

@@ -116,7 +116,7 @@ Coverage 最高者，但当前结果不授权在下游阶段事后删除 Energy 
 
 | 策略 | Event Coverage | 相对 Random |
 | --- | ---: | ---: |
-| Random mean | 0.084179 | — |
+| Random mean | 0.084379 | — |
 | Uniform | 0.115177 | +3.0798pp |
 | Energy | 0.202441 | +11.8062pp |
 | Onset | 0.199674 | +11.5295pp |
