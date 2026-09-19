@@ -149,6 +149,7 @@ def audit_contract(contract: dict[str, Any]) -> dict[str, Any]:
     authorization = contract.get("authorization", {})
     require(authorization.get("cpu_contract_audit") is True, "CPU 合同审计未授权")
     require(authorization.get("gpu_smoke") is False, "完成后必须重新关闭 GPU smoke")
+    require(authorization.get("gpu_smoke_scope") == ["LLP:teacher_forced:role_stratified2:physical_gpu2"], "LLP smoke 范围未冻结")
     require(
         authorization.get("completed_gpu_smoke")
         == {

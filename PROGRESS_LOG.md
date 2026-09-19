@@ -5043,3 +5043,15 @@
 - 结果/验证：UnAV 状态 `PASS_UNAV_UNIFIED_CPU_EXISTING_STRATEGIES`，K=4 Random 五 seed 逐样本重算为 `0.084379`，修正旧文档 `0.084179` 笔误；Temporal/learned selector 仍明确缺失。LLP manifest 为四类各 8 组、共 224 条，mismatch 跨物理视频且 donor 窗口不含目标音频标签，CPU mock 为 `PASS_LLP_MODALITY_CPU_MOCK_ONLY`，不作为模型证据。OmniMMI 配对 smoke 为 `PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK`：2/2 预测一致、2/2 全词表末位 logits 最大绝对差为 0。合计相关定向测试 `23 passed`。
 - 当前整体进度：三条线的测试入口均已形成；OmniMMI behavior-off 小规模严格回退已证实，smoke 授权已重新关闭。完整 PT/PA、LLP 模型效果评测、150-step 和训练继续关闭。
 - 下一步：UnAV 补 Temporal/learned selector；LLP 将当前 manifest 接入真实 M4 runner 后单独申请 32 组以内 GPU smoke；OmniMMI 若扩大，先单独授权完整 behavior-off 与 standard correct-audio PT/PA，并按已冻结的 -1pp 非劣容差评估。
+- 2026-09-20 — LLP 真实 M4 runner 角色分层 smoke 完成但选择性未通过
+
+- 完成操作：新增 LLP 真实 M4 teacher-forced runner，支持冻结 manifest、0.5 秒 hop、外部 mismatch 音频窗口、目标时间戳重映射和权重漂移审计；先完成 CPU dry-run，再在物理 GPU 2 上运行 audio-only 与 visual-only 各 1 组、共 14 条 NLL 条件。首次输出目录保护、角色组数保护和整数秒窗口保护均按预期 fail-closed，修正后重试；未扩大到完整 validation。
+- 结果/验证：CPU dry-run `PASS_LLP_MODALITY_REAL_RUNNER_CPU_DRY_RUN`；GPU runner `PASS_LLP_MODALITY_TEACHER_FORCED_GPU_SMOKE`，14/14 NLL 有限，frozen runtime SHA 前后一致，峰值显存约 23.7 GB，运行约 10.0 秒。NLL 审计为 `PASS_LLP_MODALITY_PIPELINE_ONLY_SELECTIVITY_NOT_PROVEN`：静音与 video-only 精确一致，但 audio-only 正例组的 correct−mismatch NLL 为 `-0.000080`、correct−video-only NLL 为 `-0.062445`，不能宣称音频选择性通过。GPU 授权已关闭；postflight 显存回到 11 MiB，未发现新的 NVRM/Xid/AER/GPU fallen/hung task 记录。
+- 当前整体进度：OmniMMI PT limit2 behavior-off 回退仍通过；UnAV 既有四策略 CPU 重算通过；LLP 已从“未接 runner”推进到“真实链路可运行但科学门禁失败”。完整 PT/PA、LLP full validation、Temporal/learned selector、150-step 和训练继续关闭。
+- 下一步：先分析 LLP audio-only 选择性失败是音频窗口、提示模板、模型音频接线还是 checkpoint 选择性问题；只能在独立 CPU/小样本诊断后重新申请更大 smoke，不能直接扩大数据或训练。
+- 2026-09-20 — LLP runner/审计器阶段收口
+
+- 完成操作：修正 LLP runner 对官方 0.5 秒 hop 的窗口索引，补齐角色分层 smoke 选择、teacher-forced NLL 审计器和对应 CPU tests；未扩大到 full validation、训练或新模型结构。
+- 结果/验证：相关测试最终 `10 passed`；真实 GPU smoke 证据保留在 `gpu_role_stratified_20260920/run`，音频/视觉各 1 组、14 条 NLL、权重冻结 SHA 前后一致。审计明确 `pipeline_pass=true`、`selectivity_evidence_pass=false`，audio-only 正例不足且 correct 音频不优于 mismatch/video-only；GPU 授权已关闭。
+- 当前整体进度：LLP 从“没有真实 runner”推进到“真实模型链路通过但科学选择性门禁未通过”；OmniMMI 回退 smoke、UnAV 四策略 CPU 重算仍保持通过。
+- 下一步：针对 LLP 选择性失败做离线诊断（提示模板、窗口对齐、音频编码/融合和 checkpoint 路径），不直接扩大样本、不训练、不宣称模型音频能力提升。

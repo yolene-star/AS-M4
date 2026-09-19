@@ -51,11 +51,11 @@
       "missing": ["temporal_schema_compatible_scores", "learned_selector_frozen_evaluation"]
     },
     "LLP/AVVP": {
-      "status": "CPU_MANIFEST_MOCK_PASS_MODEL_SMOKE_CLOSED",
+      "status": "PIPELINE_PASS_SELECTIVITY_NOT_PROVEN_FULL_CLOSED",
       "manifest": "intersuit/harness/artifacts/audio_visual_event_manifests/unified_audio_visual_manifest.jsonl",
       "manifest_split": "val",
       "required_modalities": ["audio_only", "visual_only", "audio_visual", "background"],
-      "missing": ["model_runner_integration", "gpu_model_effect_smoke", "full_validation_media"]
+      "missing": ["larger_role_stratified_smoke", "full_validation_media", "selectivity_pass"]
     },
     "OmniMMI": {
       "status": "PT_LIMIT2_EXACT_ROLLBACK_PASS_FULL_CLOSED",
@@ -71,6 +71,7 @@
   "authorization": {
     "cpu_contract_audit": true,
     "gpu_smoke": false,
+    "gpu_smoke_scope": ["LLP:teacher_forced:role_stratified2:physical_gpu2"],
     "completed_gpu_smoke": {
       "scope": [
         "OmniMMI:PT:limit2:original_m4",

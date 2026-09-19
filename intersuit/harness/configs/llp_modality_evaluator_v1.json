@@ -1,6 +1,6 @@
 {
   "contract_id": "llp_modality_evaluator_v1",
-  "status": "CPU_MANIFEST_SMOKE_AUTHORIZED_GPU_EFFECT_CLOSED",
+  "status": "PIPELINE_PASS_SELECTIVITY_NOT_PROVEN_FULL_CLOSED",
   "dataset": "LLP/AVVP",
   "canonical_split": "validation",
   "source_manifest_split": "val",
@@ -30,10 +30,26 @@
     "donor_audio_window_nonempty": true,
     "same_split": true
   },
+  "model_contract": {
+    "checkpoint": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "device": "cuda:0",
+    "physical_gpu": 2,
+    "max_video_frames": 16,
+    "audio_window_sec": 1.0,
+    "audio_hop_sec": 0.5,
+    "teacher_forced_only": true,
+    "mismatch_timestamps_remapped_to_target": true
+  },
   "authorization": {
     "cpu_manifest_build": true,
     "cpu_mock_evaluator": true,
+    "cpu_real_runner_dry_run": true,
     "gpu_model_effect_eval": false,
+    "completed_gpu_smoke": {
+      "scope": {"physical_gpu": 2, "logical_device": "cuda:0", "limit_groups": 2, "roles": ["audio_only", "visual_only"]},
+      "status": "PASS_LLP_MODALITY_PIPELINE_ONLY_SELECTIVITY_NOT_PROVEN",
+      "evidence": "intersuit/harness/artifacts/llp_modality_evaluator_v1/gpu_role_stratified_20260920/run/nll_audit.json"
+    },
     "formal_full_validation": false,
     "training": false
   }
