@@ -5001,3 +5001,9 @@
 - 结果/验证：定向测试 `5 passed`；真实审计状态 `PASS_CPU_CONTRACT_DATASET_GATES_CLOSED`。合同冻结 5 个互斥测评维度、21 个唯一指标，禁止跨数据集混样本/分母/总分。LLP 官方 validation 在源 manifest 中显式映射为 `val`，共 649 个物理视频、18,280 个窗口：audio-only 5,991、visual-only 1,832、audio-visual 10,044、background 413。首次审计因错误假设源 split 字面值为 `validation` 而 fail-closed，确认实际字段后以显式 `validation -> val` 映射修正并重新通过，未放宽数据边界。
 - 当前整体进度：UnAV-100 状态为 `READY_PARTIAL_MATRIX`，唯一承担时间定位与预算选窗；LLP/AVVP 状态为 `BLOCKED_EVALUATOR_RECONSTRUCTION`，唯一承担模态依赖与音频选择性；OmniMMI 状态为 `PENDING_HUMAN_MODALITY_REVIEW`，唯一承担最终问答效用。GPU smoke、150-step 和正式训练继续关闭。
 - 下一步：为 LLP 冻结媒体/效果使用权限和 16 kHz mono waveform，再实现新的四条件 modality evaluator；同时补 UnAV Temporal/learned selector 同口径结果，并完成 OmniMMI 89 条人工复核。任何一条线不得用另一数据集替代其失败或缺失证据。
+- 2026-09-19 — 多基准分维度计划里程碑已提交
+
+- 完成操作：提交权威计划、旧计划状态覆盖、机器可读合同、CPU 审计器、定向测试和进度记录；未推送远端。
+- 结果/验证：Git commit 为 `260f449`（`plan split audio capability evaluation by dataset`）；提交仅包含 6 个代码/文档/配置文件，未包含 checkpoint、权重、媒体、数据集、缓存或训练日志。
+- 当前整体进度：单维度单测试集设计已形成可复现代码里程碑；真实 CPU 合同通过，但所有数据门禁状态保持不变。
+- 下一步：从 LLP/AVVP 的媒体权限、16 kHz waveform 和 modality evaluator 重建开始推进，之后再申请独立的小规模 GPU smoke。
