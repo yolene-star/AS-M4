@@ -5097,3 +5097,9 @@
 - 结果/验证：首次全量 validation 运行覆盖 1717 视频/4070 事件，因与主矩阵分母不一致未作比较；随后按冻结 allowlist 收缩到 335 视频/443 samples。Temporal K=4 Event Coverage/Window Hit/Positive Recall/best tIoU 为 `0.357103/0.654628/0.321825/0.242515`，Oracle headroom recovery `0.308684`；K=8 为 `0.494080/0.785553/0.461331/0.313623`，headroom recovery `0.383900`。Temporal 明显优于 Eventness K=4 `0.202994`、K=8 `0.319828`，但仍低于 Oracle `0.967883/0.999802`。
 - 当前整体进度：导师建议的低成本上界矩阵已完成五个核心策略：Random、Energy、Eventness、Temporal、Oracle；learned selector 仍未授权/未评估。结果只证明定位机制，不证明冻结 M4 下游收益。
 - 下一步：不立即训练 learned selector；先构造冻结 M4 的 All/Random/Eventness/Temporal/Oracle 小规模下游传递对照。只有 Oracle 在下游 NLL/答案上明显优于 Random/All，才继续 question-conditioned selector 与 Semantic Contrast 重构。
+- 2026-09-20 — UnAV Temporal Top-K 里程碑已提交
+
+- 完成操作：提交 Temporal scorer 同 schema evaluator、统一五策略结果接线、主合同状态和进度记录；未推送远端。
+- 结果/验证：Git commit 为 `b7d4b86`（`evaluate UnAV temporal top-k selector`）；提交不含 checkpoint、媒体、缓存或运行产物。
+- 当前整体进度：低成本 selector 定位矩阵已完成 Random/Energy/Eventness/Temporal/Oracle，Temporal 显著优于现有规则基线；learned selector 与冻结 M4 下游传递验证仍未完成。
+- 下一步：构建冻结 M4 的 All/Random/Eventness/Temporal/Oracle 小规模下游对照，优先验证 Oracle 是否真正改善 NLL/答案。
