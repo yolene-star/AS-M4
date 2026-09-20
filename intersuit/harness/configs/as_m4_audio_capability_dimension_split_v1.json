@@ -40,7 +40,7 @@
   ],
   "dataset_gates": {
     "UnAV-100": {
-      "status": "CPU_EXISTING_STRATEGIES_PASS_PARTIAL_MATRIX",
+      "status": "CPU_FIVE_STRATEGIES_PASS_LEARNED_MISSING",
       "required_assets": [
         "intersuit/harness/AS_M4_UNAV100_MECHANISM_EVIDENCE_INVENTORY_ZH.md",
         "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_a_k4/summary.json",
@@ -48,7 +48,7 @@
         "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_b_k4/summary.json",
         "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_b_k8/summary.json"
       ],
-      "missing": ["temporal_schema_compatible_scores", "learned_selector_frozen_evaluation"]
+      "missing": ["learned_selector_frozen_evaluation", "frozen_m4_downstream_selector_transfer"]
     },
     "LLP/AVVP": {
       "status": "PIPELINE_PASS_SELECTIVITY_NOT_PROVEN_FULL_CLOSED",

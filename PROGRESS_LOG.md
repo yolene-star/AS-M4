@@ -5061,3 +5061,39 @@
 - 结果/验证：Git commit 为 `4bd23b9`（`add LLP modality teacher forced smoke runner`），不含媒体、checkpoint、缓存或 GPU 运行产物。
 - 当前整体进度：LLP 真实链路代码已形成可复现里程碑，但当前 smoke 的科学选择性门禁仍失败，继续保持 full validation、训练和结构扩展关闭。
 - 下一步：仅做离线失败分析与 runner/提示/对齐诊断；若需扩大 LLP smoke，必须先有新的合同和用户明确授权。
+- 2026-09-20 — 简要汇总当前主要问题
+
+- 完成操作：根据最新 UnAV、LLP 和 OmniMMI smoke 结果汇总当前阻塞；未启动新训练或评测。
+- 结果/验证：主要问题收敛为 LLP audio-only 选择性未通过、UnAV Temporal/learned selector 证据缺失、OmniMMI 尚未完成 full PT/PA 回归；GPU/模型链路本身可运行。
+- 当前整体进度：继续保持 full validation、150-step 和训练关闭。
+- 下一步：先做 LLP 选择性失败离线诊断，再决定是否重新申请更大 smoke；不直接扩大样本或训练。
+- 2026-09-20 — 评估是否扩大 LLP 测试规模
+
+- 完成操作：根据 LLP audio-only/visual-only 各 1 组的 teacher-forced smoke 结果，评估继续扩大数据的必要性；未启动新 GPU、训练或 full validation。
+- 结果/验证：当前样本量太小，不能据此下“模型完全不会用音频”的结论；但 correct audio 未优于 mismatch/video-only，说明在扩大前必须先做窗口对齐、提示模板、音频融合和 checkpoint 路径诊断。建议只做小规模分层复测，不立即扩大到 649 个 validation 视频。
+- 当前整体进度：LLP 扩大测试保持关闭；现有 GPU smoke 结果只作为 pipeline/失败定位证据。
+- 下一步：若诊断确认输入和 runner 无误，再授权 audio-only、visual-only、audio-visual 各 4–8 组复测；只有选择性方向稳定后才考虑 20–30 组或完整 validation。
+- 2026-09-20 — LLP 选择性失败的离线窗口诊断完成
+
+- 完成操作：对 32 组 LLP smoke manifest 的 correct/mismatch 音频按目标窗口重采样读取，检查 16 kHz 波形长度、0.5 秒 hop 索引和窗口 RMS；未启动新模型/GPU。
+- 结果/验证：32 组音频文件均为 160,000 samples（10 秒）；当前选择的 audio-only 组 `OqoCNCPb1Fg_60_70` 目标窗口 correct RMS `0.19455`、mismatch RMS `0.04884`，说明该组不是“correct 音频为空”。但现有 yes/no teacher-forced prompt 的绝对 NLL 约 5.2，且 correct 未优于 video-only，提示问题更可能在任务提示/模型未针对该问法训练，或音频融合影响未传到目标 logits，而非简单媒体缺失。
+- 当前整体进度：按三级扩展原则暂不扩大 LLP；先完成 runner diagnostics（记录 audio gate、delta-to-video ratio、融合窗口数）和 prompt/目标形式对照。
+- 下一步：在同一 1–2 个已审计 audio-only 组上做无音频、正确音频、错配音频的融合诊断和更自然的事件标签目标对照；通过后再申请 audio-only/visual-only/audio-visual 各 4–8 组复测。
+- 2026-09-20 — 解读导师关于 Dynamic Window Selector 的下一步建议
+
+- 完成操作：将导师意见拆解为“先做低成本、可证伪 selector 诊断，再决定是否接入/训练”的两阶段决策树，并与当前 UnAV-100 证据对照；未启动新 GPU、训练或正式评测。
+- 结果/验证：当前 UnAV K=4/K=8 的 Random、Energy、Eventness、Oracle 已有冻结结果，Oracle headroom 明显；这只证明定位机制存在上界，不等于 M4 下游收益。Temporal 同 schema 结果和 learned selector 仍缺，因此下一步应优先补齐统一 selector evaluator，而不是联合训练 AS-M4 新模块。
+- 当前整体进度：导师建议与当前主线一致；LLP 选择性失败不应抢在 selector 机制诊断之前扩大，OmniMMI 继续只作视频能力回归保护。
+- 下一步：冻结 M4/Qwen2、视觉塔、BEATs、projector、fusion，先比较 All/Random/Energy/Eventness/Temporal/Oracle 的 UnAV 定位和冻结 M4 下游对照；只有 Oracle 下游收益明确，才设计 question-conditioned selector 与新的 Semantic Contrast。
+- 2026-09-20 — 确认 Dynamic Window Selector 路线已完成一半
+
+- 完成操作：将用户反馈与现有 UnAV-100 selector 资产对照，重新划分导师建议中的已完成项与缺失项；未重复运行已有 selector 实验。
+- 结果/验证：已完成 Random、Energy、Eventness、Oracle 的 K=4/K=8 冻结结果和双重复现，也已有 All/Uniform/Onset 补充资产；未完成的是 Temporal scorer 同 schema 结果、learned selector 冻结评测，以及各 selector 对冻结 M4 下游 NLL/答案的传递验证。
+- 当前整体进度：不需要重做已有 UnAV 定位实验；LLP 扩大暂缓，当前应沿既有 selector 路线补缺口。
+- 下一步：先统一整理已有 selector 结果表，再补 Temporal，同步构造冻结 M4 的 All/Random/Eventness/Oracle 小规模下游对照；只有这些结果完成后才决定是否做 question-conditioned selector。
+- 2026-09-20 — UnAV Temporal Top-K 同口径评测完成
+
+- 完成操作：使用冻结 `unav_s1r_temporal_projector_v2` 和训练集原型，对当前 Dynamic Selector 主矩阵的 335 个 UnAV official validation 视频重新计算 1 秒不重叠窗口 Temporal score；验证特征来自冻结 Eventness BEATs cache，事件区间来自官方 validation parquet，运行 K=4/K=8 CPU 评测并接入统一 evaluator。未训练 BEATs、projector、M4 或 fusion，未访问 test。
+- 结果/验证：首次全量 validation 运行覆盖 1717 视频/4070 事件，因与主矩阵分母不一致未作比较；随后按冻结 allowlist 收缩到 335 视频/443 samples。Temporal K=4 Event Coverage/Window Hit/Positive Recall/best tIoU 为 `0.357103/0.654628/0.321825/0.242515`，Oracle headroom recovery `0.308684`；K=8 为 `0.494080/0.785553/0.461331/0.313623`，headroom recovery `0.383900`。Temporal 明显优于 Eventness K=4 `0.202994`、K=8 `0.319828`，但仍低于 Oracle `0.967883/0.999802`。
+- 当前整体进度：导师建议的低成本上界矩阵已完成五个核心策略：Random、Energy、Eventness、Temporal、Oracle；learned selector 仍未授权/未评估。结果只证明定位机制，不证明冻结 M4 下游收益。
+- 下一步：不立即训练 learned selector；先构造冻结 M4 的 All/Random/Eventness/Temporal/Oracle 小规模下游传递对照。只有 Oracle 在下游 NLL/答案上明显优于 Random/All，才继续 question-conditioned selector 与 Semantic Contrast 重构。

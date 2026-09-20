@@ -16,6 +16,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = REPO_ROOT / "intersuit/harness/artifacts/dynamic_selector_v2_v1"
 DEFAULT_OUTPUT = REPO_ROOT / "intersuit/harness/artifacts/unav_dimension_split_v1"
+DEFAULT_TEMPORAL_ROOT = REPO_ROOT / "intersuit/harness/artifacts/unav_temporal_topk_v1"
 RANDOM_SEEDS = [20260720, 20260721, 20260722, 20260723, 20260724]
 
 
@@ -92,7 +93,7 @@ def load_strategy(root: Path, run_name: str, strategy: str) -> tuple[list[dict[s
     return rows, sha256(path)
 
 
-def evaluate_budget(root: Path, budget: int) -> dict[str, Any]:
+def evaluate_budget(root: Path, budget: int, temporal_root: Path = DEFAULT_TEMPORAL_ROOT) -> dict[str, Any]:
     base_a = f"run_a_k{budget}"
     base_b = f"run_b_k{budget}"
     event_a = f"run_a_k{budget}_eventness"
@@ -139,14 +140,23 @@ def evaluate_budget(root: Path, budget: int) -> dict[str, Any]:
     random_coverage = float(strategies["random"]["event_coverage"])
     oracle_headroom = float(strategies["oracle"]["event_coverage"]) - random_coverage
     require(oracle_headroom > 0.0, f"K={budget} Oracle headroom 非正")
-    for name in ("energy", "eventness"):
+    temporal_path = temporal_root / f"per_sample_k{budget}.jsonl"
+    if temporal_path.is_file():
+        temporal_rows = [json.loads(line) for line in temporal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        temporal_metrics = aggregate_rows(temporal_rows)
+        strategies["temporal"] = {"status": "FROZEN_TEMPORAL_PROJECTOR_BASELINE", **temporal_metrics}
+        source_sha["temporal"] = sha256(temporal_path)
+    else:
+        strategies["temporal"] = {"status": "MISSING_SCHEMA_COMPATIBLE_ASSET"}
+    for name in ("energy", "eventness", "temporal"):
+        if "event_coverage" not in strategies[name]:
+            continue
         coverage = float(strategies[name]["event_coverage"])
         strategies[name]["event_coverage_delta_vs_random"] = coverage - random_coverage
         strategies[name]["oracle_headroom_recovery"] = (coverage - random_coverage) / oracle_headroom
         strategies[name]["wins_over_random_seeds"] = sum(
             coverage > float(item["event_coverage"]) for item in random_metrics
         )
-    strategies["temporal"] = {"status": "MISSING_SCHEMA_COMPATIBLE_ASSET"}
     strategies["learned_selector"] = {"status": "NOT_EVALUATED_NOT_AUTHORIZED"}
 
     return {
@@ -194,7 +204,7 @@ def render_report(result: dict[str, Any]) -> str:
             "",
             "## 结论",
             "",
-            "Random、Energy、Eventness、Oracle 已完成双重复现与逐样本重算；Temporal 和 learned selector 仍缺正式同口径资产。",
+            "Random、Energy、Eventness、Oracle 已完成双重复现与逐样本重算；Temporal 已完成同 schema 冻结评测；仅 learned selector 仍未评估。",
             "",
         ]
     )
@@ -204,16 +214,16 @@ def render_report(result: dict[str, Any]) -> str:
 def run(args: argparse.Namespace) -> dict[str, Any]:
     if os.environ.get("CONDA_DEFAULT_ENV") != "M4":
         raise RuntimeError("必须通过 conda run -n M4 启动")
-    budgets = [evaluate_budget(args.input_root, budget) for budget in (4, 8)]
+    budgets = [evaluate_budget(args.input_root, budget, args.temporal_root) for budget in (4, 8)]
     result = {
-        "status": "PASS_UNAV_UNIFIED_CPU_EXISTING_STRATEGIES",
+        "status": "PASS_UNAV_UNIFIED_CPU_FIVE_STRATEGIES",
         "scope": "UnAV-100 official validation sparse primary",
         "budgets": budgets,
         "gpu_used": False,
         "model_loaded": False,
         "official_test_accessed": False,
         "complete_six_strategy_matrix": False,
-        "missing_strategies": ["temporal", "learned_selector"],
+        "missing_strategies": ["learned_selector"],
     }
     args.output_root.mkdir(parents=True, exist_ok=True)
     (args.output_root / "result.json").write_text(
@@ -228,6 +238,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--temporal-root", type=Path, default=DEFAULT_TEMPORAL_ROOT)
     return parser.parse_args()
 
 

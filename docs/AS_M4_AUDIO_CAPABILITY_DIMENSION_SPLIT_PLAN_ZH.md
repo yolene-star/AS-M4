@@ -100,7 +100,7 @@ OmniMMI 保持独立，只承担相对原始 M4 的视频理解能力回归检�
 
 ## 7. 当前状态
 
-- UnAV：`CPU_EXISTING_STRATEGIES_PASS_PARTIAL_MATRIX`，四个既有策略已逐样本重算，缺 Temporal 与 learned selector 同口径结果；
+- UnAV：`CPU_FIVE_STRATEGIES_PASS_LEARNED_MISSING`，Random/Energy/Eventness/Temporal/Oracle 已完成同口径 K=4/K=8 评测；仅缺 learned selector 与冻结 M4 下游传递验证；
 - LLP：32 组/224 条 manifest、mock evaluator、真实 M4 runner CPU dry-run 和 audio-only/visual-only 各 1 组 GPU teacher-forced smoke 已完成；管线通过但音频选择性未证明，完整 validation 媒体仍未准备；
 - OmniMMI：`PT_LIMIT2_EXACT_ROLLBACK_PASS_FULL_CLOSED`，原始 M4 与 AS-M4 behavior-off 两条配对 smoke 的预测及 logits 精确一致；无需新增人工标签；
 - 全局：`OMNIMMI_PT_LIMIT2_SMOKE_PASS_FULL_CLOSED`；150-step、训练和完整 PT/PA 继续关闭。
