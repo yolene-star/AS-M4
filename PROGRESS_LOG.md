@@ -5103,3 +5103,9 @@
 - 结果/验证：Git commit 为 `b7d4b86`（`evaluate UnAV temporal top-k selector`）；提交不含 checkpoint、媒体、缓存或运行产物。
 - 当前整体进度：低成本 selector 定位矩阵已完成 Random/Energy/Eventness/Temporal/Oracle，Temporal 显著优于现有规则基线；learned selector 与冻结 M4 下游传递验证仍未完成。
 - 下一步：构建冻结 M4 的 All/Random/Eventness/Temporal/Oracle 小规模下游对照，优先验证 Oracle 是否真正改善 NLL/答案。
+- 2026-09-21 — 发现并确认已有冻结 M4 Oracle 下游对照已完成
+
+- 完成操作：盘点 `m4_ptpa_audio_dynamic_selector_v3/p3_longvale_frozen100` 的冻结 M4 下游 selector 对照资产；未重复运行 GPU、训练或 selector 评测。
+- 结果/验证：P3 frozen-100 已覆盖 fixed_all、5-seed Random、Current Micro Top-8、Oracle Top-8、Oracle-mismatch 和 behavior-off，并完成 10,000 次物理视频 cluster bootstrap。Oracle METEOR 相对 fixed_all `-0.003773`、相对 Random `-0.003329`、相对 Current `-0.004592`、相对 behavior-off `-0.005159`；主门禁全部失败，正式决策为 `stop_selector_route`，selector training/deterministic stage/confirm 均关闭。
+- 当前整体进度：导师建议的“Oracle 下游传递验证”实际上已经完成且失败；新完成的 UnAV Temporal 定位优势不能推翻该冻结 M4 下游否定结果，因为 Temporal 定位收益尚未传递到 M4，且 selector 路线已有预注册停止结论。
+- 下一步：停止继续扩大 selector/learned selector/Temporal 下游接入；转向音频语义目标、答案表示和 fusion 位置诊断，保留 UnAV Temporal 结果作为机制分析，不将其宣称为 M4 收益。
