@@ -1,0 +1,104 @@
+{
+  "artifact_kind": "m4_ptpa_llp_s1_failure_analysis_contract",
+  "format_version": 1,
+  "scope": "internal_noncommercial_s1_failure_analysis_only",
+  "inputs": {
+    "feature_manifest": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_beats_1s_v1/llp_s1_beats_feature_manifest.jsonl",
+      "sha256": "9a0f2ce1e0bbdaa5ce1201700fb7f1846c2dd93bad4c2da67cb717ebe39fd7d3"
+    },
+    "s1_metrics": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1/metrics.json",
+      "sha256": "2a74e202b790d9c8457b4d2ee45b464c5c2f5f2e20cb7b538083448c32340d39"
+    },
+    "s1_per_query": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1/per_query.jsonl",
+      "sha256": "e5434204bc1c6f7789030ec1dac6ea481b5e8fc57e92996a3f1db421136346d8"
+    },
+    "prototype_selection": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/s1_effect_eval_v1/prototype_selection.json",
+      "sha256": "946bdd4d012fc5f194001d96d958e069ddb4995551cfccfecd70011dfbf71381"
+    },
+    "train_weak_labels": {
+      "path": "intersuit/datasets/LLP/data/AVVP_train.csv",
+      "sha256": "bbeb83e8af46a85075216b213d3464f92dd4ab71468c852ae454b82cc745c0a4"
+    },
+    "validation_dense_audio": {
+      "path": "intersuit/datasets/LLP/data/AVVP_eval_audio.csv",
+      "sha256": "d5435664668bec6e7eafb39059d2f424ed2682f6b55395262fc3cb691b7d0778"
+    }
+  },
+  "frozen_result": {
+    "status": "FAIL",
+    "diagnostic_representation": "dense_target_window_mean",
+    "fixed_seeds": [17, 29, 43],
+    "must_not_change_original_decision": true
+  },
+  "prototype_pollution": {
+    "unit": "selected_train_physical_video_per_label_per_seed",
+    "metrics": [
+      "weak_label_cardinality_mean",
+      "single_label_source_fraction",
+      "speech_colabel_fraction_for_non_speech_targets",
+      "top_colabels",
+      "prototype_pair_cosine"
+    ]
+  },
+  "speech_analysis": {
+    "metrics": [
+      "train_video_prevalence",
+      "validation_video_prevalence",
+      "validation_query_prevalence",
+      "non_speech_prototype_sources_with_speech_fraction",
+      "speech_target_recall",
+      "speech_false_positive_rate_among_non_speech_queries",
+      "speech_top_outgoing_and_incoming_confusions"
+    ]
+  },
+  "imbalance_analysis": {
+    "diagnostic_representation": "dense_target_window_mean",
+    "correlations": [
+      "train_weak_count_vs_mean_recall",
+      "validation_query_count_vs_mean_recall",
+      "train_weak_count_vs_mean_semantic_margin",
+      "single_label_fraction_vs_mean_recall",
+      "speech_colabel_fraction_vs_mean_recall_non_speech"
+    ],
+    "spearman_permutation": {
+      "replicates": 10000,
+      "seed": 20260825,
+      "two_sided": true
+    },
+    "train_count_bins": {
+      "few_4": [4, 4],
+      "medium_5_9": [5, 9],
+      "head_10_plus": [10, null]
+    },
+    "validation_query_bins": {
+      "few_1_2": [1, 2],
+      "medium_3_5": [3, 5],
+      "head_6_plus": [6, null]
+    }
+  },
+  "counterfactual": {
+    "name": "single_label_train_prototype",
+    "minimum_single_label_sources_per_class": 2,
+    "query_representation": "dense_target_window_mean",
+    "prototype_representation": "clip_mean",
+    "metrics": [
+      "eligible_label_count",
+      "macro_recall_at_1_on_eligible_labels",
+      "semantic_margin_mean_on_eligible_labels",
+      "delta_vs_original_same_label_subset"
+    ],
+    "diagnostic_only": true,
+    "candidate_promotion_allowed": false
+  },
+  "permissions": {
+    "training_allowed": false,
+    "formal_test_allowed": false,
+    "downstream_execution_allowed": false,
+    "original_s1_decision_change_allowed": false,
+    "redistribution_allowed": false
+  }
+}

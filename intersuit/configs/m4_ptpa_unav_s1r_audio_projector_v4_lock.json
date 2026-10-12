@@ -1,0 +1,16 @@
+{
+  "artifact_kind": "m4_ptpa_unav_s1r_audio_projector_v4_lock",
+  "version": "v4_active_hardneg_300step",
+  "saved_date": "2026-08-28",
+  "checkpoint_path": "intersuit/checkpoints/AS-M4-UnAV-audio-projector-v4-active-hardneg-300step/semantic_projector.pt",
+  "checkpoint_sha256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+  "training_summary_path": "intersuit/harness/artifacts/unav_s1r_audio_projector_v4/steps300_hardneg_active.json",
+  "training_summary_sha256": "a57c0c0e668b0e3166d5cf764aa126f41fa2560e622fc6219fd50b79cb23c052",
+  "evaluation_path": "intersuit/harness/artifacts/unav_s1r_audio_projector_v4/unified_eval_hardneg_active.json",
+  "evaluation_sha256": "bbb68ca57fee723cf5fea19609cd2abee7d62a0640f24e2a8988b4d9a4c226e8",
+  "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+  "beats_checkpoint_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+  "metrics": {"raw_macro_recall_at_1": 0.6375470000379625, "projector_macro_recall_at_1": 0.6377420825216936, "macro_delta": 0.0001950824837311238, "raw_margin": 0.015301658588056826, "projector_margin": 0.018007933262464915, "raw_correct_preservation_rate": 0.9966688874083944},
+  "freeze": {"beats_training_performed": false, "m4_fusion_training_performed": false, "test_accessed": false},
+  "status": "PRESERVED_CANDIDATE_NOT_M4_INTEGRATED"
+}

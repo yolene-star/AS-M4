@@ -1,0 +1,35 @@
+{
+  "format_version": 1,
+  "status": "AUTHORIZED_FROZEN_BEATS_FEATURE_EXTRACTION_EFFECT_LOCKED",
+  "authorization_basis": "用户于2026-08-27明确要求继续UnAV的BEATs独立测试",
+  "qualified_manifest": {
+    "path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/qualified_media_manifest.jsonl",
+    "sha256": "e889eaa112eb44938fa9a1c8bc484ecb8118bc9e5b90825e0b78884ba66889a7",
+    "rows": 7941,
+    "train": 6224,
+    "validation": 1717,
+    "test": 0
+  },
+  "feature_contract": {
+    "encoder": "BEATs_iter3_plus_AS2M",
+    "checkpoint_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+    "encoder_state": "eval_requires_grad_false",
+    "sample_rate": 16000,
+    "channels": 1,
+    "window_sec": 1.0,
+    "hop_sec": 1.0,
+    "embedding_dim": 768,
+    "dtype": "float32",
+    "physical_gpu": 2,
+    "atomic_per_file": true,
+    "resume_validation": true,
+    "persist_decoded_wav": false
+  },
+  "permissions": {
+    "feature_extraction_allowed": true,
+    "effect_access_allowed": false,
+    "test_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false
+  }
+}

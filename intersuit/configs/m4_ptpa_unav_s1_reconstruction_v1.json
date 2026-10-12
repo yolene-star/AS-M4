@@ -1,0 +1,336 @@
+{
+  "artifact_kind": "m4_ptpa_unav_s1_reconstruction_contract",
+  "format_version": 1,
+  "status": "full_media_audit_complete_7941_qualified_2_rejected_effect_locked",
+  "scope": "internal_noncommercial_s1_reconstruction_only",
+  "official_source": {
+    "project": "https://unav100.github.io/",
+    "paper": "CVPR 2023",
+    "repository": "https://github.com/ttgeng233/UnAV",
+    "repository_commit": "1609deba4fbaf25222c6ee6c7d43b0d0ddfab20d",
+    "hugging_face": "ttgeng233/UnAV-100",
+    "hugging_face_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
+    "license_claim": "CC-BY-4.0 dataset; original video copyright remains with original owners",
+    "source_csv_google_drive_file_id": "1yHg-QZJ-DlL3K2I52ixtjGX4rJRa9Oc3"
+  },
+  "metadata": {
+    "root": "intersuit/datasets/UNAV_S1_V1/official_metadata",
+    "files": {
+      "train.parquet": {
+        "size": 323290,
+        "sha256": "d8b1302fc12dc22a62ca23b592392cb000d00d2a487a70aa40876dde52742d55"
+      },
+      "validation.parquet": {
+        "size": 116962,
+        "sha256": "551e1781c8a8fd77cb7a1daf0ad9b71346c615864de7bba6fb5dba3565dadc6b"
+      },
+      "test.parquet": {
+        "size": 115568,
+        "sha256": "36a7d528772c1be736c105bfc65955255c822e99b7ceded64ef6e1b9c969df45"
+      },
+      "download_video.csv": {
+        "size": 294050,
+        "sha256": "f1f9b36e607ed0cea04e818cf23027acd1cec4cdd9b7c118c93408e5654be735"
+      }
+    }
+  },
+  "official_counts": {
+    "train": {"videos": 6489, "events": 18123, "labels": 100},
+    "validation": {"videos": 2134, "events": 6036, "labels": 100},
+    "test": {"videos": 2167, "events": 5900, "labels": 100},
+    "total_videos": 10790,
+    "total_events": 30059,
+    "invalid_intervals": 0,
+    "physical_split_overlap": 0
+  },
+  "known_exclusions": {
+    "historical_unav_inventory": {
+      "path": "intersuit/harness/artifacts/dynamic_selector_restart_n0/physical_id_cross_audit.json",
+      "count": 410
+    },
+    "used_unav_validation_media": {
+      "path": "intersuit/harness/artifacts/dynamic_selector_v2_v1/full_validation_media_allowlist.json",
+      "count": 335
+    },
+    "llp_pilot150": {
+      "path": "intersuit/datasets/LLP_PILOT_MEDIA_V2/final_media_v2/llp_pilot150_media_qualified_effect_locked.jsonl",
+      "count": 150
+    },
+    "expected_after_union": {
+      "train": {"excluded": 263, "remaining": 6226, "labels": 100, "min_unique_videos_per_label": 22},
+      "validation": {"excluded": 417, "remaining": 1717, "labels": 100, "min_unique_videos_per_label": 6},
+      "test": {"excluded": 69, "remaining": 2098, "labels": 100, "min_unique_videos_per_label": 12}
+    }
+  },
+  "media_distribution": {
+    "repository_total_bytes": 65776162932,
+    "archive_total_bytes": 65775604313,
+    "archive_parts": 13,
+    "part_size_bytes_00_to_11": 5368709120,
+    "part_12_size_bytes": 1351094873,
+    "individual_hub_media_files_available": false,
+    "single_video_route": "official download_video.csv plus source YouTube clip",
+    "archive_revision": "daeb88bc14eeff48f8a4ac2836b67f6c350f847b",
+    "archive_files": [
+      {"name": "unav_raw_videos.tar.gz.part_00", "size": 5368709120, "sha256": "aa8dc6798fc8b99d69533b4ebd068a0f659532d13ff82a21a527db5fbdd37f65"},
+      {"name": "unav_raw_videos.tar.gz.part_01", "size": 5368709120, "sha256": "d549709123379d9c9f3b63d2aabd31a09f72c0004c50178e0a8b509896122af0"},
+      {"name": "unav_raw_videos.tar.gz.part_02", "size": 5368709120, "sha256": "2f1fae736a5d567519bb6edfa2c79f97571923a6dbb679fb0350adf8df59aeb0"},
+      {"name": "unav_raw_videos.tar.gz.part_03", "size": 5368709120, "sha256": "021ef07d239e735af94a76e46421350788850b2a3b5bfb44b8124b1205cfd6ba"},
+      {"name": "unav_raw_videos.tar.gz.part_04", "size": 5368709120, "sha256": "89c2097a6bab34441302d2f2db65d4e504468a9f7ade713bef4698c6d6223546"},
+      {"name": "unav_raw_videos.tar.gz.part_05", "size": 5368709120, "sha256": "f56ad30d4e4bee762f8c9577689a909e93a267785f7e4452fafe5d987e106a1a"},
+      {"name": "unav_raw_videos.tar.gz.part_06", "size": 5368709120, "sha256": "25cea1db67f92036241fcb84a4da430be3b79d9a49a620252cab20f18d141d37"},
+      {"name": "unav_raw_videos.tar.gz.part_07", "size": 5368709120, "sha256": "feb5c3f1268c8125d3d9012ef0c37f4e8dc6ddff0493922e3d6dbbc71d7c7677"},
+      {"name": "unav_raw_videos.tar.gz.part_08", "size": 5368709120, "sha256": "064ca3707ed4b234ae935413d4f95dc7bc9e55d716df8f39a00576f40dd142d1"},
+      {"name": "unav_raw_videos.tar.gz.part_09", "size": 5368709120, "sha256": "6b5f72f5892e36aa808c357a365cabe826bafa28438cd308e7596977265f0a9a"},
+      {"name": "unav_raw_videos.tar.gz.part_10", "size": 5368709120, "sha256": "5ddca8ddc839cdf71a6f0d0c8e67bc14400bf8aaf1e9a8f646f7bfba9eefcc69"},
+      {"name": "unav_raw_videos.tar.gz.part_11", "size": 5368709120, "sha256": "815520a0b00649d77f22e6a4abc18b1e971691d6da355ba7bd951e6cbc45c600"},
+      {"name": "unav_raw_videos.tar.gz.part_12", "size": 1351094873, "sha256": "d38371218b5f1dcf2babd039b882608ecf4cd24a6863b4f6c6a39dc03eb788d3"}
+    ]
+  },
+  "archive_completion": {
+    "status": "PASS_ARCHIVE_COMPLETE_VERIFIED_EFFECT_LOCKED",
+    "manifest_path": "intersuit/datasets/UNAV_S1_V1/official_archive/archive_completion_manifest_v1.json",
+    "manifest_sha256": "576c46a0675b0a31b6a4c5c9a696efc63d880582133de98448b525982e236794",
+    "archive_parts": 13,
+    "archive_total_bytes": 65775604313,
+    "verified_parts": 13,
+    "curl_intermediate_verified_parts": 9,
+    "xet_handoff_verified_parts": [9, 10, 11, 12],
+    "explicit_user_download_authorization_consumed": true,
+    "active_download_processes": 0
+  },
+  "archive_member_audit": {
+    "status": "PASS",
+    "summary_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/summary.json",
+    "summary_sha256": "653a33f840906b932ab073bef9f605aa5b2154030a17fd79fd45f9283c47db0a",
+    "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+    "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+    "archive_member_count": 10791,
+    "directory_count": 1,
+    "regular_mp4_count": 10790,
+    "total_media_bytes": 66154508646,
+    "archive_split_counts": {"train": 6489, "validation": 2134, "test": 2167},
+    "eligible_after_known_history_counts": {"train": 6226, "validation": 1717, "test": 2098},
+    "missing_metadata_ids": 0,
+    "extra_archive_ids": 0,
+    "unsafe_members": 0,
+    "non_regular_members": 0,
+    "media_extracted": 0,
+    "test_media_accessed": false
+  },
+  "canary20_selective_extraction": {
+    "status": "PASS_CANARY20_MEDIA_QUALIFIED_EFFECT_LOCKED",
+    "authorization_recorded_at": "2026-08-27",
+    "authorization_source": "user_continue_after_exact_scoped_prompt",
+    "scope": "internal_noncommercial_media_qualification_only",
+    "plan_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_media_canary20_plan_locked.jsonl",
+    "plan_sha256": "96a25a25d8c9b578544ada7ce889ae89820c225e4eb6d5a70a25e278bc633d49",
+    "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+    "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+    "output_root": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1",
+    "requested": 20,
+    "train": 10,
+    "validation": 10,
+    "test": 0,
+    "expected_media_bytes": 112551427,
+    "duration_max_abs_delta_sec": 1.0,
+    "event_offset_media_tolerance_sec": 1.0,
+    "required_checks": [
+      "allowlisted_tar_member_only",
+      "atomic_selected_extraction",
+      "sha256",
+      "ffprobe_container_duration_streams",
+      "video_and_audio_stream_required",
+      "full_video_audio_decode",
+      "audio_decode_16khz_mono",
+      "event_boundaries_within_media_tolerance"
+    ],
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "test_media_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false,
+    "result": {
+      "summary_path": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1/summary.json",
+      "summary_sha256": "d9a495119f8cc8a25d2d95179d491b624dcfc6c227915c4605c5c9d8e5b3de42",
+      "results_path": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1/canary20_media_results.jsonl",
+      "results_sha256": "03943a3d402e761915641dab0ab63e9c5bc025559196f072468591b703b7e883",
+      "independent_audit_path": "intersuit/datasets/UNAV_S1_V1/canary20_media_v1/independent_audit.json",
+      "independent_audit_sha256": "ab6206c3d466ac7abc4a410b85281fd76a9cff730bbed44a535f7717f322506f",
+      "independent_audit_status": "PASS_INDEPENDENT_CANARY20_MEDIA_AUDIT",
+      "passed": 20,
+      "failed": 0,
+      "total_media_bytes": 112551427,
+      "container_mp4": 20,
+      "video_codec_h264": 20,
+      "audio_codec_aac": 20,
+      "audio_sample_rate_44100": 20,
+      "audio_channels_mono": 5,
+      "audio_channels_stereo": 15,
+      "duration_max_abs_delta_sec": 0.529,
+      "full_media_decode_passed": 20,
+      "audio_decode_16khz_mono_passed": 20,
+      "unexpected_media_files": 0,
+      "media_sha_mismatch": 0,
+      "test_media_accessed": false,
+      "feature_extraction_performed": false,
+      "effect_accessed": false,
+      "training_performed": false,
+      "authorization_consumed": true
+    }
+  },
+  "full_train_validation_media_qualification": {
+    "status": "PASS_QUALIFIED_SUBSET_WITH_2_REJECTED_EFFECT_LOCKED",
+    "authorization_recorded_at": "2026-08-27",
+    "authorization_source": "user_continue_after_scoped_full_media_prompt",
+    "scope": "internal_noncommercial_train_validation_media_qualification_only",
+    "ledger_path": "intersuit/datasets/UNAV_S1_V1/qualification_v1/unav_s1_physical_ledger.jsonl",
+    "ledger_sha256": "536e34318f56ae21502acc6ce5ff3496cf8250339a718dcfa2f75205e0fa1cc4",
+    "member_index_path": "intersuit/datasets/UNAV_S1_V1/archive_member_audit_v1/archive_member_index.jsonl",
+    "member_index_sha256": "2c28d929d5f4eb6a8d8c60530eb9800c339513b532e0483078577569552ed345",
+    "output_root": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1",
+    "requested": 7943,
+    "train": 6226,
+    "validation": 1717,
+    "test": 0,
+    "expected_media_bytes": 48993281767,
+    "expected_duration_sec": 333506.62,
+    "expected_event_count": 21532,
+    "duration_max_abs_delta_sec": 1.0,
+    "event_offset_media_tolerance_sec": 1.0,
+    "decode_workers": 16,
+    "required_checks": [
+      "exact_historical_clean_train_validation_allowlist",
+      "atomic_selected_extraction",
+      "sha256",
+      "ffprobe_container_duration_streams",
+      "video_and_audio_stream_required",
+      "full_video_audio_decode",
+      "audio_decode_16khz_mono",
+      "event_boundaries_within_media_tolerance",
+      "resume_per_file_audit"
+    ],
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "test_media_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false,
+    "result": {
+      "strict_full_status": "FAIL_FULL_MEDIA_QUALIFICATION",
+      "independent_audit_status": "PASS_INDEPENDENT_AUDIT_WITH_2_MEDIA_REJECTED_EFFECT_LOCKED",
+      "summary_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/summary.json",
+      "summary_sha256": "61e8a1ca18f7a05ad4c6c1558dd5df5e953de51023384304e54689f2fbbc114e",
+      "results_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/full_media_results.jsonl",
+      "results_sha256": "85dcc45d24d9e03009ebb69155ee0486c68edb6ec295e0013b4b7cf6bb5174b3",
+      "qualified_manifest_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/qualified_media_manifest.jsonl",
+      "qualified_manifest_sha256": "e889eaa112eb44938fa9a1c8bc484ecb8118bc9e5b90825e0b78884ba66889a7",
+      "rejected_manifest_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/rejected_media_manifest.jsonl",
+      "rejected_manifest_sha256": "10a8937accc03b101587eab64b39e0060b851a3cf0c0f8e53e38549cd8cfed17",
+      "independent_audit_path": "intersuit/datasets/UNAV_S1_V1/full_train_validation_media_v1/independent_audit.json",
+      "independent_audit_sha256": "d4cb48ea06c360a4af48147413396af73fdc764fd1ab80a13bfbe8d7eae7e59f",
+      "requested": 7943,
+      "qualified": 7941,
+      "rejected": 2,
+      "qualified_train": 6224,
+      "qualified_validation": 1717,
+      "test": 0,
+      "qualified_media_bytes": 48984706273,
+      "rejected_media_bytes": 8575494,
+      "train_labels": 100,
+      "validation_labels": 100,
+      "train_min_unique_videos_per_label": 22,
+      "validation_min_unique_videos_per_label": 6,
+      "media_sha_mismatch": 0,
+      "unexpected_media_files": 0,
+      "rejected_physical_media_ids": ["1Y2IkZULXo8", "nzwmPWAAQFg"],
+      "rejection_reason": "metadata_media_duration_abs_delta_gt_1s",
+      "rejection_is_effect_based": false,
+      "qualified_manifest_is_only_downstream_allowlist": true,
+      "rejected_media_files_retained_for_audit_only": true,
+      "test_media_accessed": false,
+      "feature_extraction_performed": false,
+      "effect_accessed": false,
+      "training_performed": false,
+      "authorization_consumed": true
+    }
+  },
+  "official_downloader": {
+    "script_path": "scripts/video_download.py",
+    "script_sha256": "b21188a2ae237dc85a973facf5ec1e6ead6b753fa25ab800252815f13549700c",
+    "source_download_command": "yt-dlp --ignore-config <youtube_url> -o <video_id>_full_video.mp4 -f b",
+    "trim_command": "ffmpeg -ss <start> -i <full_video> -t <duration> -vcodec libx264 -acodec aac -strict -2 <video_id>.mp4 -y -loglevel -8",
+    "probe_command": "yt-dlp --ignore-config <youtube_url> -f b --simulate --quiet --print id",
+    "compat_probe_command": "yt-dlp --ignore-config <youtube_url> --js-runtimes node:<path> -f bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio --simulate --quiet --print id",
+    "compatibility_reason": "literal official -f b requested format unavailable after current YouTube format changes",
+    "cookies_allowed": false,
+    "client_or_po_token_args_allowed": false
+  },
+  "pilot": {
+    "selection_seed": 20260826,
+    "splits": ["train", "validation"],
+    "videos_per_split": 10,
+    "test_rows_allowed": 0,
+    "selection": "six-stratum duration_x_event-count round-robin; unseen-label greedy; stable SHA256 tie-break",
+    "probe": "anonymous metadata-only yt-dlp simulate",
+    "download": "disabled_until_probe_review_and_explicit_scoped_authorization"
+  },
+  "probe_results": {
+    "literal_official_canary2": {
+      "status": "FAIL",
+      "requested": 2,
+      "available": 0,
+      "failure_class": "requested_format_unavailable",
+      "sha256": "b509a56a3b7555e8816e9227507bf9c468eb9e517adbc24a1996a65df72498fe"
+    },
+    "node_ejs_compat_canary2": {
+      "status": "PASS",
+      "requested": 2,
+      "available": 2,
+      "sha256": "fbffe2ed7624be1412dddadad01b164c4bb94fdc26a603b414d3672fb4c6ebab"
+    },
+    "node_ejs_compat_canary20": {
+      "status": "PASS",
+      "requested": 20,
+      "available": 20,
+      "sha256": "091a10512453c86a7ab4a4cd23c9992acddeb89a6e484b636d216f4efcdf25d5"
+    },
+    "cookies_used": false,
+    "client_or_po_token_args_used": false,
+    "media_files_created": 0
+  },
+  "media_canary2_result": {
+    "status": "FAIL",
+    "requested": 2,
+    "passed": 0,
+    "failed": 2,
+    "failure_class": "youtube_http429_bot_authentication",
+    "result_path": "intersuit/datasets/UNAV_S1_V1/media_canary2_v1/canary2_result.json",
+    "result_sha256": "121696fd4e33ffb491f6408ee88e7f381b327d2d806ec3d03285475b159a910b",
+    "cookies_used": false,
+    "client_or_po_token_args_used": false,
+    "media_files_created": 0,
+    "next_options": [
+      "fresh_cookie_explicitly_scoped_to_unav_canary2",
+      "explicit_authorization_for_65_78gb_official_archive_download"
+    ]
+  },
+  "permissions": {
+    "metadata_audit_allowed": true,
+    "anonymous_train_validation_probe_allowed": true,
+    "train_validation_media_download_allowed": false,
+    "canary2_train_validation_media_download_allowed": false,
+    "canary20_train_validation_media_download_allowed": false,
+    "full_archive_download_allowed_by_explicit_user_authorization": false,
+    "archive_member_inventory_allowed": false,
+    "archive_extraction_allowed": false,
+    "selective_train_validation_extraction_allowed": false,
+    "full_train_validation_media_qualification_allowed": false,
+    "feature_extraction_allowed": false,
+    "effect_access_allowed": false,
+    "test_media_download_allowed": false,
+    "test_feature_extraction_allowed": false,
+    "test_effect_access_allowed": false,
+    "training_allowed": false,
+    "redistribution_allowed": false
+  }
+}

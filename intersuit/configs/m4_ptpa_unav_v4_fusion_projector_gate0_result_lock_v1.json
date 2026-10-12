@@ -1,0 +1,15 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_fusion_projector_gate0_result_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "PASS_FUSION_PROJECTOR_GATE0_EXACT_ROLLBACK",
+  "execution": {"physical_gpu": 2, "sample_limit": 1, "sample_id": "ave_stage2_QSgqjJ2iglM_audio", "training_performed": false, "formal_test_accessed": false, "nonzero_gate_executed": false},
+  "artifacts": {
+    "behavior": {"path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_fusion_projector_gate0_smoke_v1/v4_behavior_off_predictions.jsonl", "sha256": "6c02f396f193b5e18f49edcbb8217d95113a74cc9cf3d17403a4776c7d05fa2c"},
+    "bypass": {"path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_fusion_projector_gate0_smoke_v1/v4_bypass_gate0_predictions.jsonl", "sha256": "7497ebd7237b19b2ca50926f77cb9703dedb4bce9a4a3564a25366bc94741529"},
+    "lightweight": {"path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_fusion_projector_gate0_smoke_v1/v4_lightweight_gate0_predictions.jsonl", "sha256": "062fc2884a8b219e9d0c55a99b9313f9e6d69701598123d3c56a69d6bbf5b7e5"},
+    "audit": {"path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_fusion_projector_gate0_smoke_v1/independent_audit.json", "sha256": "65eb603292c38c0c2857123166e2ff1d883a2edb71b9be508f04140b3fd8dc2d"},
+    "frozen": {"path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_fusion_projector_gate0_smoke_v1/debug/frozen_state_audit.json", "sha256": "579096afedd446d2a120e2c007c5e497087544e7e6ea6b4e73801a139d83e72e"}
+  },
+  "checks": {"prediction_exact_match": true, "tokens_exact_match": true, "bypass_mode_active": true, "lightweight_mode_active": true, "gate0_exact_zero": true, "audio_decoded": true, "frozen_runtime_sha_unchanged": true, "m4_effect_claim_allowed": false, "nonzero_gate_automatically_allowed": false}
+}

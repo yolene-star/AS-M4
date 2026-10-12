@@ -1,0 +1,65 @@
+{
+  "format_version": 2,
+  "locked_at": "2026-08-03",
+  "checkpoint_locked": true,
+  "oracle_eligible": "diagnostic_only",
+  "audio_path_selectivity_gate_status": "failed",
+  "v2_oracle_utility_allowed": "pilot_only",
+  "v2_oracle_pilot_allowed": true,
+  "v2_oracle_confirm_allowed": false,
+  "localization_upper_bound_allowed": true,
+  "deterministic_selector_diagnostic_allowed": true,
+  "learned_selector_training_allowed": false,
+  "route_status": "v1_pass_v2_oracle_pilot_preflight",
+  "scope_note_zh": "该失败是 checkpoint 级正式资格失败，不是低成本 selector 诊断的全局失败。V1 已通过；V2 只允许全冻结 oracle_pilot，并必须保留 All、Random、text-only 和 Oracle-mismatch 对照。",
+  "qualification_note_zh": "该 checkpoint 的 dev760 音频路径 selectivity 门禁已失败：正确音频低于错配音频且低于 video-only。它不具备正式音频路径资格，只能用于用户授权的 LongVALE 诊断 pilot；pilot 未通过时立即停止 selector。",
+  "checkpoint": {
+    "path": "intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150",
+    "config_sha256": "5c985e23ea3af4e5d2bb66e1d2fa85c8df06ef0344707c6d9abcb69ad5496b53",
+    "model_index_sha256": "a46d17d638101a8715582078d4b4577dceb12dbc9be9a88e4a593513088c6a02",
+    "model_shards": {
+      "model-00001-of-00004.safetensors": "6e3b641bde340437ea54f6db8b351d45001a486ed22afcd48909d2cb5c0116d5",
+      "model-00002-of-00004.safetensors": "d72a5036317f46d99e479aa1273baace23cbf318e93566b10388922817267361",
+      "model-00003-of-00004.safetensors": "e13a3d7df069c2e7566915d8de2cfa3cf433882f8fb49e44398360af61972e51",
+      "model-00004-of-00004.safetensors": "fca770e275ece19def7a386fbb9137b4f98d9178c5e0a6c95f9f6935a5360f57"
+    }
+  },
+  "beats": {
+    "path": "intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+    "sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34"
+  },
+  "selectivity_failure_evidence": {
+    "artifact_root": "intersuit/harness/artifacts/as_m4_semantic_contrast_dev760_gate0005",
+    "matrix_plan_sha256": "9425a75e2c453209ccd70f85312bab31f6f39a4c0d55746a1b88368438c0549d",
+    "summary_sha256": "cf00f17a6f13559dcb345a4804f05803751721bc725e39ce13d1093fcccc6bce",
+    "manifest_sha256": "0237cdebfb54c2766cd17ab709293862be381fa17ca809d101fbce37d617fb10",
+    "gate": 0.005,
+    "count_per_condition": 760,
+    "correct": 251,
+    "mismatched": 259,
+    "video_only": 254,
+    "prediction_sha256": {
+      "video_only": "a1979373e2555783debf908beeb6bc8a9ec78117e2f63d5deeeb8fe2228b7ec1",
+      "correct": "d2da68e12ac3084a44df980acf2d8ba0e199118cfc98ce222dc8150e9335d968",
+      "mismatched": "f529a01ae0aa3b005b796605127f1ddedca2ebb56d03a07990268ccb44b87d5c",
+      "silence": "227331d3d7b2ca7f7bd518eca5c1bc49e2b9f238837595e08ccd085d75c29c3b",
+      "gate0": "ec00b523bf0a60159a7d48a267dc0303127b5b7b1b018729e49b9c0d6ed55f39"
+    }
+  },
+  "required_weight_prefixes": [
+    "model.scene_audio_encoder.audio_projector.",
+    "model.streaming_av_module.fusion.audio_projector."
+  ],
+  "runtime_contract": {
+    "scene_audio_window_mode": "micro_window",
+    "window_sec": 1.0,
+    "hop_sec": 1.0,
+    "pad_short": true,
+    "tail_end_sec_clamped_to_media_duration": true,
+    "dynamic_window_top_k": 8,
+    "as_m4_fusion_mode": "beats_simple_residual",
+    "as_m4_inference_simple_audio_gate": 0.005,
+    "debug_audio_residual_scale": 1.0,
+    "audio_delta_ratio_cap": 0.0
+  }
+}

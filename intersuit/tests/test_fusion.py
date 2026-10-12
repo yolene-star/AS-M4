@@ -65,6 +65,23 @@ def test_zero_init_gate_one_recovers_video_tokens():
     assert torch.allclose(fused, video)
 
 
+def test_fusion_modes_bypass_legacy_projector():
+    audio = torch.randn(1, 2, 4)
+    legacy = GatedAVFusion(hidden_size=4, fusion_init="zero", fusion_mode="legacy")
+    identity = GatedAVFusion(hidden_size=4, fusion_init="zero", fusion_mode="identity")
+    bypass = GatedAVFusion(hidden_size=4, fusion_init="zero", fusion_mode="bypass")
+    lightweight = GatedAVFusion(hidden_size=4, fusion_init="zero", fusion_mode="lightweight")
+    assert torch.equal(identity.audio_delta(audio), audio)
+    assert torch.equal(bypass.audio_delta(audio), audio)
+    assert not torch.equal(legacy.audio_delta(audio), audio)
+    assert torch.isfinite(lightweight.audio_delta(audio)).all()
+
+
+def test_fusion_mode_defaults_to_legacy():
+    module = GatedAVFusion(hidden_size=4)
+    assert module.fusion_mode == "legacy"
+
+
 def test_zero_init_projector_receives_gradients():
     module = GatedAVFusion(hidden_size=4, fusion_init="zero")
     video = torch.zeros(1, 2, 3, 4)
@@ -162,8 +179,9 @@ def test_audio_delta_cap_preserves_zero_delta():
 
 
 def test_audio_delta_cap_has_no_nan_or_inf():
-    video = torch.randn(2, 2, 3, 4, dtype=torch.bfloat16)
-    raw_delta = torch.randn(2, 2, 1, 4, dtype=torch.bfloat16)
+    generator = torch.Generator().manual_seed(0)
+    video = torch.randn(2, 2, 3, 4, dtype=torch.bfloat16, generator=generator)
+    raw_delta = torch.randn(2, 2, 1, 4, dtype=torch.bfloat16, generator=generator)
 
     capped, diagnostics = apply_audio_delta_ratio_cap(video, raw_delta, ratio_cap=0.03)
 

@@ -1,0 +1,60 @@
+{
+  "contract_id": "omnimmi_video_regression_v1",
+  "status": "PT_LIMIT2_EXACT_ROLLBACK_PASS_FULL_CLOSED",
+  "purpose": "detect_video_understanding_regression_only",
+  "dataset": "OmniMMI",
+  "splits": ["PT_full_200", "PA_full_200"],
+  "manual_modality_labels_required": false,
+  "models": {
+    "original_m4": "intersuit/checkpoints/M4-LongVA-7B-Qwen2",
+    "as_m4": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "as_m4_model_version_manifest": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1/model_version_manifest.json"
+  },
+  "comparison_conditions": [
+    "original_m4",
+    "as_m4_behavior_off_video_only",
+    "as_m4_standard_correct_audio"
+  ],
+  "input_invariants": [
+    "same_video",
+    "same_question",
+    "same_prompt",
+    "same_frame_sampling",
+    "same_decode_parameters",
+    "same_official_evaluator"
+  ],
+  "baseline_metrics": {
+    "pt_official_accuracy": 0.57,
+    "pt_offline_locked_accuracy_diagnostic_only": 0.63,
+    "pa_accuracy": 0.215,
+    "pa_precision": 0.3182,
+    "pa_iou": 0.1402
+  },
+  "gates": {
+    "behavior_off_exact_prediction_match_required": true,
+    "behavior_off_metric_delta_abs_max": 0.0,
+    "standard_audio_noninferiority_margin": {
+      "pt_official_accuracy_delta_min": -0.01,
+      "pa_accuracy_delta_min": -0.01,
+      "pa_precision_delta_min": -0.01,
+      "pa_iou_delta_min": -0.01,
+      "empty_output_rate_delta_max": 0.005
+    },
+    "report_paired_flip_counts": true,
+    "audio_improvement_claim_allowed": false
+  },
+  "authorization": {
+    "cpu_contract_audit": true,
+    "gpu_smoke": false,
+    "completed_gpu_smoke": {
+      "physical_gpu": 2,
+      "benchmark": "PT",
+      "limit": 2,
+      "conditions": ["original_m4", "as_m4_behavior_off_video_only"],
+      "status": "PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK",
+      "evidence": "intersuit/harness/artifacts/omnimmi_video_regression_v1/pt_limit2_20260919/pair_audit.json"
+    },
+    "full_pt_pa": false,
+    "training": false
+  }
+}

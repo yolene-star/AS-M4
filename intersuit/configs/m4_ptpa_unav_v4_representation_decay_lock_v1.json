@@ -1,0 +1,35 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_representation_decay_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "FUSION_PROJECTOR_PRIMARY_SELECTIVITY_BOTTLENECK",
+  "result_path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_representation_decay_v1/result.json",
+  "result_sha256": "7327baccc6474481463887259e2e9b0de47aa8018faf568080059fd7f27fae8c",
+  "audio_pairs": 3,
+  "aggregate": {
+    "raw_beats": {"mean_pair_cosine": 0.7524686058362325, "mean_relative_difference": 0.6955743906578699},
+    "v4_semantic": {"mean_pair_cosine": 0.7093440294265747, "mean_relative_difference": 0.7468174664594597},
+    "m4_adapter": {"mean_pair_cosine": 0.8608614802360535, "mean_relative_difference": 0.5133926412531706},
+    "fusion_delta_pre_gate": {"mean_pair_cosine": 0.9986660877863566, "mean_relative_difference": 0.06175766023102694}
+  },
+  "adapter_scale": {
+    "bias_norm": 0.1987258940935135,
+    "mean_weight_only_window_norm": 1.6267556548118591,
+    "bias_to_weight_signal_ratio": 0.12216087493268739,
+    "bias_dominance_rejected": true
+  },
+  "diagnosis": {
+    "v4_semantic_collapse": false,
+    "adapter_partial_compression": true,
+    "fusion_projector_primary_collapse": true,
+    "tiny_fixed_gate_compounds_loss": true,
+    "language_model_primary_cause_supported": false
+  },
+  "permissions": {
+    "full_dev_allowed": false,
+    "formal_test_allowed": false,
+    "training_allowed": false,
+    "gate_increase_allowed": false,
+    "isolated_fusion_reconstruction_plan_allowed": true
+  }
+}

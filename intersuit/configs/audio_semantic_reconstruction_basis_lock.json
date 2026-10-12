@@ -1,0 +1,243 @@
+{
+  "format_version": 1,
+  "frozen_at": "2026-07-25",
+  "route": "audio_semantic_reconstruction_diagnostic",
+  "plan_role": "conditional_blocker_remediation_after_selector_v1",
+  "selector_localization_route_status": "active_media_gated",
+  "selector_oracle_downstream_status": "blocked_checkpoint_ineligible",
+  "training_allowed": false,
+  "reason_zh": "现有 semantic-contrast checkpoint 的 correct 音频低于 mismatched 与 video-only；该失败只阻断 Selector V2 的 Oracle 下游效用，不阻断 V1 定位上界。本子计划仅在V1 通过后用于修复冻结音频路径资格。",
+  "training_manifest_audit": {
+    "path": "intersuit/datasets/AS_M4_STAGE2/train_manifest_semantic_negative.json",
+    "sha256": "c7c74202272ffef53b56277fbd2c0d106e30b1e563b6a7c7f0a87ed70b32725c",
+    "count": 2430,
+    "source_dataset_counts": {
+      "AVE_HF_EXPANDED": 1200,
+      "AVUT": 664,
+      "MUSIC-AVQA-v2.0": 566
+    },
+    "task_type_counts": {
+      "audio": 1003,
+      "audio_visual": 674,
+      "visual": 753
+    },
+    "qa_origin_counts": {
+      "human": 664,
+      "template": 1766
+    },
+    "answer_kind_counts": {
+      "comma_separated_label": 290,
+      "free_text_or_phrase": 245,
+      "multiple_choice_letter": 664,
+      "single_token_or_word": 1231
+    },
+    "missing_event_label_count": 1230,
+    "missing_physical_media_id_count": 0,
+    "unique_physical_media_count": 984,
+    "missing_negative_event_label_count": 1230,
+    "same_nonempty_event_label_count": 0,
+    "visual_task_with_contrastive_target_count": 753,
+    "multiple_choice_letter_target_count": 664
+  },
+  "dev_manifest_audit": {
+    "path": "intersuit/datasets/AS_M4_STAGE2/dev_manifest.json",
+    "sha256": "0237cdebfb54c2766cd17ab709293862be381fa17ca809d101fbce37d617fb10",
+    "count": 780,
+    "source_dataset_counts": {
+      "AVE_HF_EXPANDED": 360,
+      "AVUT": 256,
+      "MUSIC-AVQA-v2.0": 164
+    },
+    "task_type_counts": {
+      "audio": 322,
+      "audio_visual": 236,
+      "visual": 222
+    },
+    "qa_origin_counts": {
+      "human": 256,
+      "template": 524
+    },
+    "answer_kind_counts": {
+      "comma_separated_label": 78,
+      "free_text_or_phrase": 68,
+      "multiple_choice_letter": 256,
+      "single_token_or_word": 378
+    },
+    "missing_event_label_count": 420,
+    "missing_physical_media_id_count": 0,
+    "unique_physical_media_count": 294
+  },
+  "existing_ave_hf_300_feature_audit": {
+    "path": "intersuit/harness/artifacts/ave_hf_300_clip_window_features/ave_hf_clip_window_feature_manifest.jsonl",
+    "sha256": "233391af4a2a22d27a0aa327e52b3358d1eac72cfe1b3db973de8eabdf11a92d",
+    "count": 300,
+    "missing_path_count": 0,
+    "nonfinite_audio_feature_count": 0,
+    "window_sec_counts": {
+      "1.0": 300
+    },
+    "hop_sec_counts": {
+      "0.5": 300
+    },
+    "checkpoint_sha256_counts": {
+      "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34": 300
+    },
+    "formal_r1_contract_compatible": false,
+    "qualification_zh": "仅可用于 evaluator 开发；正式 R1 需要按 1.0s window / 1.0s hop 重新提取。"
+  },
+  "train_dev_physical_overlap_count": 0,
+  "dev760_failure_audit": {
+    "count": 760,
+    "prediction_sha256": {
+      "correct": "d2da68e12ac3084a44df980acf2d8ba0e199118cfc98ce222dc8150e9335d968",
+      "gate0": "ec00b523bf0a60159a7d48a267dc0303127b5b7b1b018729e49b9c0d6ed55f39",
+      "mismatched": "f529a01ae0aa3b005b796605127f1ddedca2ebb56d03a07990268ccb44b87d5c",
+      "silence": "227331d3d7b2ca7f7bd518eca5c1bc49e2b9f238837595e08ccd085d75c29c3b",
+      "video_only": "a1979373e2555783debf908beeb6bc8a9ec78117e2f63d5deeeb8fe2228b7ec1"
+    },
+    "paired_vs_video_only": {
+      "correct": {
+        "gain": 7,
+        "harm": 10,
+        "net": -3,
+        "same_prediction_count": 532
+      },
+      "mismatched": {
+        "gain": 13,
+        "harm": 8,
+        "net": 5,
+        "same_prediction_count": 528
+      },
+      "silence": {
+        "gain": 0,
+        "harm": 0,
+        "net": 0,
+        "same_prediction_count": 760
+      },
+      "gate0": {
+        "gain": 0,
+        "harm": 0,
+        "net": 0,
+        "same_prediction_count": 760
+      }
+    },
+    "correct_only_vs_mismatch": 5,
+    "mismatch_only_vs_correct": 13,
+    "mean_correct_delta_to_video_ratio": 0.0005234380088375857,
+    "mean_mismatched_delta_to_video_ratio": 0.0005233470159031353,
+    "strata": {
+      "answer_kind": {
+        "comma_separated_label": {
+          "count": 75,
+          "video_correct": 15,
+          "correct_audio_correct": 14,
+          "mismatched_audio_correct": 14,
+          "correct_only_vs_mismatch": 0,
+          "mismatch_only_vs_correct": 0
+        },
+        "free_text_or_phrase": {
+          "count": 66,
+          "video_correct": 3,
+          "correct_audio_correct": 3,
+          "mismatched_audio_correct": 3,
+          "correct_only_vs_mismatch": 0,
+          "mismatch_only_vs_correct": 0
+        },
+        "multiple_choice_letter": {
+          "count": 249,
+          "video_correct": 104,
+          "correct_audio_correct": 104,
+          "mismatched_audio_correct": 107,
+          "correct_only_vs_mismatch": 1,
+          "mismatch_only_vs_correct": 4
+        },
+        "single_token_or_word": {
+          "count": 370,
+          "video_correct": 132,
+          "correct_audio_correct": 130,
+          "mismatched_audio_correct": 135,
+          "correct_only_vs_mismatch": 4,
+          "mismatch_only_vs_correct": 9
+        }
+      },
+      "source_dataset": {
+        "AVE_HF_EXPANDED": {
+          "count": 352,
+          "video_correct": 86,
+          "correct_audio_correct": 81,
+          "mismatched_audio_correct": 84,
+          "correct_only_vs_mismatch": 4,
+          "mismatch_only_vs_correct": 7
+        },
+        "AVUT": {
+          "count": 249,
+          "video_correct": 104,
+          "correct_audio_correct": 104,
+          "mismatched_audio_correct": 107,
+          "correct_only_vs_mismatch": 1,
+          "mismatch_only_vs_correct": 4
+        },
+        "MUSIC-AVQA-v2.0": {
+          "count": 159,
+          "video_correct": 64,
+          "correct_audio_correct": 66,
+          "mismatched_audio_correct": 68,
+          "correct_only_vs_mismatch": 0,
+          "mismatch_only_vs_correct": 2
+        }
+      },
+      "task_type": {
+        "audio": {
+          "count": 316,
+          "video_correct": 100,
+          "correct_audio_correct": 94,
+          "mismatched_audio_correct": 97,
+          "correct_only_vs_mismatch": 0,
+          "mismatch_only_vs_correct": 3
+        },
+        "audio_visual": {
+          "count": 228,
+          "video_correct": 79,
+          "correct_audio_correct": 81,
+          "mismatched_audio_correct": 85,
+          "correct_only_vs_mismatch": 1,
+          "mismatch_only_vs_correct": 5
+        },
+        "visual": {
+          "count": 216,
+          "video_correct": 75,
+          "correct_audio_correct": 76,
+          "mismatched_audio_correct": 77,
+          "correct_only_vs_mismatch": 4,
+          "mismatch_only_vs_correct": 5
+        }
+      }
+    }
+  },
+  "frozen_evidence": {
+    "selectivity_summary": {
+      "path": "intersuit/harness/artifacts/as_m4_semantic_contrast_dev760_gate0005/selectivity_summary.json",
+      "sha256": "cf00f17a6f13559dcb345a4804f05803751721bc725e39ce13d1093fcccc6bce"
+    },
+    "checkpoint_lock": {
+      "path": "intersuit/configs/dynamic_selector_v2_checkpoint_lock.json",
+      "sha256": "21b0dce22fb2408f77bf9164612e65eae0d8d8d5a73e364e75b873304d593516"
+    }
+  },
+  "implementation_sha256": {
+    "intersuit/intersuit/model/language_model/llava_qwen.py": "5605d5f338ba78f455ad34a17b58768a9b0689a20d4582423ee7098e54230614",
+    "intersuit/intersuit/model/llava_arch.py": "0135fb24479eac66f3f6b5f3533fadca12c0b789eddfa545d31faacc1a1ce385",
+    "intersuit/intersuit/model/streaming_av/fusion.py": "1e25ad63e1245c11e0601093883ae03749e5417dc97149e824953c471acf25b0",
+    "intersuit/scripts/build_stage2_semantic_negative_manifest.py": "75ef218db4c2362ed19f3169e978f21660663cb023cbc709438018676ec0df1d",
+    "intersuit/intersuit/harness/runners/run_predictions_from_plan.py": "5e7a2e2364b69d75ec232ea60f78f17851d39d8e30446dd068189b895770f230"
+  },
+  "review_findings": [
+    "当前答案目标是忽略 prompt 后对全部答案 token embedding 做无上下文平均。",
+    "A-D 多选字母与纯视觉答案不能作为可靠的音频事件语义目标。",
+    "缺失 event_label 的样本无法保证负音频与正音频语义不同。",
+    "semantic ranking 直接约束 scene-audio projector，但不直接约束 fusion。",
+    "beats_simple_residual 将相同帧级音频残差广播到该帧全部空间视觉 token。",
+    "dev760 中 correct 与 mismatched 的残差幅度近似相同，当前链路没有语义选择性。",
+    "AVE_HF 本地 manifest 的 start_seconds 是源视频片段偏移，不是可靠事件边界；既有 projector 将同一视频全部窗口复制为同一弱标签。"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "artifact_kind": "m4_ptpa_unav_mug_alignment_baseline_lock",
+  "format_version": 1,
+  "created_date": "2026-08-28",
+  "plan_path": "intersuit/harness/M4_PTPA_UNAV_MUG_PSEUDOLABEL_ALIGNMENT_PLAN_ZH.md",
+  "baselines": {
+    "beats_checkpoint_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+    "feature_manifest_sha256": "57b0bc55b83b655a653dd6c2544aab423f655eef8a915024e03596b51eb935f0",
+    "raw_beats_macro_recall_at_1": 0.6805581059646894,
+    "raw_beats_margin": 0.01754618038589157,
+    "temporal_projector_v2_checkpoint_sha256": "0bf779dbc1678328d935089f8d41c16e216266b694dd86e51415bfb96f92a610",
+    "temporal_projector_v2_macro_recall_at_1": 0.6279475733338353,
+    "temporal_projector_v2_margin": 0.021334614877096356
+  },
+  "freeze": {"beats": true, "m4_qwen2": true, "visual_backbone": true, "language_model": true},
+  "training": {"first_trainable_modules": ["audio_projector", "visual_projector", "temporal_alignment_head"], "forbidden_modules": ["beats", "m4_fusion", "dynamic_selector", "language_model"], "steps": [2,20,150,300]},
+  "permissions": {"baseline_lock_completed": true, "pseudolabel_generation_allowed": false, "cmrc_generation_allowed": false, "training_allowed": false, "test_access_allowed": false}
+}

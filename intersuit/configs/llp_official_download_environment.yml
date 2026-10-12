@@ -1,0 +1,9 @@
+name: llp-official-download
+channels:
+  - defaults
+dependencies:
+  - python=3.8.20
+  - pip=24.2
+  - ffmpeg=8.1.2
+  - pip:
+      - youtube-dl==2021.12.17

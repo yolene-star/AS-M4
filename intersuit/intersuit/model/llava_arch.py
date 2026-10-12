@@ -27,14 +27,62 @@ from .multimodal_projector.builder import build_vision_projector
 from .speech_encoder.builder import build_speech_encoder
 from .speech_projector.builder import  build_speech_projector
 from .scene_audio_encoder.builder import build_scene_audio_encoder
+from .scene_audio_encoder.scene_audio_encoder import SceneAudioEncoderOutput
 from .streaming_av.builder import build_streaming_av_module
+from .streaming_av.audio_event_aligner import FrozenOffsetScorerInputs, compute_audio_event_features
+from .streaming_av.confidence_gate import AudioSignalFeatures, compute_audio_signal_features
 from .streaming_av.fusion import apply_audio_delta_ratio_cap
+from .streaming_av.audio_token_injection import build_audio_token_features
+from .streaming_av.selection_contract import (
+    EXTERNAL_PRE_ENCODER_STAGE,
+    selection_results_from_model_output,
+)
 
 from intersuit.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from intersuit.constants import SPEECH_TOKEN_INDEX, DEFAULT_SPEECH_TOKEN
 from intersuit.mm_utils import get_anyres_image_grid_shape
 from intersuit.utils import rank0_print, lengths_to_padding_mask
 import random
+
+
+SCENE_AUDIO_SELECTOR_WINDOW_MODES = frozenset(
+    {"micro_window", "legacy_multiscale_dynamic", "question_conditioned"}
+)
+
+
+def normalize_scene_audio_window_mode(value, *, allow_disabled: bool = False) -> str:
+    """Validate explicit window-mode names and reject the old ambiguous alias."""
+
+    mode = str(value).lower()
+    if mode == "dynamic":
+        raise ValueError(
+            "scene_audio_window_mode='dynamic' is ambiguous after D0; use "
+            "'micro_window' for the formal one-source-window selector or "
+            "'legacy_multiscale_dynamic' for historical regression, or "
+            "'question_conditioned' for the trainable V2 scorer"
+        )
+    valid = {"fixed", *SCENE_AUDIO_SELECTOR_WINDOW_MODES}
+    if allow_disabled:
+        valid.add("disabled")
+    if mode not in valid:
+        raise ValueError(
+            f"Unsupported scene_audio_window_mode={mode!r}; expected one of {sorted(valid)}"
+        )
+    return mode
+
+
+def _select_frozen_offset_scorer_inputs(inputs, index):
+    if inputs is None:
+        return None
+    if isinstance(inputs, (list, tuple)) and not isinstance(inputs, FrozenOffsetScorerInputs):
+        if index >= len(inputs):
+            return None
+        return inputs[index]
+    if not isinstance(inputs, FrozenOffsetScorerInputs):
+        raise ValueError("frozen_offset_scorer_inputs must be FrozenOffsetScorerInputs or a per-sample list")
+    if inputs.audio_features.shape[0] == 1:
+        return inputs if index == 0 else None
+    return FrozenOffsetScorerInputs(*(value[index : index + 1] for value in inputs))
 
 
 class LlavaMetaModel:
@@ -60,6 +108,11 @@ class LlavaMetaModel:
         # the existing speech/query-speech path.
         if hasattr(config, "scene_audio_encoder_type") or hasattr(config, "scene_audio_encoder"):
             self.scene_audio_encoder = build_scene_audio_encoder(config)
+            config.scene_audio_selector_dim = int(
+                getattr(self.scene_audio_encoder, "encoder_dim", None)
+                or getattr(config, "scene_audio_hidden_size", None)
+                or config.hidden_size
+            )
             self.streaming_av_module = build_streaming_av_module(config)
 
     def get_vision_tower(self):
@@ -183,6 +236,53 @@ class LlavaMetaModel:
         self.config.scene_audio_encoder_type = getattr(model_args, "scene_audio_encoder_type", "dummy")
         self.config.scene_audio_hidden_size = getattr(model_args, "scene_audio_hidden_size", self.config.hidden_size)
         self.config.scene_audio_precomputed_dim = getattr(model_args, "scene_audio_precomputed_dim", None)
+        self.config.scene_audio_precomputed_shared_space = getattr(
+            model_args, "scene_audio_precomputed_shared_space", False
+        )
+        self.config.scene_audio_torchaudio_bundle = getattr(model_args, "scene_audio_torchaudio_bundle", "WAV2VEC2_BASE")
+        self.config.scene_audio_torchaudio_weight_path = (
+            getattr(model_args, "scene_audio_torchaudio_weight_path", None) or None
+        )
+        self.config.scene_audio_sample_rate = getattr(model_args, "scene_audio_sample_rate", 16000)
+        self.config.scene_audio_beats_checkpoint = getattr(
+            model_args,
+            "scene_audio_beats_checkpoint",
+            "intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+        )
+        self.config.scene_audio_beats_code_root = getattr(
+            model_args,
+            "scene_audio_beats_code_root",
+            "third_party/OmniMMI/baselines/videollama2/model",
+        )
+        self.config.scene_audio_beats_checkpoint_sha256 = (
+            getattr(model_args, "scene_audio_beats_checkpoint_sha256", None) or None
+        )
+        self.config.scene_audio_v4_projector_path = (
+            getattr(model_args, "scene_audio_v4_projector_path", None) or None
+        )
+        self.config.scene_audio_v4_projector_sha256 = (
+            getattr(model_args, "scene_audio_v4_projector_sha256", None) or None
+        )
+        self.config.scene_audio_window_mode = normalize_scene_audio_window_mode(
+            getattr(model_args, "scene_audio_window_mode", "fixed")
+        )
+        self.config.scene_audio_selector_dim = getattr(model_args, "scene_audio_selector_dim", None)
+        self.config.dynamic_window_scales_sec = getattr(model_args, "dynamic_window_scales_sec", "1.0,2.0,4.0")
+        self.config.dynamic_window_micro_window_sec = getattr(
+            model_args,
+            "dynamic_window_micro_window_sec",
+            1.0,
+        )
+        self.config.dynamic_window_top_k = getattr(model_args, "dynamic_window_top_k", 16)
+        self.config.dynamic_window_nms_iou = getattr(model_args, "dynamic_window_nms_iou", 0.6)
+        self.config.dynamic_window_ema_beta = getattr(model_args, "dynamic_window_ema_beta", 0.9)
+        self.config.dynamic_window_start_scale = getattr(model_args, "dynamic_window_start_scale", 1.0)
+        self.config.dynamic_window_hold_scale = getattr(model_args, "dynamic_window_hold_scale", 0.25)
+        self.config.dynamic_window_min_score = getattr(model_args, "dynamic_window_min_score", 0.05)
+        self.config.dynamic_window_causal = getattr(model_args, "dynamic_window_causal", True)
+        self.config.question_conditioned_selector_projection_dim = getattr(
+            model_args, "question_conditioned_selector_projection_dim", 256
+        )
         self.config.num_audio_events = getattr(model_args, "num_audio_events", 25)
         self.config.audio_quality_dim = getattr(model_args, "audio_quality_dim", 1)
         self.config.streaming_av_align_dim = getattr(model_args, "streaming_av_align_dim", self.config.hidden_size)
@@ -192,10 +292,106 @@ class LlavaMetaModel:
         self.config.audio_delta_ratio_cap = getattr(model_args, "audio_delta_ratio_cap", 0.0)
         self.config.enable_scene_audio = getattr(model_args, "enable_scene_audio", True)
         self.config.as_m4_fusion_init = getattr(model_args, "as_m4_fusion_init", "zero")
+        self.config.as_m4_fusion_projector_mode = getattr(
+            model_args,
+            "as_m4_fusion_projector_mode",
+            "legacy",
+        )
         self.config.as_m4_gate_logit_bias = getattr(model_args, "as_m4_gate_logit_bias", -5.0)
+        self.config.as_m4_fusion_mode = getattr(
+            model_args,
+            "as_m4_fusion_mode",
+            "aligned_gated",
+        )
+        self.config.as_m4_simple_audio_gate = getattr(
+            model_args,
+            "as_m4_simple_audio_gate",
+            1.0,
+        )
+        self.config.as_m4_inference_simple_audio_gate = getattr(
+            model_args,
+            "as_m4_inference_simple_audio_gate",
+            None,
+        )
+        self.config.scene_audio_contrastive_weight = getattr(
+            model_args, "scene_audio_contrastive_weight", 0.0
+        )
+        self.config.scene_audio_contrastive_margin = getattr(
+            model_args, "scene_audio_contrastive_margin", 0.2
+        )
+        self.config.enable_audio_confidence_gate_v1 = getattr(
+            model_args, "enable_audio_confidence_gate_v1", False
+        )
+        self.config.audio_gate_silence_threshold = getattr(
+            model_args, "audio_gate_silence_threshold", 1e-4
+        )
+        self.config.audio_gate_rms_reference = getattr(model_args, "audio_gate_rms_reference", 0.05)
+        self.config.audio_confidence_projection_dim = getattr(
+            model_args, "audio_confidence_projection_dim", 128
+        )
+        self.config.first_stage_audio_gate_logit_bias = getattr(
+            model_args, "first_stage_audio_gate_logit_bias", -2.0
+        )
+        self.config.audio_question_router_logit_bias = getattr(
+            model_args, "audio_question_router_logit_bias", -4.0
+        )
+        self.config.first_stage_audio_gate_max = getattr(
+            model_args, "first_stage_audio_gate_max", 1.0
+        )
+        self.config.enable_audio_event_aligner_v1 = getattr(
+            model_args, "enable_audio_event_aligner_v1", False
+        )
+        self.config.audio_event_local_offset_sec = getattr(model_args, "audio_event_local_offset_sec", 0.5)
+        self.config.audio_event_silence_threshold = getattr(
+            model_args, "audio_event_silence_threshold", 1e-4
+        )
+        self.config.audio_event_rms_reference = getattr(model_args, "audio_event_rms_reference", 0.05)
+        self.config.audio_event_strength_weight = getattr(model_args, "audio_event_strength_weight", 0.05)
+        self.config.audio_event_align_dim = getattr(
+            model_args, "audio_event_align_dim", self.config.streaming_av_align_dim
+        )
+        self.config.audio_event_semantic_feature_mode = getattr(
+            model_args, "audio_event_semantic_feature_mode", "disabled"
+        )
+        self.config.audio_event_projector_checkpoint_path = (
+            getattr(model_args, "audio_event_projector_checkpoint_path", None) or None
+        )
+        self.config.enable_audio_event_offset_scorer = getattr(
+            model_args, "enable_audio_event_offset_scorer", False
+        )
+        self.config.audio_event_offset_scorer_bundle_path = (
+            getattr(model_args, "audio_event_offset_scorer_bundle_path", None) or None
+        )
+        self.config.audio_event_offset_scorer_margin_threshold = getattr(
+            model_args, "audio_event_offset_scorer_margin_threshold", 0.15
+        )
+        self.config.audio_event_offset_scorer_stabilization_strategy = getattr(
+            model_args, "audio_event_offset_scorer_stabilization_strategy", "none"
+        )
+        self.config.audio_event_offset_scorer_consecutive_windows = getattr(
+            model_args, "audio_event_offset_scorer_consecutive_windows", 2
+        )
+        self.config.audio_event_offset_scorer_hold_margin = getattr(
+            model_args, "audio_event_offset_scorer_hold_margin", 0.10
+        )
+        self.config.audio_event_offset_scorer_switch_margin = getattr(
+            model_args, "audio_event_offset_scorer_switch_margin", 0.30
+        )
+        self.config.audio_event_offset_scorer_moving_average_windows = getattr(
+            model_args, "audio_event_offset_scorer_moving_average_windows", 3
+        )
+        self.config.enable_temporal_offset_gru_diagnostic = getattr(
+            model_args, "enable_temporal_offset_gru_diagnostic", False
+        )
+        self.config.temporal_offset_gru_checkpoint_path = (
+            getattr(model_args, "temporal_offset_gru_checkpoint_path", None) or None
+        )
 
         if self.get_scene_audio_encoder() is None:
             scene_audio_encoder = build_scene_audio_encoder(self.config)
+            self.config.scene_audio_selector_dim = int(
+                getattr(scene_audio_encoder, "encoder_dim", self.config.scene_audio_selector_dim or self.config.hidden_size)
+            )
             streaming_av_module = build_streaming_av_module(self.config)
             if fsdp is not None and len(fsdp) > 0:
                 self.scene_audio_encoder = [scene_audio_encoder]
@@ -267,6 +463,46 @@ def _timestamps_to_centers(timestamps, batch_idx, steps, device, dtype):
     return centers[:steps].unsqueeze(0)
 
 
+def _linearly_align_audio_windows(audio, audio_mask, num_frames):
+    """Map fixed audio windows to video frames without learned alignment."""
+
+    if audio.ndim != 3 or audio.shape[0] != 1:
+        raise ValueError("Simple BEATs alignment expects audio shaped [1,T,H]")
+    if num_frames <= 0:
+        raise ValueError("num_frames must be positive")
+    valid = audio[0][audio_mask[0].to(dtype=torch.bool)]
+    if valid.shape[0] == 0:
+        return torch.zeros(
+            1,
+            num_frames,
+            audio.shape[-1],
+            device=audio.device,
+            dtype=audio.dtype,
+        )
+    if valid.shape[0] == 1:
+        return valid.unsqueeze(0).expand(1, num_frames, -1)
+    aligned = nn.functional.interpolate(
+        valid.transpose(0, 1).unsqueeze(0).float(),
+        size=num_frames,
+        mode="linear",
+        align_corners=False,
+    )
+    return aligned.squeeze(0).transpose(0, 1).unsqueeze(0).to(dtype=audio.dtype)
+
+
+def _pool_question_text_features(embed_tokens, input_ids, attention_mask=None):
+    """Mean-pool valid prompt token embeddings without embedding MM sentinels."""
+
+    valid = input_ids.ge(0)
+    if attention_mask is not None:
+        valid = valid & attention_mask.to(device=input_ids.device, dtype=torch.bool)
+    safe_ids = input_ids.masked_fill(~valid, 0)
+    token_features = embed_tokens(safe_ids)
+    weights = valid.to(device=token_features.device, dtype=token_features.dtype).unsqueeze(-1)
+    pooled = (token_features * weights).sum(dim=1) / weights.sum(dim=1).clamp_min(1.0)
+    return torch.nan_to_num(pooled, nan=0.0, posinf=0.0, neginf=0.0)
+
+
 class LlavaMetaForCausalLM(ABC):
 
     @abstractmethod
@@ -326,15 +562,123 @@ class LlavaMetaForCausalLM(ABC):
     def get_streaming_av_module(self):
         return self.get_model().get_streaming_av_module()
 
-    def encode_scene_audio(self, scene_audios, scene_audio_mask=None, scene_audio_timestamps=None):
+    def scene_audio_branch_is_active(self, scene_audios=None, selection_stage=None) -> bool:
+        """Return whether the optional scene-audio side branch should run.
+
+        The branch is deliberately routed outside the original M4 visual and
+        query-speech paths.  Keeping the decision in one place makes behavior
+        rollback exact even when callers still provide cached audio tensors.
+        """
+
+        if selection_stage not in {None, EXTERNAL_PRE_ENCODER_STAGE}:
+            raise ValueError(f"Unsupported scene_audio_selection_stage={selection_stage!r}")
+        enabled = bool(getattr(self.config, "enable_scene_audio", False))
+        if scene_audios is None or not enabled:
+            if selection_stage is not None:
+                raise ValueError("external scene-audio selection requires a non-empty enabled audio branch")
+            return False
+        window_mode = normalize_scene_audio_window_mode(
+            getattr(self.config, "scene_audio_window_mode", "fixed"),
+            allow_disabled=True,
+        )
+        active = window_mode != "disabled"
+        if selection_stage is not None and not active:
+            raise ValueError("external scene-audio selection cannot run with window mode disabled")
+        return active
+
+    def encode_scene_audio(
+        self,
+        scene_audios,
+        scene_audio_mask=None,
+        scene_audio_timestamps=None,
+        question_features=None,
+        window_mode_override=None,
+    ):
         scene_audio_encoder = self.get_scene_audio_encoder()
         if scene_audio_encoder is None:
             raise ValueError("Scene audio encoder is not initialized. Call initialize_scene_audio_modules first.")
+        window_mode = normalize_scene_audio_window_mode(
+            window_mode_override
+            if window_mode_override is not None
+            else getattr(self.config, "scene_audio_window_mode", "fixed")
+        )
+        if window_mode in SCENE_AUDIO_SELECTOR_WINDOW_MODES:
+            streaming_av_module = self.get_streaming_av_module()
+            if streaming_av_module is None:
+                raise ValueError("Selected scene audio requires streaming_av_module")
+            if scene_audio_timestamps is None:
+                raise ValueError("Selected scene audio requires scene_audio_timestamps")
+            if window_mode == "question_conditioned" and question_features is None:
+                raise ValueError("question_conditioned scene audio selection requires question_features")
+            if window_mode == "micro_window":
+                selector = streaming_av_module.dynamic_window_selector
+            elif window_mode == "legacy_multiscale_dynamic":
+                selector = streaming_av_module.legacy_multiscale_dynamic_window_selector
+            else:
+                selector = streaming_av_module.question_conditioned_window_selector
+            if hasattr(scene_audio_encoder, "encode_raw") and hasattr(scene_audio_encoder, "project"):
+                raw_output = scene_audio_encoder.encode_raw(scene_audios, sample_mask=scene_audio_mask)
+                if window_mode == "question_conditioned":
+                    selected = selector(
+                        raw_output.features,
+                        question_features,
+                        scene_audio_timestamps,
+                        valid_mask=raw_output.mask,
+                    )
+                else:
+                    selected = selector(
+                        raw_output.features,
+                        scene_audio_timestamps,
+                        audio_mask=raw_output.mask,
+                        audio_windows=scene_audios,
+                    )
+                projected = scene_audio_encoder.project(selected.selected_features)
+            else:
+                fixed_output = scene_audio_encoder(
+                    scene_audios,
+                    sample_mask=scene_audio_mask,
+                    timestamps=scene_audio_timestamps,
+                )
+                if window_mode == "question_conditioned":
+                    selected = selector(
+                        fixed_output.features,
+                        question_features,
+                        scene_audio_timestamps,
+                        valid_mask=fixed_output.mask,
+                    )
+                else:
+                    selected = selector(
+                        fixed_output.features,
+                        scene_audio_timestamps,
+                        audio_mask=fixed_output.mask,
+                        audio_windows=scene_audios,
+                    )
+                projected = selected.selected_features
+            self._last_dynamic_window_selector_output = selected
+            self._last_dynamic_window_selector_mode = window_mode
+            policy_name = {
+                "micro_window": "current_micro_topk",
+                "legacy_multiscale_dynamic": "legacy_multiscale_dynamic",
+                "question_conditioned": "question_conditioned_topk",
+            }[window_mode]
+            self._last_selection_results = selection_results_from_model_output(
+                policy_name,
+                selected,
+            )
+            return SceneAudioEncoderOutput(
+                features=projected.masked_fill(~selected.selection_mask.unsqueeze(-1), 0.0),
+                mask=selected.selection_mask,
+                timestamps=selected.selected_timestamps,
+                feature_kind=f"{window_mode}_selected",
+            )
         output = scene_audio_encoder(
             scene_audios,
             sample_mask=scene_audio_mask,
             timestamps=scene_audio_timestamps,
         )
+        self._last_dynamic_window_selector_output = None
+        self._last_dynamic_window_selector_mode = "fixed"
+        self._last_selection_results = ()
         return output
 
     def fuse_scene_audio_into_image_features(
@@ -348,6 +692,10 @@ class LlavaMetaForCausalLM(ABC):
         force_audio_gate=None,
         audio_residual_scale=1.0,
         audio_delta_ratio_cap=0.0,
+        question_features=None,
+        scene_audio_signal_features=None,
+        scene_audio_windows=None,
+        frozen_offset_scorer_inputs=None,
     ):
         """Fuse scene audio into per-frame video features before flattening.
 
@@ -377,6 +725,100 @@ class LlavaMetaForCausalLM(ABC):
             video = feature.unsqueeze(0)
             num_audio = audio.shape[1]
             num_frames = video.shape[1]
+
+            fusion_mode = str(
+                getattr(self.config, "as_m4_fusion_mode", "aligned_gated")
+            )
+            if fusion_mode == "beats_simple_residual":
+                frame_audio = _linearly_align_audio_windows(
+                    audio,
+                    audio_mask,
+                    num_frames,
+                )
+                default_gate = float(getattr(self.config, "as_m4_simple_audio_gate", 1.0))
+                inference_gate = getattr(
+                    self.config,
+                    "as_m4_inference_simple_audio_gate",
+                    None,
+                )
+                if not getattr(self, "training", False) and inference_gate is not None:
+                    default_gate = float(inference_gate)
+                gate_value = float(force_audio_gate) if force_audio_gate is not None else default_gate
+                if not math.isfinite(gate_value) or not 0.0 <= gate_value <= 1.0:
+                    raise ValueError("as_m4_simple_audio_gate must be finite and in [0,1]")
+                gate = torch.full(
+                    (1, num_frames),
+                    gate_value,
+                    device=feature.device,
+                    dtype=feature.dtype,
+                )
+                signal_gate = None
+                if scene_audio_signal_features is not None:
+                    audio_rms = scene_audio_signal_features.rms[idx : idx + 1].to(
+                        device=feature.device,
+                        dtype=feature.dtype,
+                    )
+                    non_silent = audio_rms.gt(
+                        float(getattr(self.config, "audio_gate_silence_threshold", 1e-4))
+                    )
+                    signal_gate = _linearly_align_audio_windows(
+                        non_silent.to(dtype=feature.dtype).unsqueeze(-1),
+                        audio_mask,
+                        num_frames,
+                    ).squeeze(-1).clamp(0.0, 1.0)
+                    gate = gate * signal_gate
+                audio_delta = streaming_av_module.fusion.audio_delta(frame_audio)
+                raw_delta = (
+                    float(audio_residual_scale)
+                    * gate.view(1, num_frames, 1, 1)
+                    * audio_delta.unsqueeze(2)
+                )
+                capped_delta, cap_diagnostics = apply_audio_delta_ratio_cap(
+                    video,
+                    raw_delta,
+                    ratio_cap=audio_delta_ratio_cap,
+                )
+                fused_features.append((video + capped_delta).squeeze(0))
+                diagnostics.append(
+                    {
+                        "fusion_mode": fusion_mode,
+                        "dynamic_alignment_enabled": False,
+                        "learned_gate_enabled": False,
+                        "gate": gate.detach(),
+                        "gate_mean": gate.detach().float().mean(),
+                        "gate_max": gate.detach().float().max(),
+                        "gate_min": gate.detach().float().min(),
+                        "signal_gate_mean": (
+                            signal_gate.detach().float().mean()
+                            if signal_gate is not None
+                            else None
+                        ),
+                        "video_norm": cap_diagnostics["video_norm"][0],
+                        "audio_norm": frame_audio.detach().float().norm(),
+                        "delta_norm": cap_diagnostics["capped_delta_norm"][0],
+                        "delta_to_video_ratio": cap_diagnostics[
+                            "capped_delta_to_video_ratio"
+                        ][0],
+                        "raw_delta_norm": cap_diagnostics["raw_delta_norm"][0],
+                        "raw_delta_to_video_ratio": cap_diagnostics[
+                            "raw_delta_to_video_ratio"
+                        ][0],
+                        "audio_delta_cap": float(audio_delta_ratio_cap),
+                        "audio_delta_applied_scale": cap_diagnostics[
+                            "audio_delta_applied_scale"
+                        ][0],
+                        "capped_delta_norm": cap_diagnostics[
+                            "capped_delta_norm"
+                        ][0],
+                        "capped_delta_to_video_ratio": cap_diagnostics[
+                            "capped_delta_to_video_ratio"
+                        ][0],
+                        "audio_residual_scale": float(audio_residual_scale),
+                    }
+                )
+                continue
+            if fusion_mode != "aligned_gated":
+                raise ValueError(f"Unknown AS-M4 fusion mode: {fusion_mode}")
 
             audio_times = _timestamps_to_centers(
                 scene_audio_timestamps,
@@ -409,6 +851,28 @@ class LlavaMetaForCausalLM(ABC):
             frame_audio = torch.matmul(weights_t, audio) / denom
             frame_audio = torch.nan_to_num(frame_audio, nan=0.0, posinf=0.0, neginf=0.0)
             video_summary = video.mean(dim=2)
+            local_alignment = None
+            event_features = None
+            if bool(getattr(self.config, "enable_audio_event_aligner_v1", False)) and scene_audio_windows is not None:
+                event_features = compute_audio_event_features(
+                    scene_audio_windows[idx : idx + 1].to(device=feature.device),
+                    audio_features=audio,
+                    sample_mask=audio_mask,
+                    silence_threshold=float(getattr(self.config, "audio_event_silence_threshold", 1e-4)),
+                    rms_reference=float(getattr(self.config, "audio_event_rms_reference", 0.05)),
+                )
+                local_alignment = streaming_av_module.audio_event_aligner(
+                    audio,
+                    video,
+                    audio_times,
+                    video_times,
+                    event_features,
+                    audio_mask=audio_mask,
+                    frozen_offset_inputs=_select_frozen_offset_scorer_inputs(
+                        frozen_offset_scorer_inputs,
+                        idx,
+                    ),
+                )
             frame_confidence = align_output.offset_confidence.to(dtype=audio.dtype).unsqueeze(1).expand(-1, num_frames, -1)
             frame_confidence = (weights_t * frame_confidence).sum(dim=-1) / denom.squeeze(-1)
             frame_confidence = torch.nan_to_num(frame_confidence, nan=0.0, posinf=1.0, neginf=0.0)
@@ -416,11 +880,35 @@ class LlavaMetaForCausalLM(ABC):
             frame_eventness = (weights_t * frame_eventness).sum(dim=-1, keepdim=True) / denom
             frame_eventness = torch.nan_to_num(frame_eventness, nan=0.0, posinf=1.0, neginf=0.0)
 
+            frame_question = None
+            frame_signal = None
+            frame_offset = None
+            if streaming_av_module.confidence_gate.enable_v1:
+                if question_features is not None and idx < question_features.shape[0]:
+                    frame_question = question_features[idx : idx + 1]
+                if scene_audio_signal_features is not None:
+                    def align_scalar(values):
+                        sample_values = values[idx : idx + 1].to(device=feature.device, dtype=audio.dtype)
+                        return (weights_t * sample_values.unsqueeze(1)).sum(dim=-1) / denom.squeeze(-1)
+
+                    frame_signal = AudioSignalFeatures(
+                        rms=align_scalar(scene_audio_signal_features.rms),
+                        loudness_dbfs=align_scalar(scene_audio_signal_features.loudness_dbfs),
+                        silence_ratio=align_scalar(scene_audio_signal_features.silence_ratio),
+                        norm=align_scalar(scene_audio_signal_features.norm),
+                    )
+                frame_offset = (weights_t * align_output.offset_sec.to(dtype=audio.dtype).unsqueeze(1)).sum(
+                    dim=-1
+                ) / denom.squeeze(-1)
+
             gate_output = streaming_av_module.confidence_gate(
                 frame_audio,
                 video_summary,
+                question_feature=frame_question,
                 quality_features=frame_eventness,
                 alignment_confidence=frame_confidence,
+                signal_features=frame_signal,
+                offset_sec=frame_offset,
             )
             gate = gate_output.gate
             if force_audio_gate is not None:
@@ -468,6 +956,61 @@ class LlavaMetaForCausalLM(ABC):
                     "audio_residual_scale": float(audio_residual_scale),
                 }
             )
+            if local_alignment is not None and event_features is not None:
+                diagnostics[-1].update(
+                    {
+                        "audio_event_aligner_v1_enabled": True,
+                        "event_strength": event_features.event_strength.detach(),
+                        "is_silent_window": event_features.is_silent_window.detach(),
+                        "audio_rms": event_features.audio_rms.detach(),
+                        "audio_peak": event_features.audio_peak.detach(),
+                        "candidate_offsets": local_alignment.candidate_offsets.detach(),
+                        "candidate_valid": local_alignment.candidate_valid.detach(),
+                        "semantic_similarity": local_alignment.semantic_similarity.detach(),
+                        "video_event_strength": local_alignment.video_event_strength.detach(),
+                        "candidate_scores": local_alignment.candidate_scores.detach(),
+                        "best_offset": local_alignment.best_offset.detach(),
+                        "best_alignment_score": local_alignment.best_alignment_score.detach(),
+                        "second_best_alignment_score": local_alignment.second_best_alignment_score.detach(),
+                        "alignment_margin": local_alignment.alignment_margin.detach(),
+                        "alignment_confidence": local_alignment.alignment_confidence.detach(),
+                        "offset_scorer_candidate_scores": local_alignment.offset_scorer_candidate_scores.detach(),
+                        "offset_scorer_best_offset": local_alignment.offset_scorer_best_offset.detach(),
+                        "offset_scorer_margin": local_alignment.offset_scorer_margin.detach(),
+                        "offset_scorer_accepted": local_alignment.offset_scorer_accepted.detach(),
+                        "offset_scorer_suggested_offset": local_alignment.offset_scorer_suggested_offset.detach(),
+                        "offset_scorer_available": local_alignment.offset_scorer_available.detach(),
+                        "offset_scorer_stable_candidate_scores": local_alignment.offset_scorer_stable_candidate_scores.detach(),
+                        "offset_scorer_stable_best_offset": local_alignment.offset_scorer_stable_best_offset.detach(),
+                        "offset_scorer_stable_margin": local_alignment.offset_scorer_stable_margin.detach(),
+                        "offset_scorer_stable_accepted": local_alignment.offset_scorer_stable_accepted.detach(),
+                        "offset_scorer_stable_suggested_offset": local_alignment.offset_scorer_stable_suggested_offset.detach(),
+                        "offset_scorer_stable_delay_windows": local_alignment.offset_scorer_stable_delay_windows.detach(),
+                        "temporal_offset_gru_enabled": local_alignment.temporal_offset_available.any().detach(),
+                        "temporal_offset_logits": local_alignment.temporal_offset_logits.detach(),
+                        "temporal_offset_sync_prob": local_alignment.temporal_offset_sync_prob.detach(),
+                        "temporal_offset_predicted_offset": local_alignment.temporal_offset_predicted_offset.detach(),
+                        "temporal_offset_accepted": local_alignment.temporal_offset_accepted.detach(),
+                        "temporal_offset_suggested_offset": local_alignment.temporal_offset_suggested_offset.detach(),
+                        "temporal_offset_available": local_alignment.temporal_offset_available.detach(),
+                    }
+                )
+            if streaming_av_module.confidence_gate.enable_v1:
+                gate_v1_diagnostics = streaming_av_module.confidence_gate.last_v1_diagnostics
+                diagnostics[-1].update(
+                    {
+                        "gate_v1_enabled": True,
+                        "audio_rms": gate_v1_diagnostics["audio_rms"].detach(),
+                        "audio_loudness_dbfs": gate_v1_diagnostics["audio_loudness_dbfs"].detach(),
+                        "silence_ratio": gate_v1_diagnostics["silence_ratio"].detach(),
+                        "audio_input_norm": gate_v1_diagnostics["audio_norm"].detach(),
+                        "question_audio_similarity": gate_v1_diagnostics["question_similarity"].detach(),
+                        "offset_confidence": frame_confidence.detach(),
+                        "offset_score": gate_v1_diagnostics["offset_score"].detach(),
+                        "v1_quality_factor": gate_v1_diagnostics["v1_quality_factor"].detach(),
+                        "v1_relevance_factor": gate_v1_diagnostics["v1_relevance_factor"].detach(),
+                    }
+                )
         self._last_streaming_av_diagnostics = diagnostics
         return fused_features
 
@@ -506,6 +1049,7 @@ class LlavaMetaForCausalLM(ABC):
         labels,
         image_features,
         modalities,
+        audio_token_features=None,
     ):
         _labels = labels
         _position_ids = position_ids
@@ -564,6 +1108,17 @@ class LlavaMetaForCausalLM(ABC):
             cur_new_labels = torch.cat(cur_new_labels)
             new_input_embeds.append(cur_new_input_embeds)
             new_labels.append(cur_new_labels)
+
+        if audio_token_features is not None:
+            if len(audio_token_features) != len(new_input_embeds):
+                raise ValueError("audio_token_features batch size mismatch")
+            for batch_idx, tokens in enumerate(audio_token_features):
+                if tokens is None:
+                    continue
+                if tokens.ndim != 2 or tokens.shape[1] != new_input_embeds[batch_idx].shape[-1]:
+                    raise ValueError("audio tokens must be [A,H] matching input hidden size")
+                new_input_embeds[batch_idx] = torch.cat([tokens.to(new_input_embeds[batch_idx]), new_input_embeds[batch_idx]], dim=0)
+                new_labels[batch_idx] = torch.cat([torch.full((tokens.shape[0],), IGNORE_INDEX, device=new_labels[batch_idx].device, dtype=new_labels[batch_idx].dtype), new_labels[batch_idx]])
 
         tokenizer_model_max_length = getattr(self.config, "tokenizer_model_max_length", None)
         new_input_embeds = [x[:tokenizer_model_max_length] for x, modality in zip(new_input_embeds, modalities)]
@@ -868,11 +1423,29 @@ class LlavaMetaForCausalLM(ABC):
         scene_audios=None,
         scene_audio_mask=None,
         scene_audio_timestamps=None,
+        scene_audio_selection_stage=None,
         frame_timestamps=None,
         **kwargs,
     ):
-        enable_scene_audio = getattr(self.config, "enable_scene_audio", False)
-        if not enable_scene_audio or scene_audios is None:
+        configured_window_mode = normalize_scene_audio_window_mode(
+            getattr(self.config, "scene_audio_window_mode", "fixed"),
+            allow_disabled=True,
+        )
+        if scene_audio_selection_stage is None:
+            window_mode = configured_window_mode
+            external_selection = False
+        elif scene_audio_selection_stage == EXTERNAL_PRE_ENCODER_STAGE:
+            window_mode = "fixed"
+            external_selection = True
+        else:
+            raise ValueError(
+                f"Unsupported scene_audio_selection_stage={scene_audio_selection_stage!r}"
+            )
+        selector_mode = window_mode in SCENE_AUDIO_SELECTOR_WINDOW_MODES
+        if getattr(self.config, "as_m4_fusion_position", "visual_token_residual") == "llm_input_audio_tokens":
+            window_mode = "fixed"
+            selector_mode = False
+        if not self.scene_audio_branch_is_active(scene_audios, scene_audio_selection_stage):
             if speeches is not None:
                 return self.prepare_inputs_labels_for_multimodal_av(
                     input_ids,
@@ -937,23 +1510,109 @@ class LlavaMetaForCausalLM(ABC):
             split_sizes = [image.shape[0] for image in images_list]
             image_features = self.encode_multimodals(concat_images, video_idx_in_batch, split_sizes)
 
+        enable_gate_v1 = bool(getattr(self.config, "enable_audio_confidence_gate_v1", False))
+        simple_residual = str(
+            getattr(self.config, "as_m4_fusion_mode", "aligned_gated")
+        ) == "beats_simple_residual"
+        question_features = None
+        scene_audio_signal_features = None
+        if enable_gate_v1 or window_mode == "question_conditioned":
+            question_features = _pool_question_text_features(
+                self.get_model().embed_tokens,
+                input_ids,
+                attention_mask,
+            )
+        if enable_gate_v1 or simple_residual:
+            scene_audio_signal_features = compute_audio_signal_features(
+                scene_audios,
+                sample_mask=scene_audio_mask,
+                silence_threshold=float(getattr(self.config, "audio_gate_silence_threshold", 1e-4)),
+            )
+
         scene_audio_output = self.encode_scene_audio(
             scene_audios,
             scene_audio_mask=scene_audio_mask,
             scene_audio_timestamps=scene_audio_timestamps,
+            question_features=question_features,
+            window_mode_override=window_mode,
         )
         self._last_scene_audio_output = scene_audio_output
-        image_features = self.fuse_scene_audio_into_image_features(
-            image_features,
-            modalities,
-            scene_audio_output,
-            scene_audio_timestamps=scene_audio_timestamps,
-            frame_timestamps=frame_timestamps,
-            lookahead_sec=getattr(self.config, "streaming_av_lookahead_sec", 0.0),
-            force_audio_gate=getattr(self.config, "force_audio_gate", None),
-            audio_residual_scale=getattr(self.config, "debug_audio_residual_scale", 1.0),
-            audio_delta_ratio_cap=getattr(self.config, "audio_delta_ratio_cap", 0.0),
-        )
+        if selector_mode and scene_audio_signal_features is not None:
+            selector_output = self._last_dynamic_window_selector_output
+            weights = selector_output.source_weights.to(device=scene_audio_signal_features.rms.device)
+            scene_audio_signal_features = AudioSignalFeatures(
+                rms=torch.einsum("bkt,bt->bk", weights, scene_audio_signal_features.rms),
+                loudness_dbfs=torch.einsum("bkt,bt->bk", weights, scene_audio_signal_features.loudness_dbfs),
+                silence_ratio=torch.einsum("bkt,bt->bk", weights, scene_audio_signal_features.silence_ratio),
+                norm=torch.einsum("bkt,bt->bk", weights, scene_audio_signal_features.norm),
+            )
+        fusion_position = getattr(self.config, "as_m4_fusion_position", "visual_token_residual")
+        if fusion_position != "llm_input_audio_tokens":
+            image_features = self.fuse_scene_audio_into_image_features(
+                image_features,
+                modalities,
+                scene_audio_output,
+                scene_audio_timestamps=scene_audio_output.timestamps,
+                frame_timestamps=frame_timestamps,
+                lookahead_sec=getattr(self.config, "streaming_av_lookahead_sec", 0.0),
+                force_audio_gate=getattr(self.config, "force_audio_gate", None),
+                audio_residual_scale=getattr(self.config, "debug_audio_residual_scale", 1.0),
+                audio_delta_ratio_cap=getattr(self.config, "audio_delta_ratio_cap", 0.0),
+                question_features=question_features,
+                scene_audio_signal_features=scene_audio_signal_features,
+                scene_audio_windows=(
+                    scene_audios
+                    if not selector_mode and bool(getattr(self.config, "enable_audio_event_aligner_v1", False))
+                    else None
+                ),
+                frozen_offset_scorer_inputs=getattr(
+                    self,
+                    "_audio_event_offset_diagnostic_inputs",
+                    None,
+                ) if not selector_mode else None,
+            )
+        if selector_mode:
+            selector_output = self._last_dynamic_window_selector_output
+            selector_diagnostics = self._last_streaming_av_diagnostics
+            for idx, diagnostic in enumerate(selector_diagnostics):
+                if diagnostic is None or idx >= selector_output.selection_mask.shape[0]:
+                    continue
+                selected_mask = selector_output.selection_mask[idx]
+                diagnostic.update(
+                    {
+                        "dynamic_window_enabled": True,
+                        "dynamic_window_mode": window_mode,
+                        "dynamic_window_selected_ratio": selected_mask.float().mean(),
+                        "dynamic_window_selected_count": selected_mask.sum(),
+                        "dynamic_window_selection_scores": selector_output.selection_scores[idx].detach(),
+                        "dynamic_window_selection_mask": selected_mask.detach(),
+                        "dynamic_window_timestamps": selector_output.selected_timestamps[idx].detach(),
+                        "dynamic_window_selected_source_indices": selector_output.selected_source_indices[idx].detach(),
+                        "dynamic_window_all_scores": (
+                            selector_output.all_scores[idx].detach()
+                            if hasattr(selector_output, "all_scores")
+                            else selector_output.eventness_cached_scores[idx].detach()
+                        ),
+                    }
+                )
+                if hasattr(selector_output, "eventness_cached_scores"):
+                    diagnostic["dynamic_window_eventness_cached_scores"] = (
+                        selector_output.eventness_cached_scores[idx].detach()
+                    )
+                    diagnostic["dynamic_window_thresholds"] = selector_output.dynamic_thresholds[idx].detach()
+        elif external_selection:
+            for diagnostic in self._last_streaming_av_diagnostics:
+                if diagnostic is None:
+                    continue
+                diagnostic.update(
+                    {
+                        "dynamic_window_enabled": False,
+                        "external_window_selection": True,
+                        "scene_audio_selection_stage": EXTERNAL_PRE_ENCODER_STAGE,
+                        "configured_window_mode": configured_window_mode,
+                        "effective_window_mode": "fixed",
+                    }
+                )
 
         mm_patch_merge_type = getattr(self.config, "mm_patch_merge_type", "flat")
         if mm_patch_merge_type == "flat":
@@ -988,6 +1647,20 @@ class LlavaMetaForCausalLM(ABC):
         else:
             raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
 
+        audio_token_features = None
+        if getattr(self.config, "as_m4_fusion_position", "visual_token_residual") == "llm_input_audio_tokens":
+            token_gate = getattr(self.config, "as_m4_audio_token_gate", 1.0)
+            if fusion_position != "llm_input_audio_tokens" and getattr(self.config, "force_audio_gate", None) is not None:
+                token_gate = self.config.force_audio_gate
+            audio_token_features = build_audio_token_features(
+                scene_audio_output.features,
+                scene_audio_output.mask,
+                scene_audios,
+                gate=float(token_gate),
+                silence_bypass=bool(getattr(self.config, "as_m4_audio_token_silence_bypass", False)),
+                silence_threshold=float(getattr(self.config, "as_m4_audio_token_silence_threshold", 1e-6)),
+            )
+
         return self._pack_image_features_into_inputs(
             input_ids,
             position_ids,
@@ -996,6 +1669,7 @@ class LlavaMetaForCausalLM(ABC):
             labels,
             image_features,
             modalities,
+            audio_token_features=audio_token_features,
         )
 
     def prepare_inputs_labels_for_multimodal_av(self, input_ids, position_ids, attention_mask, past_key_values, labels, images, modalities=["image"], image_sizes=None, speeches=None, speech_lengths=None):

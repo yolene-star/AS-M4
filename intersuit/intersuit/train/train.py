@@ -42,6 +42,13 @@ from torch.utils.data import Dataset
 from intersuit.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
 from intersuit.constants import SPEECH_TOKEN_INDEX, DEFAULT_SPEECH_TOKEN
 from intersuit.train.llava_trainer import LLaVATrainer
+from intersuit.train.trainable_parts import (
+    AUDIO_CONFIDENCE_GATE_ONLY_ALIAS,
+    SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS,
+    SCENE_AUDIO_SELECTOR_ONLY_ALIAS,
+    enable_audio_confidence_gate_only,
+    enable_scene_audio_selector_only,
+)
 
 from intersuit import conversation as conversation_lib
 from intersuit.model import *
@@ -62,7 +69,7 @@ class ModelArguments:
     model_class_name: Optional[str] = field(default=None, metadata={"help": "Used to init model class, format is XXXXForCausalLM. e.g. currently XXXX is chosen from LlavaLlama, LlavaMixtral, LlavaMistral, Llama"})
 
     mm_tunable_parts: Optional[str] = field(
-        default=None, metadata={"help": 'Could be "mm_mlp_adapter", "mm_vision_resampler", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_mlp_adapter,mm_language_model"'}
+        default=None, metadata={"help": '可包含 mm_mlp_adapter、mm_vision_resampler、mm_vision_tower、mm_language_model、scene_audio_branch；严格单模块模式使用 scene_audio_selector 或 audio_confidence_gate，且不得与其他项组合。'}
     )
     # deciding which part of the multimodal model to tune, will overwrite other previous settings
 
@@ -109,6 +116,31 @@ class ModelArguments:
     scene_audio_encoder_type: Optional[str] = field(default="dummy")
     scene_audio_hidden_size: Optional[int] = field(default=None)
     scene_audio_precomputed_dim: Optional[int] = field(default=None)
+    scene_audio_precomputed_shared_space: bool = field(default=False)
+    scene_audio_torchaudio_bundle: str = field(default="WAV2VEC2_BASE")
+    scene_audio_torchaudio_weight_path: Optional[str] = field(default=None)
+    scene_audio_sample_rate: int = field(default=16000)
+    scene_audio_beats_checkpoint: str = field(
+        default="intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt"
+    )
+    scene_audio_beats_code_root: str = field(
+        default="third_party/OmniMMI/baselines/videollama2/model"
+    )
+    scene_audio_beats_checkpoint_sha256: Optional[str] = field(default=None)
+    scene_audio_v4_projector_path: Optional[str] = field(default=None)
+    scene_audio_v4_projector_sha256: Optional[str] = field(default=None)
+    scene_audio_window_mode: str = field(default="fixed")
+    scene_audio_selector_dim: Optional[int] = field(default=None)
+    dynamic_window_scales_sec: str = field(default="1.0,2.0,4.0")
+    dynamic_window_micro_window_sec: float = field(default=1.0)
+    dynamic_window_top_k: int = field(default=16)
+    dynamic_window_nms_iou: float = field(default=0.6)
+    dynamic_window_ema_beta: float = field(default=0.9)
+    dynamic_window_start_scale: float = field(default=1.0)
+    dynamic_window_hold_scale: float = field(default=0.25)
+    dynamic_window_min_score: float = field(default=0.05)
+    dynamic_window_causal: bool = field(default=True)
+    question_conditioned_selector_projection_dim: int = field(default=256)
     num_audio_events: Optional[int] = field(default=25)
     audio_quality_dim: Optional[int] = field(default=1)
     streaming_av_align_dim: Optional[int] = field(default=None)
@@ -117,7 +149,38 @@ class ModelArguments:
     force_audio_gate: Optional[float] = field(default=None)
     audio_delta_ratio_cap: float = field(default=0.0)
     as_m4_fusion_init: str = field(default="zero")
+    as_m4_fusion_projector_mode: str = field(default="legacy")
     as_m4_gate_logit_bias: float = field(default=-5.0)
+    as_m4_fusion_mode: str = field(default="aligned_gated")
+    as_m4_simple_audio_gate: float = field(default=1.0)
+    as_m4_inference_simple_audio_gate: Optional[float] = field(default=None)
+    scene_audio_contrastive_weight: float = field(default=0.0)
+    scene_audio_contrastive_margin: float = field(default=0.2)
+    enable_audio_confidence_gate_v1: bool = field(default=False)
+    audio_gate_silence_threshold: float = field(default=1e-4)
+    audio_gate_rms_reference: float = field(default=0.05)
+    audio_confidence_projection_dim: int = field(default=128)
+    first_stage_audio_gate_logit_bias: float = field(default=-2.0)
+    audio_question_router_logit_bias: float = field(default=-4.0)
+    first_stage_audio_gate_max: float = field(default=1.0)
+    enable_audio_event_aligner_v1: bool = field(default=False)
+    audio_event_local_offset_sec: float = field(default=0.5)
+    audio_event_silence_threshold: float = field(default=1e-4)
+    audio_event_rms_reference: float = field(default=0.05)
+    audio_event_strength_weight: float = field(default=0.05)
+    audio_event_align_dim: Optional[int] = field(default=None)
+    audio_event_semantic_feature_mode: str = field(default="disabled")
+    audio_event_projector_checkpoint_path: Optional[str] = field(default=None)
+    enable_audio_event_offset_scorer: bool = field(default=False)
+    audio_event_offset_scorer_bundle_path: Optional[str] = field(default=None)
+    audio_event_offset_scorer_margin_threshold: float = field(default=0.15)
+    audio_event_offset_scorer_stabilization_strategy: str = field(default="none")
+    audio_event_offset_scorer_consecutive_windows: int = field(default=2)
+    audio_event_offset_scorer_hold_margin: float = field(default=0.10)
+    audio_event_offset_scorer_switch_margin: float = field(default=0.30)
+    audio_event_offset_scorer_moving_average_windows: int = field(default=3)
+    enable_temporal_offset_gru_diagnostic: bool = field(default=False)
+    temporal_offset_gru_checkpoint_path: Optional[str] = field(default=None)
 
     rope_scaling_factor: Optional[float] = field(default=None)
     rope_scaling_type: Optional[str] = field(default=None)
@@ -148,7 +211,7 @@ class DataArguments:
     scene_audio_folder: Optional[str] = field(default=None)
     scene_audio_feature_folder: Optional[str] = field(default=None)
     video_feature_folder: Optional[str] = field(default=None)
-    scene_audio_sample_rate: int = field(default=16000)
+    scene_audio_data_sample_rate: int = field(default=16000)
     scene_audio_from_video: bool = field(default=False)
     
     is_mop: bool = False
@@ -1216,7 +1279,7 @@ class LazySupervisedDataset(Dataset):
         for sample in self.list_data_dict:
             cur_len = sum(len(conv["value"].split()) for conv in sample["conversations"])
             if not self.data_args.is_mop:
-                cur_len = cur_len if ("image" in sample) or ("video" in sample) or ("speech" in sample) else -cur_len
+                cur_len = cur_len if ("image" in sample) or ("video" in sample) or ("video_path" in sample) or ("speech" in sample) else -cur_len
                 length_list.append(cur_len)
             else:
                 if ("image" in sample) or ("video" in sample):
@@ -1343,10 +1406,10 @@ class LazySupervisedDataset(Dataset):
             sources = preprocess_multimodal_av(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
             
 
-        elif "video" in sources[0]:
-            video_file = self.list_data_dict[i]["video"]
+        elif "video" in sources[0] or "video_path" in sources[0]:
+            video_file = self.list_data_dict[i].get("video") or self.list_data_dict[i]["video_path"]
             video_folder = self.data_args.video_folder
-            video_file = os.path.join(video_folder, video_file)
+            video_file = os.path.join(video_folder or "", video_file)
             suffix = video_file.split(".")[-1]
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
@@ -1405,7 +1468,7 @@ class LazySupervisedDataset(Dataset):
             else:
                 sources = copy.deepcopy([e["conversations"] for e in sources])
 
-        has_image = ("image" in self.list_data_dict[i]) or ("video" in self.list_data_dict[i] or ("video_features" in self.list_data_dict[i]) or ("speech" in self.list_data_dict[i]))
+        has_image = ("image" in self.list_data_dict[i]) or ("video" in self.list_data_dict[i] or ("video_path" in self.list_data_dict[i]) or ("video_features" in self.list_data_dict[i]) or ("speech" in self.list_data_dict[i]))
         data_dict = preprocess(sources, self.tokenizer, has_image=has_image)
 
         if "prompt" in data_dict:
@@ -1419,7 +1482,7 @@ class LazySupervisedDataset(Dataset):
         # image exist in the data
         if "image" in self.list_data_dict[i]:
             data_dict["image"] = image
-        elif "video" in self.list_data_dict[i]:
+        elif "video" in self.list_data_dict[i] or "video_path" in self.list_data_dict[i]:
             data_dict["image"] = image
         elif "video_features" in self.list_data_dict[i]:
             data_dict["image"] = image
@@ -1432,8 +1495,14 @@ class LazySupervisedDataset(Dataset):
         # speech exist in the data
         if "speech" in self.list_data_dict[i]:
             data_dict["speech"] = speech
-        if "scene_audio" in self.list_data_dict[i] or "scene_audio_features" in self.list_data_dict[i]:
+        if (
+            "scene_audio" in self.list_data_dict[i]
+            or "scene_audio_features" in self.list_data_dict[i]
+            or self.list_data_dict[i].get("scene_audio_path")
+        ):
             data_dict.update(self._load_scene_audio_fields(self.list_data_dict[i]))
+        if self.list_data_dict[i].get("scene_audio_negative_path"):
+            data_dict.update(self._load_scene_audio_negative_fields(self.list_data_dict[i]))
         # prompt exist in the data
         if prompt is not None:
             data_dict["prompt"] = prompt
@@ -1452,18 +1521,49 @@ class LazySupervisedDataset(Dataset):
 
         if "scene_audio_features" in sample:
             scene_audio = _scene_audio_to_tensor(sample["scene_audio_features"], self.data_args.scene_audio_feature_folder)
-        else:
+            generated_timestamps = None
+        elif "scene_audio" in sample:
             scene_audio = _scene_audio_to_tensor(sample["scene_audio"], self.data_args.scene_audio_folder)
+            generated_timestamps = None
+        else:
+            scene_audio, generated_timestamps = _load_scene_audio_media(
+                sample["scene_audio_path"],
+                folder=self.data_args.scene_audio_folder,
+                sample_rate=int(
+                    sample.get("scene_audio_sample_rate")
+                    or self.data_args.scene_audio_data_sample_rate
+                ),
+                window_sec=float(sample.get("scene_audio_window_sec") or 1.0),
+                hop_sec=float(sample.get("scene_audio_hop_sec") or 0.5),
+            )
 
         result = {"scene_audio": scene_audio}
         if "scene_audio_timestamps" in sample:
             result["scene_audio_timestamps"] = torch.as_tensor(sample["scene_audio_timestamps"], dtype=torch.float32)
+        elif generated_timestamps is not None:
+            result["scene_audio_timestamps"] = generated_timestamps
         if "frame_timestamps" in sample:
             result["frame_timestamps"] = torch.as_tensor(sample["frame_timestamps"], dtype=torch.float32)
         for key in ("event_labels", "offset_labels", "gate_labels", "pseudo_confidence"):
             if key in sample:
                 result[key] = torch.as_tensor(sample[key])
         return result
+
+    def _load_scene_audio_negative_fields(self, sample: Dict) -> Dict[str, torch.Tensor]:
+        negative, timestamps = _load_scene_audio_media(
+            sample["scene_audio_negative_path"],
+            folder=self.data_args.scene_audio_folder,
+            sample_rate=int(
+                sample.get("scene_audio_negative_sample_rate")
+                or self.data_args.scene_audio_data_sample_rate
+            ),
+            window_sec=float(sample.get("scene_audio_negative_window_sec") or 1.0),
+            hop_sec=float(sample.get("scene_audio_negative_hop_sec") or 0.5),
+        )
+        return {
+            "scene_audio_negative": negative,
+            "scene_audio_negative_timestamps": timestamps,
+        }
 
 
 @dataclass
@@ -1535,6 +1635,18 @@ class DataCollatorForSupervisedDataset(object):
                         instance.get(key) for instance in instances
                     ]
 
+        if any("scene_audio_negative" in instance for instance in instances):
+            negative_tensors = [instance.get("scene_audio_negative") for instance in instances]
+            (
+                batch["scene_audio_negatives"],
+                batch["scene_audio_negative_mask"],
+            ) = _pad_scene_audio_batch(negative_tensors)
+            batch["scene_audio_negative_timestamps"] = _pad_scene_audio_timestamps(
+                [instance.get("scene_audio_negative_timestamps") for instance in instances],
+                batch["scene_audio_negatives"].shape[1],
+                batch["scene_audio_negatives"].device,
+            )
+
         if "prompt" in instances[0]:
             batch["prompts"] = [instance["prompt"] for instance in instances]
 
@@ -1548,6 +1660,39 @@ def _scene_audio_to_tensor(value, folder: Optional[str] = None) -> torch.Tensor:
     if tensor.ndim != 2:
         raise ValueError(f"scene_audio must be shaped [T,D] after loading, got {tuple(tensor.shape)}")
     return tensor.to(dtype=torch.float32)
+
+
+def _load_scene_audio_media(
+    path_value: str,
+    folder: Optional[str],
+    sample_rate: int,
+    window_sec: float,
+    hop_sec: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    from intersuit.streaming.audio_stream import (
+        load_scene_audio,
+        split_audio_windows,
+        stack_audio_windows,
+    )
+
+    path = path_value if os.path.isabs(path_value) else os.path.join(folder or "", path_value)
+    waveform, actual_rate = load_scene_audio(
+        path,
+        sample_rate=sample_rate,
+        mono=True,
+    )
+    windows = split_audio_windows(
+        waveform,
+        actual_rate,
+        window_sec=window_sec,
+        hop_sec=hop_sec,
+    )
+    samples, timestamps = stack_audio_windows(windows)
+    if samples.numel() == 0:
+        raise ValueError(f"scene_audio_path decoded to zero windows: {path}")
+    if not torch.isfinite(samples).all() or not torch.isfinite(timestamps).all():
+        raise ValueError(f"scene_audio_path contains NaN/Inf after decoding: {path}")
+    return samples, timestamps
 
 
 def _load_feature_tensor(value, folder: Optional[str] = None) -> torch.Tensor:
@@ -1710,7 +1855,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
                 low_cpu_mem_usage=False,
                 **customized_kwargs,
             )
-        elif "qwen" in model_args.model_name_or_path.lower():
+        elif _is_qwen_checkpoint(model_args.model_name_or_path, cfg_pretrained):
             if "moe" in model_args.model_name_or_path.lower() or "A14B" in model_args.model_name_or_path:
                 model = LlavaQwenMoeForCausalLM.from_pretrained(
                     model_args.model_name_or_path,
@@ -1753,6 +1898,13 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
             **customized_kwargs,
         )
     return model
+
+
+def _is_qwen_checkpoint(model_name_or_path: str, config) -> bool:
+    model_type = str(getattr(config, "model_type", "") or "").lower()
+    architectures = " ".join(str(value) for value in (getattr(config, "architectures", None) or [])).lower()
+    identity = f"{model_name_or_path} {model_type} {architectures}".lower()
+    return "qwen" in identity
 
 
 def train(attn_implementation=None):
@@ -1840,7 +1992,7 @@ def train(attn_implementation=None):
 
     if "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
-    elif "qwen" in model_args.model_name_or_path.lower():
+    elif _is_qwen_checkpoint(model_args.model_name_or_path, model.config):
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="right")
     elif (
         "wizardlm-2" in model_args.model_name_or_path.lower()
@@ -1976,7 +2128,29 @@ def train(attn_implementation=None):
                 if model.get_streaming_av_module() is not None:
                     model.get_streaming_av_module().requires_grad_(False)
             # Parse the mm_tunable_parts to decide which parts to unfreeze
-            tunable_parts = model_args.mm_tunable_parts.split(",")
+            tunable_parts = [part.strip() for part in model_args.mm_tunable_parts.split(",") if part.strip()]
+            if SCENE_AUDIO_SELECTOR_ONLY_ALIAS in tunable_parts:
+                if tunable_parts != [SCENE_AUDIO_SELECTOR_ONLY_ALIAS]:
+                    raise ValueError("scene_audio_selector 是严格 selector-only 模式，不得与其他 tunable part 组合")
+                if not model_args.enable_scene_audio:
+                    raise ValueError("scene_audio_selector 要求 enable_scene_audio=true")
+                allowed_names = enable_scene_audio_selector_only(model)
+                rank0_print(f"scene_audio_selector trainable allowlist: {allowed_names}")
+            if AUDIO_CONFIDENCE_GATE_ONLY_ALIAS in tunable_parts:
+                if tunable_parts != [AUDIO_CONFIDENCE_GATE_ONLY_ALIAS]:
+                    raise ValueError("audio_confidence_gate 是严格 Gate-only 模式，不得与其他 tunable part 组合")
+                if not model_args.enable_scene_audio:
+                    raise ValueError("audio_confidence_gate 要求 enable_scene_audio=true")
+                allowed_names = enable_audio_confidence_gate_only(model)
+                rank0_print(f"audio_confidence_gate trainable allowlist: {allowed_names}")
+            if SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS in tunable_parts:
+                if tunable_parts != [SCENE_AUDIO_M4_ADAPTER_ONLY_ALIAS]:
+                    raise ValueError("scene_audio_m4_adapter 是严格 adapter-only 模式，不得与其他 tunable part 组合")
+                if not model_args.enable_scene_audio or str(model_args.scene_audio_encoder_type).lower() != "beats_v4":
+                    raise ValueError("scene_audio_m4_adapter 要求 enable_scene_audio=true 且 scene_audio_encoder_type=beats_v4")
+                from .trainable_parts import enable_scene_audio_m4_adapter_only
+                allowed_names = enable_scene_audio_m4_adapter_only(model)
+                rank0_print(f"scene_audio_m4_adapter trainable allowlist: {allowed_names}")
             if "mm_mlp_adapter" in tunable_parts:
                 for p in model.get_model().mm_projector.parameters():
                     p.requires_grad = True
@@ -1995,12 +2169,38 @@ def train(attn_implementation=None):
                 for p in model.get_model().speech_projector.parameters():
                     p.requires_grad = True
             if "scene_audio_encoder" in tunable_parts and model_args.enable_scene_audio:
+                if str(model_args.scene_audio_encoder_type).lower() in {"beats", "beats_v4"}:
+                    raise ValueError(
+                        "冻结 BEATs/BEATs-v4 不能使用 scene_audio_encoder 全量解冻；"
+                        "请使用受控的 projector/adapter 训练合同。"
+                    )
                 for name, param in model.named_parameters():
                     if "scene_audio_encoder" in name:
+                        param.requires_grad_(True)
+            if "scene_audio_projector" in tunable_parts and model_args.enable_scene_audio:
+                for name, param in model.named_parameters():
+                    if "scene_audio_encoder.audio_projector" in name:
                         param.requires_grad_(True)
             if "streaming_av_module" in tunable_parts and model_args.enable_scene_audio:
                 for name, param in model.named_parameters():
                     if "streaming_av_module" in name:
+                        param.requires_grad_(True)
+            if "streaming_av_fusion" in tunable_parts and model_args.enable_scene_audio:
+                for name, param in model.named_parameters():
+                    if "streaming_av_module.fusion" in name:
+                        param.requires_grad_(True)
+            if "scene_audio_branch" in tunable_parts and model_args.enable_scene_audio:
+                # Stable high-level alias for the optional audio side branch.
+                # Frozen backbones (notably BEATs/torchaudio) stay frozen; only
+                # their lightweight projection plus the AS-M4 routing/fusion
+                # modules are trainable. Existing parameter names are retained
+                # so old checkpoints remain loadable without key remapping.
+                for name, param in model.named_parameters():
+                    is_audio_adapter = (
+                        "scene_audio_encoder.audio_projector" in name
+                        or "scene_audio_encoder.proj" in name
+                    )
+                    if is_audio_adapter or "streaming_av_module" in name:
                         param.requires_grad_(True)
             if "mm_language_model" in tunable_parts:
                 for name, param in model.named_parameters():

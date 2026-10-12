@@ -1,19 +1,100 @@
 """Streaming audio-video modules for AS-M4."""
 
 from .builder import StreamingAVModule, build_streaming_av_module
-from .confidence_gate import AudioConfidenceGate, AudioConfidenceGateOutput
+from .audio_event_aligner import (
+    AudioEventFeatures,
+    FrozenOffsetScorerInputs,
+    FrozenOffsetScorerOutput,
+    FrozenTemporalOffsetScorer,
+    LocalAudioAlignmentOutput,
+    LocalAudioEventAligner,
+    compute_audio_event_features,
+)
+from .offset_stabilizer import OffsetStabilizerOutput, stabilize_offset_scores
+from .temporal_offset_gru import (
+    TemporalOffsetGRUDiagnostic,
+    TemporalOffsetGRUOutput,
+    build_temporal_offset_evidence,
+    load_temporal_offset_gru_checkpoint,
+    ordered_offset_emd_loss,
+)
+from .confidence_gate import (
+    AudioConfidenceGate,
+    AudioConfidenceGateOutput,
+    AudioSignalFeatures,
+    FirstStageAudioConfidenceGate,
+    FirstStageAudioConfidenceGateOutput,
+    QuestionAudioRouter,
+    compute_audio_signal_features,
+)
 from .event_detector import AudioEventDetector, AudioEventDetectorOutput
+from .dynamic_window_selector import (
+    DynamicWindowSelector,
+    DynamicWindowSelectorOutput,
+    LegacyMultiscaleDynamicWindowSelector,
+    SelectorState,
+)
 from .fusion import GatedAVFusion
+from .audio_token_injection import AudioTokenInjectionOutput, build_audio_token_features, insert_audio_tokens
+from .question_conditioned_window_selector import (
+    QuestionConditionedSelectorOutput,
+    QuestionConditionedSelectorState,
+    QuestionConditionedWindowSelector,
+)
 from .temporal_aligner import CausalTemporalAligner, TemporalAlignerOutput
+from .selection_contract import (
+    DEFAULT_SELECTION_POLICY_REGISTRY,
+    DIAGNOSTIC_ORACLE_POLICIES,
+    EXTERNAL_PRE_ENCODER_STAGE,
+    INTERNAL_MODEL_STAGE,
+    SelectionPolicyRegistry,
+    SelectionRequest,
+    SelectionResult,
+    build_default_selection_policy_registry,
+    selection_results_from_model_output,
+)
 
 __all__ = [
     "StreamingAVModule",
     "build_streaming_av_module",
     "AudioConfidenceGate",
     "AudioConfidenceGateOutput",
+    "FirstStageAudioConfidenceGate",
+    "FirstStageAudioConfidenceGateOutput",
+    "QuestionAudioRouter",
     "AudioEventDetector",
     "AudioEventDetectorOutput",
+    "DynamicWindowSelector",
+    "DynamicWindowSelectorOutput",
+    "LegacyMultiscaleDynamicWindowSelector",
+    "SelectorState",
+    "QuestionConditionedSelectorOutput",
+    "QuestionConditionedSelectorState",
+    "QuestionConditionedWindowSelector",
+    "AudioEventFeatures",
+    "FrozenOffsetScorerInputs",
+    "FrozenOffsetScorerOutput",
+    "FrozenTemporalOffsetScorer",
+    "OffsetStabilizerOutput",
+    "stabilize_offset_scores",
+    "TemporalOffsetGRUDiagnostic",
+    "TemporalOffsetGRUOutput",
+    "build_temporal_offset_evidence",
+    "load_temporal_offset_gru_checkpoint",
+    "ordered_offset_emd_loss",
+    "LocalAudioAlignmentOutput",
+    "LocalAudioEventAligner",
+    "compute_audio_event_features",
     "GatedAVFusion",
     "CausalTemporalAligner",
     "TemporalAlignerOutput",
+    "DEFAULT_SELECTION_POLICY_REGISTRY",
+    "DIAGNOSTIC_ORACLE_POLICIES",
+    "EXTERNAL_PRE_ENCODER_STAGE",
+    "INTERNAL_MODEL_STAGE",
+    "SelectionPolicyRegistry",
+    "SelectionRequest",
+    "SelectionResult",
+    "build_default_selection_policy_registry",
+    "selection_results_from_model_output",
 ]

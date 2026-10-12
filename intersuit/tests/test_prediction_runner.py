@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+from collections import OrderedDict
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 import torch
 
 
@@ -22,6 +26,23 @@ SPEC.loader.exec_module(runner)
 def _write_json(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+
+def test_checkpoint_config_overrides_ambiguous_run_directory_name(tmp_path):
+    checkpoint = tmp_path / "checkpoint-150"
+    _write_json(
+        checkpoint / "config.json",
+        {"model_type": "qwen2", "architectures": ["LlavaQwenForCausalLM"]},
+    )
+
+    assert runner.resolve_model_name_from_checkpoint_config(checkpoint, "checkpoint-150") == "LongVA-Qwen2"
+
+
+def test_checkpoint_config_keeps_path_fallback_for_non_qwen_models(tmp_path):
+    checkpoint = tmp_path / "checkpoint-150"
+    _write_json(checkpoint / "config.json", {"model_type": "llava_llama"})
+
+    assert runner.resolve_model_name_from_checkpoint_config(checkpoint, "checkpoint-150") == "checkpoint-150"
 
 
 def test_iter_qa_samples_extracts_human_gpt_pairs(tmp_path):
@@ -58,6 +79,7 @@ def test_iter_qa_samples_preserves_video_path(tmp_path):
                 "video_path": "local_demo/assets/water.mp4",
                 "video_max_frames": 8,
                 "scene_audio_path": "local_demo/assets/water.mp4",
+                "scene_audio_selected_indices": [1, 3],
                 "generation_mode": "parallel",
                 "context": "Can you describe the video?",
                 "new_query": "How many people in the video?",
@@ -77,12 +99,119 @@ def test_iter_qa_samples_preserves_video_path(tmp_path):
     assert rows[0]["video_path"] == "local_demo/assets/water.mp4"
     assert rows[0]["video_max_frames"] == 8
     assert rows[0]["scene_audio_path"] == "local_demo/assets/water.mp4"
+    assert rows[0]["scene_audio_selected_indices"] == [1, 3]
     assert rows[0]["video_features"] is None
     assert rows[0]["generation_mode"] == "parallel"
     assert rows[0]["context"] == "Can you describe the video?"
     assert rows[0]["new_query"] == "How many people in the video?"
     assert rows[0]["accept_contains"] == ["two people"]
     assert rows[0]["accept_regex"] == ["\\btwo\\b"]
+
+
+def test_load_scene_audio_applies_explicit_indices_and_reuses_cache(monkeypatch, tmp_path):
+    from intersuit.streaming import audio_stream
+
+    calls = []
+
+    def fake_load(path, sample_rate, mono):
+        calls.append((str(path), sample_rate, mono))
+        return torch.arange(3 * 16000, dtype=torch.float32), 16000
+
+    monkeypatch.setattr(audio_stream, "load_scene_audio", fake_load)
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    qa = {
+        "scene_audio_path": str(media),
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_expected_duration_sec": 2.5,
+        "scene_audio_selected_indices": [0, 2],
+    }
+    cache = OrderedDict()
+
+    first, timestamps, metadata = runner._load_scene_audio_tensor(qa, audio_cache=cache)
+    second, _, _ = runner._load_scene_audio_tensor(qa, audio_cache=cache)
+
+    assert first.shape == second.shape == (2, 16000)
+    assert timestamps.tolist() == [[0.0, 1.0], [2.0, 2.5]]
+    assert metadata["full_window_count"] == 3
+    assert metadata["waveform_num_samples"] == 40000
+    assert metadata["decoded_waveform_num_samples"] == 48000
+    assert metadata["selected_source_indices"] == [0, 2]
+    assert metadata["selection_stage"] == "external_pre_encoder"
+    assert metadata["selection_trace"]["policy_name"] == "external_indices"
+    assert len(calls) == 1
+
+
+def test_load_scene_audio_fixed_all_is_true_all_and_auditable(monkeypatch, tmp_path):
+    from intersuit.streaming import audio_stream
+
+    monkeypatch.setattr(
+        audio_stream,
+        "load_scene_audio",
+        lambda path, sample_rate, mono: (torch.zeros(3 * 16000), 16000),
+    )
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    qa = {
+        "id": "all-windows",
+        "scene_audio_path": str(media),
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_selection_policy": "fixed_all",
+    }
+
+    samples, timestamps, metadata = runner._load_scene_audio_tensor(qa, audio_cache=OrderedDict())
+
+    assert samples.shape[0] == timestamps.shape[0] == 3
+    assert metadata["window_count"] == metadata["full_window_count"] == 3
+    assert metadata["selection_trace"]["selected_window_count"] == 3
+    assert metadata["selection_trace"]["selected_source_indices"] == [0, 1, 2]
+
+
+def test_runner_oracle_policy_is_diagnostic_only():
+    qa = {
+        "id": "oracle",
+        "scene_audio_selection_policy": "oracle_topk",
+        "scene_audio_selection_top_k": 1,
+        "scene_audio_target_intervals": [[1.0, 2.0]],
+    }
+    samples = torch.zeros(3, 16)
+    timestamps = torch.tensor([[0.0, 1.0], [1.0, 2.0], [2.0, 3.0]])
+
+    with pytest.raises(PermissionError, match="diagnostic inference"):
+        runner._apply_external_scene_audio_selection(qa, samples, timestamps)
+
+    qa["scene_audio_selection_diagnostic"] = True
+    selected, _, trace = runner._apply_external_scene_audio_selection(qa, samples, timestamps)
+    assert selected.shape[0] == 1
+    assert trace["selected_source_indices"] == [1]
+    assert trace["policy_metadata"]["uses_ground_truth"] is True
+
+
+@pytest.mark.parametrize("indices", [[1, 1], [2, 0], [0, 3], []])
+def test_load_scene_audio_rejects_invalid_explicit_indices(monkeypatch, tmp_path, indices):
+    from intersuit.streaming import audio_stream
+
+    monkeypatch.setattr(
+        audio_stream,
+        "load_scene_audio",
+        lambda path, sample_rate, mono: (torch.zeros(3 * 16000), 16000),
+    )
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    qa = {
+        "scene_audio_path": str(media),
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_selected_indices": indices,
+    }
+
+    with pytest.raises(ValueError, match="scene_audio_selected_indices"):
+        runner._load_scene_audio_tensor(qa, audio_cache=OrderedDict())
 
 
 def test_prediction_correct_supports_contains_and_regex():
@@ -99,6 +228,34 @@ def test_prediction_correct_supports_contains_and_regex():
     assert runner.prediction_correct("D", choice_qa)
     assert not runner.prediction_correct("B", choice_qa)
     assert not runner.prediction_correct("three people", contains_qa)
+
+
+def test_prediction_correct_label_terms_uses_phrase_boundaries():
+    assert runner.prediction_correct(
+        "The video shows a bus on the road.",
+        {"answer": "Bus"},
+        scorer="label_terms",
+    )
+    assert runner.prediction_correct(
+        "Frying",
+        {"answer": "Frying (food)"},
+        scorer="label_terms",
+    )
+    assert runner.prediction_correct(
+        "A man speaking can be heard.",
+        {"answer": "Male speech, man speaking"},
+        scorer="label_terms",
+    )
+    assert not runner.prediction_correct(
+        "Business district",
+        {"answer": "Bus"},
+        scorer="label_terms",
+    )
+    assert not runner.prediction_correct(
+        "A detailed answer",
+        {"answer": "A"},
+        scorer="label_terms",
+    )
 
 
 def test_jsonable_diagnostics_converts_tensors():
@@ -157,6 +314,92 @@ def test_oracle_backend_writes_prediction_files(tmp_path):
     assert json.loads(e3_rows[0])["correct"] is False
 
 
+def test_oracle_backend_can_skip_locked_manifest_prefix(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [
+            {
+                "id": sample_id,
+                "conversations": [
+                    {"from": "human", "value": "Q"},
+                    {"from": "gpt", "value": "A"},
+                ],
+            }
+            for sample_id in ("s0", "s1", "s2")
+        ],
+    )
+    output = tmp_path / "pred.jsonl"
+    plan = tmp_path / "plan.jsonl"
+    plan.write_text(
+        json.dumps({"id": "E2", "manifest": str(manifest), "output_jsonl": str(output)}) + "\n",
+        encoding="utf-8",
+    )
+
+    runner.run_predictions(
+        plan,
+        backend="oracle",
+        limit=None,
+        skip=1,
+        feature_root=tmp_path,
+        device="cpu",
+        max_new_tokens=4,
+    )
+
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert [row["sample_id"] for row in rows] == ["s1", "s2"]
+
+
+def test_oracle_backend_resume_validates_prefix_and_appends(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [
+            {
+                "id": sample_id,
+                "conversations": [
+                    {"from": "human", "value": "Q"},
+                    {"from": "gpt", "value": "A"},
+                ],
+            }
+            for sample_id in ("s0", "s1", "s2")
+        ],
+    )
+    output = tmp_path / "pred.jsonl"
+    plan = tmp_path / "plan.jsonl"
+    plan.write_text(
+        json.dumps({"id": "E2", "manifest": str(manifest), "output_jsonl": str(output)}) + "\n",
+        encoding="utf-8",
+    )
+    runner.run_predictions(
+        plan, backend="oracle", limit=1, feature_root=tmp_path, device="cpu",
+        max_new_tokens=4, resume=True,
+    )
+    runner.run_predictions(
+        plan, backend="oracle", limit=None, feature_root=tmp_path, device="cpu",
+        max_new_tokens=4, resume=True,
+    )
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert [row["sample_id"] for row in rows] == ["s0", "s1", "s2"]
+
+
+def test_oracle_backend_resume_rejects_nonprefix_output(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [{"id": "s0", "conversations": [{"from": "human", "value": "Q"}, {"from": "gpt", "value": "A"}]}],
+    )
+    output = tmp_path / "pred.jsonl"
+    output.write_text(json.dumps({"sample_id": "wrong", "experiment_id": "E2"}) + "\n", encoding="utf-8")
+    plan = tmp_path / "plan.jsonl"
+    plan.write_text(json.dumps({"id": "E2", "manifest": str(manifest), "output_jsonl": str(output)}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="resume 输出前缀"):
+        runner.run_predictions(
+            plan, backend="oracle", limit=None, feature_root=tmp_path, device="cpu",
+            max_new_tokens=4, resume=True,
+        )
+
+
 def test_dry_run_does_not_create_prediction_files(tmp_path):
     plan = tmp_path / "plan.jsonl"
     pred = tmp_path / "pred.jsonl"
@@ -166,6 +409,45 @@ def test_dry_run_does_not_create_prediction_files(tmp_path):
 
     assert result["dry_run"] is True
     assert not pred.exists()
+
+
+def test_manifest_sha256_lock_rejects_changed_manifest(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [
+            {
+                "id": "s0",
+                "conversations": [
+                    {"from": "human", "value": "Q"},
+                    {"from": "gpt", "value": "A"},
+                ],
+            }
+        ],
+    )
+    plan = tmp_path / "plan.jsonl"
+    plan.write_text(
+        json.dumps(
+            {
+                "id": "LOCKED",
+                "manifest": str(manifest),
+                "manifest_sha256": "0" * 64,
+                "output_jsonl": str(tmp_path / "predictions.jsonl"),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="manifest SHA256 不匹配"):
+        runner.run_predictions(
+            plan,
+            backend="oracle",
+            limit=1,
+            feature_root=tmp_path,
+            device="cpu",
+            max_new_tokens=4,
+        )
 
 
 def test_experiment_filter_runs_only_requested_ids(tmp_path):
@@ -239,6 +521,261 @@ def test_apply_audio_condition_builds_counterfactual_audio():
     assert muted["scene_audio"] is None
 
 
+def test_mismatched_condition_replaces_path_backed_audio():
+    qa0 = {
+        "scene_audio_path": "first.mp4",
+        "scene_audio_sample_rate": 16000,
+        "scene_audio_window_sec": 1.0,
+        "scene_audio_hop_sec": 0.5,
+        "scene_audio_expected_duration_sec": 10.0,
+        "audio_sha256": "first-sha",
+    }
+    qa1 = {
+        "scene_audio_path": "second.mp4",
+        "scene_audio_sample_rate": 8000,
+        "scene_audio_window_sec": 2.0,
+        "scene_audio_hop_sec": 1.0,
+        "scene_audio_expected_duration_sec": 22.5,
+        "audio_sha256": "second-sha",
+    }
+
+    mismatched = runner.apply_audio_condition(
+        qa0,
+        {"audio_condition": "mismatched"},
+        [qa0, qa1],
+        0,
+    )
+
+    assert mismatched["scene_audio_path"] == "second.mp4"
+    assert mismatched["scene_audio_sample_rate"] == 8000
+    assert mismatched["scene_audio_window_sec"] == 2.0
+    assert mismatched["scene_audio_hop_sec"] == 1.0
+    assert mismatched["scene_audio_expected_duration_sec"] == 22.5
+    assert mismatched["audio_sha256"] == "second-sha"
+
+
+def test_mismatched_condition_clears_missing_optional_source_metadata():
+    target = {
+        "scene_audio_path": "target.mp4",
+        "scene_audio_expected_duration_sec": 10.0,
+        "audio_sha256": "target-sha",
+    }
+    source = {"scene_audio_path": "source.mp4"}
+
+    mismatched = runner.apply_audio_condition(
+        target,
+        {"audio_condition": "mismatched"},
+        [target, source],
+        0,
+    )
+
+    assert mismatched["scene_audio_path"] == "source.mp4"
+    assert mismatched["scene_audio_expected_duration_sec"] is None
+    assert mismatched["audio_sha256"] is None
+
+
+def test_mismatched_condition_skips_rows_without_audio():
+    qa0 = {
+        "id": "first_turn0",
+        "sample_id": "first",
+        "scene_audio_path": "first.mp4",
+    }
+    no_audio = {
+        "id": "silent_turn0",
+        "sample_id": "silent",
+        "scene_audio_path": None,
+    }
+    qa2 = {
+        "id": "third_turn0",
+        "sample_id": "third",
+        "scene_audio_path": "third.mp4",
+    }
+
+    mismatched = runner.apply_audio_condition(
+        qa0,
+        {"audio_condition": "mismatched"},
+        [qa0, no_audio, qa2],
+        0,
+    )
+
+    assert mismatched["scene_audio_path"] == "third.mp4"
+
+
+def test_mismatched_condition_prefers_same_task_with_different_event():
+    qa0 = {
+        "id": "first_turn0",
+        "sample_id": "first",
+        "physical_media_id": "media-1",
+        "scene_audio_path": "first.mp4",
+        "task_type": "audio",
+        "event_label": "dog",
+    }
+    same_event = {
+        "id": "second_turn0",
+        "sample_id": "second",
+        "physical_media_id": "media-2",
+        "scene_audio_path": "second.mp4",
+        "task_type": "audio",
+        "event_label": "dog",
+    }
+    different_event = {
+        "id": "third_turn0",
+        "sample_id": "third",
+        "physical_media_id": "media-3",
+        "scene_audio_path": "third.mp4",
+        "task_type": "audio",
+        "event_label": "piano",
+    }
+
+    mismatched = runner.apply_audio_condition(
+        qa0,
+        {"audio_condition": "mismatched"},
+        [qa0, same_event, different_event],
+        0,
+    )
+
+    assert mismatched["scene_audio_path"] == "third.mp4"
+    assert mismatched["mismatch_source_physical_media_id"] == "media-3"
+    assert mismatched["mismatch_source_event_label"] == "piano"
+
+
+def test_scene_audio_backend_is_installed_once_per_signature(monkeypatch):
+    import intersuit.model.scene_audio_encoder.builder as encoder_builder
+    import intersuit.model.streaming_av.builder as streaming_builder
+
+    calls = {"encoder": 0, "streaming": 0}
+
+    def build_encoder(config):
+        calls["encoder"] += 1
+        return torch.nn.Linear(2, 2)
+
+    def build_streaming(config):
+        calls["streaming"] += 1
+        return torch.nn.Linear(2, 2)
+
+    monkeypatch.setattr(encoder_builder, "build_scene_audio_encoder", build_encoder)
+    monkeypatch.setattr(streaming_builder, "build_streaming_av_module", build_streaming)
+
+    class FakeModel:
+        def __init__(self):
+            self.config = SimpleNamespace(hidden_size=4)
+            self.body = SimpleNamespace(streaming_av_module=None)
+            self.weight = torch.nn.Parameter(torch.ones(1))
+
+        def get_model(self):
+            return self.body
+
+        def parameters(self):
+            return iter([self.weight])
+
+    model = FakeModel()
+    env = {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats",
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT": "beats.pt",
+        "AS_M4_SCENE_AUDIO_BEATS_CODE_ROOT": "beats_source",
+    }
+
+    assert runner.maybe_replace_scene_audio_encoder(model, env) is True
+    assert runner.maybe_replace_scene_audio_encoder(model, env) is False
+    assert calls == {"encoder": 1, "streaming": 1}
+    assert model.config.scene_audio_hidden_size == 4
+    assert model._as_m4_frozen_runtime_sha_before == runner.frozen_runtime_module_sha256(model)
+
+
+def test_scene_audio_v4_backend_propagates_locked_projector(monkeypatch):
+    import intersuit.model.scene_audio_encoder.builder as encoder_builder
+    import intersuit.model.streaming_av.builder as streaming_builder
+
+    captured = {}
+
+    def build_encoder(config):
+        captured["path"] = config.scene_audio_v4_projector_path
+        captured["sha256"] = config.scene_audio_v4_projector_sha256
+        return torch.nn.Linear(2, 2)
+
+    monkeypatch.setattr(encoder_builder, "build_scene_audio_encoder", build_encoder)
+    monkeypatch.setattr(
+        streaming_builder,
+        "build_streaming_av_module",
+        lambda config: torch.nn.Linear(2, 2),
+    )
+
+    class FakeModel:
+        def __init__(self):
+            self.config = SimpleNamespace(hidden_size=4)
+            self.body = SimpleNamespace(streaming_av_module=None)
+            self.weight = torch.nn.Parameter(torch.ones(1))
+
+        def get_model(self):
+            return self.body
+
+        def parameters(self):
+            return iter([self.weight])
+
+    env = {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "semantic.pt",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256": "a" * 64,
+    }
+    model = FakeModel()
+
+    assert runner.maybe_replace_scene_audio_encoder(model, env) is True
+    assert captured == {"path": "semantic.pt", "sha256": "a" * 64}
+    assert model._as_m4_frozen_runtime_sha_before == runner.frozen_runtime_module_sha256(model)
+
+
+def test_scene_audio_v4_backend_reuses_and_freezes_existing_audio_projector(
+    monkeypatch,
+):
+    import intersuit.model.scene_audio_encoder.builder as encoder_builder
+
+    class Replacement(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.m4_adapter = torch.nn.Linear(2, 3)
+
+    replacement = Replacement()
+    monkeypatch.setattr(
+        encoder_builder,
+        "build_scene_audio_encoder",
+        lambda config: replacement,
+    )
+
+    source = torch.nn.Linear(2, 3)
+    with torch.no_grad():
+        source.weight.fill_(0.25)
+        source.bias.fill_(-0.5)
+
+    class FakeModel:
+        def __init__(self):
+            self.config = SimpleNamespace(hidden_size=3)
+            self.body = SimpleNamespace(
+                scene_audio_encoder=SimpleNamespace(audio_projector=source),
+                streaming_av_module=torch.nn.Identity(),
+            )
+            self.weight = torch.nn.Parameter(torch.ones(1))
+
+        def get_model(self):
+            return self.body
+
+        def parameters(self):
+            return iter([self.weight])
+
+    model = FakeModel()
+    env = {
+        "AS_M4_SCENE_AUDIO_ENCODER_TYPE": "beats_v4",
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH": "semantic.pt",
+        "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE": "existing_audio_projector",
+    }
+
+    assert runner.maybe_replace_scene_audio_encoder(model, env) is True
+    assert torch.equal(replacement.m4_adapter.weight, source.weight)
+    assert torch.equal(replacement.m4_adapter.bias, source.bias)
+    assert all(not parameter.requires_grad for parameter in replacement.m4_adapter.parameters())
+    assert model.config.scene_audio_v4_adapter_source == "existing_audio_projector"
+    assert model._as_m4_frozen_runtime_sha_before == runner.frozen_runtime_module_sha256(model)
+
+
 def test_generated_token_slice_not_empty_when_tokens_exist():
     input_ids = torch.tensor([[10, 11, 12]])
     generated_only = torch.tensor([[21, 22]])
@@ -309,6 +846,17 @@ def test_first_token_logits_reports_focus_tokens_and_ranks():
     assert [item["token_id"] for item in debug["top10"]] == [0, 1, 2, 3, 4, 5]
 
 
+def test_frozen_runtime_hash_accepts_original_model_without_audio_modules():
+    class OriginalModel:
+        def get_model(self):
+            return SimpleNamespace()
+
+    assert runner.frozen_runtime_module_sha256(OriginalModel()) == {
+        "scene_audio_encoder": "__absent__",
+        "streaming_av_module": "__absent__",
+    }
+
+
 def test_choice_prompt_contains_assistant_boundary():
     from intersuit.conversation import conv_templates
 
@@ -336,4 +884,80 @@ def test_prediction_writer_does_not_drop_text(tmp_path, monkeypatch):
 
     runner.run_predictions(plan, backend="model", limit=1, feature_root=tmp_path, device="cpu", max_new_tokens=4)
 
-    assert json.loads(prediction_path.read_text(encoding="utf-8"))["prediction"] == "kept text"
+    row = json.loads(prediction_path.read_text(encoding="utf-8"))
+    assert row["prediction"] == "kept text"
+    assert row["runtime_seconds"] >= 0
+    assert row["cuda_device"] is None
+    assert row["cuda_peak_memory_allocated_bytes"] is None
+    assert row["cuda_peak_memory_reserved_bytes"] is None
+
+
+def test_runtime_observation_reads_cuda_peak_memory(monkeypatch):
+    calls = []
+    monkeypatch.setattr(runner.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(runner.torch.cuda, "synchronize", lambda device: calls.append(("sync", str(device))))
+    monkeypatch.setattr(runner.torch.cuda, "reset_peak_memory_stats", lambda device: calls.append(("reset", str(device))))
+    monkeypatch.setattr(runner.torch.cuda, "max_memory_allocated", lambda device: 123)
+    monkeypatch.setattr(runner.torch.cuda, "max_memory_reserved", lambda device: 456)
+
+    started_at, device = runner.begin_runtime_observation("cuda:0")
+    observation = runner.finish_runtime_observation(started_at, device)
+
+    assert calls == [("sync", "cuda:0"), ("reset", "cuda:0"), ("sync", "cuda:0")]
+    assert observation["runtime_seconds"] >= 0
+    assert observation["cuda_device"] == "cuda:0"
+    assert observation["cuda_peak_memory_allocated_bytes"] == 123
+    assert observation["cuda_peak_memory_reserved_bytes"] == 456
+
+
+def test_model_backend_restores_experiment_environment(tmp_path, monkeypatch):
+    manifest = tmp_path / "manifest.json"
+    _write_json(
+        manifest,
+        [{"id": "s0", "conversations": [{"from": "human", "value": "Q"}, {"from": "gpt", "value": "A"}]}],
+    )
+    plan = tmp_path / "plan.jsonl"
+    observed = []
+    rows = [
+        {"id": "gate0", "env": {"AS_M4_FORCE_AUDIO_GATE": "0"}},
+        {"id": "oracle", "env": {"AS_M4_ENABLE_SCENE_AUDIO": "1"}},
+    ]
+    plan.write_text(
+        "".join(
+            json.dumps(
+                {
+                    **row,
+                    "manifest": str(manifest),
+                    "model_path": "unused",
+                    "output_jsonl": str(tmp_path / f"{row['id']}.jsonl"),
+                }
+            )
+            + "\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_prediction(*args, **kwargs):
+        observed.append(
+            {
+                "force_gate": os.environ.get("AS_M4_FORCE_AUDIO_GATE"),
+                "enable_audio": os.environ.get("AS_M4_ENABLE_SCENE_AUDIO"),
+            }
+        )
+        return "A", None, {"prompt": {}, "tokens": {}}
+
+    monkeypatch.delenv("AS_M4_FORCE_AUDIO_GATE", raising=False)
+    monkeypatch.delenv("AS_M4_ENABLE_SCENE_AUDIO", raising=False)
+    monkeypatch.setattr(runner, "model_prediction", fake_prediction)
+
+    runner.run_predictions(
+        plan, backend="model", limit=1, feature_root=tmp_path, device="cpu", max_new_tokens=4
+    )
+
+    assert observed == [
+        {"force_gate": "0", "enable_audio": None},
+        {"force_gate": None, "enable_audio": "1"},
+    ]
+    assert "AS_M4_FORCE_AUDIO_GATE" not in os.environ
+    assert "AS_M4_ENABLE_SCENE_AUDIO" not in os.environ

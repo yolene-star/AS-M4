@@ -25,6 +25,12 @@ if is_datasets_available():
     import datasets
 
 from intersuit.utils import rank0_print
+from intersuit.train.trainable_parts import (
+    AUDIO_CONFIDENCE_GATE_ONLY_ALIAS,
+    SCENE_AUDIO_SELECTOR_ONLY_ALIAS,
+    assert_audio_confidence_gate_only_optimizer,
+    assert_selector_only_optimizer,
+)
 
 
 def maybe_zero_3(param, ignore_status=False, name=None):
@@ -429,31 +435,36 @@ class LLaVATrainer(Trainer):
                 lr_mapper["streaming_av_module"] = self.args.streaming_av_lr
             if len(lr_mapper) > 0:
                 special_lr_parameters = [name for name, _ in opt_model.named_parameters() if any(module_keyword in name for module_keyword in lr_mapper)]
-                optimizer_grouped_parameters = [
-                    {
-                        "params": [p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in special_lr_parameters and p.requires_grad)],
-                        "weight_decay": self.args.weight_decay,
-                    },
-                    {
-                        "params": [p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in special_lr_parameters and p.requires_grad)],
-                        "weight_decay": 0.0,
-                    },
-                ]
+                optimizer_grouped_parameters = []
+
+                def add_param_group(params, weight_decay, lr=None):
+                    params = list(params)
+                    if not params:
+                        return
+                    group = {"params": params, "weight_decay": weight_decay}
+                    if lr is not None:
+                        group["lr"] = lr
+                    optimizer_grouped_parameters.append(group)
+
+                add_param_group(
+                    (p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in special_lr_parameters and p.requires_grad)),
+                    self.args.weight_decay,
+                )
+                add_param_group(
+                    (p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in special_lr_parameters and p.requires_grad)),
+                    0.0,
+                )
                 for module_keyword, lr in lr_mapper.items():
                     module_parameters = [name for name, _ in opt_model.named_parameters() if module_keyword in name]
-                    optimizer_grouped_parameters.extend(
-                        [
-                            {
-                                "params": [p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in module_parameters and p.requires_grad)],
-                                "weight_decay": self.args.weight_decay,
-                                "lr": lr,
-                            },
-                            {
-                                "params": [p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in module_parameters and p.requires_grad)],
-                                "weight_decay": 0.0,
-                                "lr": lr,
-                            },
-                        ]
+                    add_param_group(
+                        (p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in module_parameters and p.requires_grad)),
+                        self.args.weight_decay,
+                        lr=lr,
+                    )
+                    add_param_group(
+                        (p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in module_parameters and p.requires_grad)),
+                        0.0,
+                        lr=lr,
                     )
             else:
                 optimizer_grouped_parameters = [
@@ -470,6 +481,15 @@ class LLaVATrainer(Trainer):
             optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+            tunable_parts = str(getattr(self.args, "mm_tunable_parts", "") or "")
+            if tunable_parts == SCENE_AUDIO_SELECTOR_ONLY_ALIAS:
+                audited_names = assert_selector_only_optimizer(self.optimizer, opt_model)
+                rank0_print(f"selector-only optimizer audit passed: {audited_names}")
+            if tunable_parts == AUDIO_CONFIDENCE_GATE_ONLY_ALIAS:
+                audited_names = assert_audio_confidence_gate_only_optimizer(
+                    self.optimizer, opt_model
+                )
+                rank0_print(f"Gate-only optimizer audit passed: {audited_names}")
             if optimizer_cls.__name__ == "Adam8bit":
                 import bitsandbytes
 

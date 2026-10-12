@@ -1,0 +1,64 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_gate0_smoke_result_lock",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "PASS_V4_M4_GATE0_EXACT_ROLLBACK",
+  "execution": {
+    "physical_gpu": 2,
+    "cuda_visible_devices": "2",
+    "logical_device": "cuda:0",
+    "conda_environment": "M4",
+    "sample_limit": 1,
+    "sample_id": "ave_stage2_QSgqjJ2iglM_audio",
+    "formal_test_accessed": false,
+    "training_performed": false,
+    "nonzero_gate_executed": false
+  },
+  "source_lock": {
+    "contract": "intersuit/harness/configs/m4_ptpa_unav_v4_gate0_smoke_v1.json",
+    "base_model": "intersuit/checkpoints/M4-LongVA-7B-Qwen2-PTPA-Best-AudioBranch-v1",
+    "audio_overlay_sha256": "de23fd7281b3835183533df384ab3398849b13c50386875a75b680cf4e12bf17",
+    "beats_checkpoint_sha256": "d43cbfad4d7b56381c061d7a24774f908d4d94c72961f6eb1d9090ff18cd8d34",
+    "v4_projector_sha256": "3c514457da0394e489e4d71f313968957f863d2cd803e9dd059ed8a8807bc866",
+    "adapter_source": "existing_audio_projector"
+  },
+  "result_artifacts": {
+    "behavior": {
+      "path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_gate0_smoke_v1/v4_behavior_off_predictions.jsonl",
+      "sha256": "1408341876aff87918d29f118b00d3749b72470ae3862217ffabea509487d2d5"
+    },
+    "gate0": {
+      "path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_gate0_smoke_v1/v4_gate0_predictions.jsonl",
+      "sha256": "77eb06aef143ea75a8086f9222159fc31f58115010c8f81a92b64e63d0dbecc6"
+    },
+    "frozen_audit": {
+      "path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_gate0_smoke_v1/debug/frozen_state_audit.json",
+      "sha256": "1909d9baf9c5c5dbff10e61a74aaaaa70ee9067be82333d3049f28591dc1520f"
+    },
+    "independent_audit": {
+      "path": "intersuit/harness/artifacts/m4_ptpa_unav_v4_gate0_smoke_v1/gate0_independent_audit.json",
+      "sha256": "052bc6fc9cf24ebe0fea179ce8e0daa118148dfe1e5da21582a2ec7a26a0ff92"
+    }
+  },
+  "metrics": {
+    "prediction": "The sound event audible in this video is",
+    "prediction_correct": false,
+    "generated_token_count": 9,
+    "gate0_audio_window_count": 20,
+    "gate0_audio_norm": 9.935859680175781,
+    "gate0_delta_to_video_ratio": 0.0,
+    "behavior_peak_memory_allocated_bytes": 25961436160,
+    "gate0_peak_memory_allocated_bytes": 26174323200
+  },
+  "checks": {
+    "prediction_exact_match": true,
+    "generated_tokens_exact_match": true,
+    "gate0_audio_was_decoded": true,
+    "gate0_exact_zero": true,
+    "frozen_runtime_sha_unchanged": true,
+    "post_run_gpu_memory_released": true,
+    "post_run_no_xid_aer_or_hung_task": true,
+    "m4_effect_claim_allowed": false,
+    "nonzero_gate_next_stage_automatically_allowed": false
+  }
+}

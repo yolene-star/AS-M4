@@ -1,0 +1,28 @@
+{
+  "artifact_kind": "m4_ptpa_unav_v4_fusion_reconstruction_contract",
+  "version": "v1",
+  "date": "2026-08-29",
+  "status": "CPU_CONTRACT_ONLY",
+  "source_decay_lock": "intersuit/configs/m4_ptpa_unav_v4_representation_decay_lock_v1.json",
+  "allowed_modes": [
+    "identity_fusion",
+    "bypass_old_fusion",
+    "lightweight_norm_preserving"
+  ],
+  "forbidden": {
+    "beats_training": true,
+    "v4_semantic_training": true,
+    "m4_training": true,
+    "gate_increase": true,
+    "formal_test": true,
+    "gpu_expansion": true
+  },
+  "acceptance": {
+    "preserve_adapter_relative_difference_min": 0.5,
+    "preserve_adapter_cosine_max": 0.95,
+    "finite_required": true,
+    "gate0_exact_zero_required": true,
+    "source_modules_frozen_required": true
+  },
+  "next_stage_requires": "CPU_PASS_BEFORE_GPU_SMOKE"
+}

@@ -4,12 +4,16 @@
 from __future__ import annotations
 
 import argparse
+from collections import OrderedDict
+from contextlib import contextmanager
+import hashlib
 import json
 import math
 import os
 import re
 from pathlib import Path
-from typing import Any
+import time
+from typing import Any, Iterator
 
 import torch
 
@@ -31,6 +35,42 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 def load_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def verify_manifest_lock(exp: dict[str, Any], manifest: Path) -> None:
+    expected = str(exp.get("manifest_sha256") or "").strip().lower()
+    if not expected:
+        return
+    actual = sha256_file(manifest)
+    if actual != expected:
+        raise RuntimeError(
+            f"{exp['id']} manifest SHA256 不匹配：expected={expected}, actual={actual}"
+        )
+
+
+@contextmanager
+def temporary_environment(overrides: dict[str, Any]) -> Iterator[None]:
+    """Apply one experiment's environment without leaking into the next one."""
+
+    normalized = {str(key): str(value) for key, value in overrides.items()}
+    previous = {key: os.environ.get(key) for key in normalized}
+    os.environ.update(normalized)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def iter_qa_samples(manifest: Path, limit: int | None = None) -> list[dict[str, Any]]:
@@ -65,10 +105,31 @@ def iter_qa_samples(manifest: Path, limit: int | None = None) -> list[dict[str, 
                     "scene_audio_sample_rate": sample.get("scene_audio_sample_rate", 16000),
                     "scene_audio_window_sec": sample.get("scene_audio_window_sec", 1.0),
                     "scene_audio_hop_sec": sample.get("scene_audio_hop_sec", 0.5),
+                    "scene_audio_expected_duration_sec": sample.get("scene_audio_expected_duration_sec"),
                     "scene_audio_timestamps": sample.get("scene_audio_timestamps"),
+                    "scene_audio_selected_indices": sample.get("scene_audio_selected_indices"),
+                    "scene_audio_selection_policy": sample.get("scene_audio_selection_policy"),
+                    "scene_audio_selection_top_k": sample.get("scene_audio_selection_top_k"),
+                    "scene_audio_selection_scores": sample.get("scene_audio_selection_scores"),
+                    "scene_audio_selection_seed": sample.get("scene_audio_selection_seed"),
+                    "scene_audio_selection_diagnostic": sample.get("scene_audio_selection_diagnostic", False),
+                    "scene_audio_target_intervals": sample.get("scene_audio_target_intervals"),
                     "frame_timestamps": sample.get("frame_timestamps"),
+                    "physical_media_id": sample.get("physical_media_id"),
+                    "source_dataset": sample.get("source_dataset"),
+                    "task_type": sample.get("task_type"),
+                    "event_label": sample.get("event_label"),
+                    "audio_sha256": sample.get("audio_sha256"),
+                    "mismatch_source_id": sample.get("mismatch_source_id"),
+                    "mismatch_source_physical_media_id": sample.get("mismatch_source_physical_media_id"),
+                    "mismatch_source_event_label": sample.get("mismatch_source_event_label"),
                     "accept_contains": sample.get("accept_contains"),
                     "accept_regex": sample.get("accept_regex"),
+                    "sentence_id": sample.get("sentence_id"),
+                    "event_start_sec": sample.get("event_start_sec"),
+                    "event_end_sec": sample.get("event_end_sec"),
+                    "is_sparse": sample.get("is_sparse"),
+                    "selector_strategy": sample.get("selector_strategy"),
                 }
             )
             if limit is not None and len(rows) >= limit:
@@ -135,7 +196,11 @@ def _find_token_subsequence(sequence: torch.Tensor, subsequence: torch.Tensor) -
     return None, None
 
 
-def prediction_correct(prediction: str, qa: dict[str, Any]) -> bool:
+def prediction_correct(
+    prediction: str,
+    qa: dict[str, Any],
+    scorer: str = "exact_match",
+) -> bool:
     normalized_prediction = normalize_text(prediction)
     choices = qa.get("choices")
     if isinstance(choices, dict) and re.fullmatch(r"[a-d]", normalized_prediction):
@@ -156,6 +221,23 @@ def prediction_correct(prediction: str, qa: dict[str, Any]) -> bool:
         regex_match = any(re.search(str(pattern), prediction or "", flags=re.IGNORECASE) for pattern in patterns)
     if contains or patterns:
         return contains_match or regex_match
+    if scorer == "label_terms":
+        answer = str(qa["answer"] or "").strip()
+        if re.fullmatch(r"[A-Da-d]", answer):
+            return normalized_prediction == answer.lower()
+        terms = []
+        for item in answer.split(","):
+            term = re.sub(r"\s*\([^)]*\)\s*", " ", item).strip()
+            if term:
+                terms.append(term)
+        return any(
+            re.search(
+                rf"(?<!\w){re.escape(term)}(?!\w)",
+                prediction or "",
+                flags=re.IGNORECASE,
+            )
+            for term in terms
+        )
     return normalized_prediction == normalize_text(qa["answer"])
 
 
@@ -172,6 +254,36 @@ def jsonable_diagnostics(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [jsonable_diagnostics(item) for item in value]
     return value
+
+
+def begin_runtime_observation(device: str) -> tuple[float, torch.device | None]:
+    """Start one sample's wall-time and CUDA peak-memory observation."""
+
+    cuda_device = None
+    if str(device).startswith("cuda") and torch.cuda.is_available():
+        cuda_device = torch.device(device)
+        torch.cuda.synchronize(cuda_device)
+        torch.cuda.reset_peak_memory_stats(cuda_device)
+    return time.perf_counter(), cuda_device
+
+
+def finish_runtime_observation(
+    started_at: float,
+    cuda_device: torch.device | None,
+) -> dict[str, Any]:
+    if cuda_device is not None:
+        torch.cuda.synchronize(cuda_device)
+    elapsed = time.perf_counter() - started_at
+    return {
+        "runtime_seconds": elapsed,
+        "cuda_device": str(cuda_device) if cuda_device is not None else None,
+        "cuda_peak_memory_allocated_bytes": (
+            int(torch.cuda.max_memory_allocated(cuda_device)) if cuda_device is not None else None
+        ),
+        "cuda_peak_memory_reserved_bytes": (
+            int(torch.cuda.max_memory_reserved(cuda_device)) if cuda_device is not None else None
+        ),
+    }
 
 
 def first_diagnostic_scalar(diagnostics: Any, key: str) -> float | None:
@@ -246,10 +358,61 @@ def apply_audio_condition(
         return result
 
     if condition == "mismatched":
-        if audio_pool:
-            source = audio_pool[(sample_index + 1) % len(audio_pool)]
-            result["scene_audio"] = source.get("scene_audio")
-            result["scene_audio_timestamps"] = source.get("scene_audio_timestamps")
+        candidates: list[tuple[tuple[int, int, int], int, dict[str, Any]]] = []
+        current_id = result.get("sample_id") or result.get("id")
+        current_path = result.get("scene_audio_path")
+        current_media = result.get("physical_media_id")
+        current_label = normalize_text(result.get("event_label"))
+        for offset in range(1, len(audio_pool) + 1):
+            candidate = audio_pool[(sample_index + offset) % len(audio_pool)]
+            candidate_id = candidate.get("sample_id") or candidate.get("id")
+            candidate_path = candidate.get("scene_audio_path")
+            candidate_media = candidate.get("physical_media_id")
+            has_audio = candidate.get("scene_audio") is not None or bool(candidate_path)
+            same_source = (
+                current_id is not None
+                and candidate_id is not None
+                and candidate_id == current_id
+            ) or (
+                current_path is not None and candidate_path == current_path
+            ) or (
+                current_media is not None
+                and candidate_media is not None
+                and candidate_media == current_media
+            )
+            if has_audio and not same_source:
+                candidate_label = normalize_text(candidate.get("event_label"))
+                different_known_label = int(
+                    bool(current_label and candidate_label and current_label != candidate_label)
+                )
+                same_task = int(candidate.get("task_type") == result.get("task_type"))
+                same_dataset = int(candidate.get("source_dataset") == result.get("source_dataset"))
+                candidates.append(((different_known_label, same_task, same_dataset), -offset, candidate))
+        if not candidates:
+            raise ValueError(f"没有可用于 {result.get('id')} 的不同来源错配音频")
+        if current_label and any(score[0] for score, _offset, _candidate in candidates):
+            candidates = [item for item in candidates if item[0][0]]
+        _score, _offset, source = max(candidates, key=lambda item: (item[0], item[1]))
+        result["scene_audio"] = source.get("scene_audio")
+        result["scene_audio_timestamps"] = source.get("scene_audio_timestamps")
+        if source.get("scene_audio_path"):
+            # Path-backed audio metadata is one atomic source identity.  Copy
+            # every duration/decoding field, including explicit None, so no
+            # target-sample value can leak into a mismatched source.
+            for key in (
+                "scene_audio_path",
+                "scene_audio_sample_rate",
+                "scene_audio_window_sec",
+                "scene_audio_hop_sec",
+                "scene_audio_expected_duration_sec",
+                "audio_sha256",
+            ):
+                result[key] = source.get(key)
+        else:
+            result["scene_audio_path"] = None
+        result["mismatch_source_id"] = source.get("sample_id") or source.get("id")
+        result["mismatch_source_physical_media_id"] = source.get("physical_media_id")
+        result["mismatch_source_event_label"] = source.get("event_label")
         return result
 
     if audio is None:
@@ -272,6 +435,29 @@ def apply_audio_condition(
     return result
 
 
+def resolve_model_name_from_checkpoint_config(model_path: Path, fallback: str) -> str:
+    """Prefer checkpoint architecture metadata over an arbitrary run-directory name."""
+
+    config_path = model_path / "config.json"
+    if not config_path.is_file():
+        return fallback
+    try:
+        config = load_json(config_path)
+    except (OSError, json.JSONDecodeError):
+        return fallback
+    if not isinstance(config, dict):
+        return fallback
+    architecture_identity = " ".join(
+        [
+            str(config.get("model_type") or ""),
+            *[str(value) for value in (config.get("architectures") or [])],
+        ]
+    ).lower()
+    if "qwen" in architecture_identity:
+        return "LongVA-Qwen2"
+    return fallback
+
+
 def load_model_once(model_path: str, device: str, model_name_override: str | None = None):
     from intersuit.mm_utils import get_model_name_from_path
     from intersuit.model.builder import load_pretrained_model
@@ -280,9 +466,17 @@ def load_model_once(model_path: str, device: str, model_name_override: str | Non
     if not model_path_abs.is_absolute():
         model_path_abs = (REPO_ROOT / model_path_abs).resolve()
     model_path_str = str(model_path_abs)
-    model_name = model_name_override or get_model_name_from_path(model_path_str)
+    model_name = model_name_override or resolve_model_name_from_checkpoint_config(
+        model_path_abs,
+        get_model_name_from_path(model_path_str),
+    )
     cwd = Path.cwd()
+    cpu_rng_state = torch.random.get_rng_state()
+    cuda_rng_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
     try:
+        torch.manual_seed(20260724)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(20260724)
         os.chdir(INTERSUIT_ROOT)
         tokenizer, model, image_processor, context_len = load_pretrained_model(
             model_path_str,
@@ -298,8 +492,145 @@ def load_model_once(model_path: str, device: str, model_name_override: str | Non
         )
     finally:
         os.chdir(cwd)
+        torch.random.set_rng_state(cpu_rng_state)
+        if cuda_rng_states:
+            torch.cuda.set_rng_state_all(cuda_rng_states)
     model.eval()
+    model.requires_grad_(False)
+    if any(parameter.requires_grad for parameter in model.parameters()):
+        raise RuntimeError("冻结推理模型仍存在 requires_grad=true 参数")
+    model._as_m4_frozen_runtime_sha_before = frozen_runtime_module_sha256(model)
     return tokenizer, model, image_processor, context_len
+
+
+def frozen_runtime_module_sha256(model: Any) -> dict[str, str]:
+    from intersuit.harness.dynamic_selector_contract import module_state_sha256
+
+    body = model.get_model() if hasattr(model, "get_model") else model
+    modules = {
+        "scene_audio_encoder": getattr(body, "scene_audio_encoder", None),
+        "streaming_av_module": getattr(body, "streaming_av_module", None),
+    }
+    result = {}
+    for name, module in modules.items():
+        if isinstance(module, list):
+            module = module[0] if module else None
+        if module is None:
+            result[name] = "__absent__"
+        else:
+            result[name] = module_state_sha256(module)
+    return result
+
+
+def maybe_replace_scene_audio_encoder(model: Any, env: dict[str, str]) -> bool:
+    encoder_type = env.get("AS_M4_SCENE_AUDIO_ENCODER_TYPE")
+    if not encoder_type:
+        return False
+    signature = (
+        encoder_type,
+        env.get("AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT"),
+        env.get("AS_M4_SCENE_AUDIO_BEATS_CODE_ROOT"),
+        env.get("AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256"),
+        env.get("AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH"),
+        env.get("AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256"),
+        env.get("AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE"),
+        env.get("AS_M4_SCENE_AUDIO_TORCHAUDIO_BUNDLE"),
+        env.get("AS_M4_SCENE_AUDIO_TORCHAUDIO_WEIGHT_PATH"),
+    )
+    if getattr(model, "_as_m4_scene_audio_encoder_signature", None) == signature:
+        return False
+
+    model_body = model.get_model() if hasattr(model, "get_model") else model
+    model.config.scene_audio_encoder_type = encoder_type
+    model.config.scene_audio_hidden_size = int(model.config.hidden_size)
+    model.config.scene_audio_torchaudio_bundle = env.get("AS_M4_SCENE_AUDIO_TORCHAUDIO_BUNDLE", "WAV2VEC2_BASE")
+    model.config.scene_audio_torchaudio_weight_path = env.get("AS_M4_SCENE_AUDIO_TORCHAUDIO_WEIGHT_PATH")
+    model.config.scene_audio_sample_rate = int(env.get("AS_M4_SCENE_AUDIO_SAMPLE_RATE", "16000"))
+    model.config.scene_audio_beats_checkpoint = env.get(
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT",
+        "intersuit/checkpoints/BEATs_iter3_plus_AS2M.pt",
+    )
+    model.config.scene_audio_beats_code_root = env.get(
+        "AS_M4_SCENE_AUDIO_BEATS_CODE_ROOT",
+        "third_party/OmniMMI/baselines/videollama2/model",
+    )
+    model.config.scene_audio_beats_checkpoint_sha256 = env.get(
+        "AS_M4_SCENE_AUDIO_BEATS_CHECKPOINT_SHA256"
+    )
+    model.config.scene_audio_v4_projector_path = env.get(
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_PATH"
+    )
+    model.config.scene_audio_v4_projector_sha256 = env.get(
+        "AS_M4_SCENE_AUDIO_V4_PROJECTOR_SHA256"
+    )
+    model.config.scene_audio_precomputed_shared_space = env.get(
+        "AS_M4_SCENE_AUDIO_PRECOMPUTED_SHARED_SPACE", "0"
+    ) in {"1", "true", "True", "yes"}
+
+    from intersuit.model.scene_audio_encoder.builder import build_scene_audio_encoder
+    from intersuit.model.streaming_av.builder import build_streaming_av_module
+
+    device = next(model.parameters()).device
+    replacement = build_scene_audio_encoder(model.config).to(device=device)
+    adapter_source = env.get("AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE")
+    if encoder_type.lower() == "beats_v4" and adapter_source:
+        if adapter_source != "existing_audio_projector":
+            raise ValueError(
+                "AS_M4_SCENE_AUDIO_V4_ADAPTER_SOURCE 仅支持 existing_audio_projector"
+            )
+        previous = getattr(model_body, "scene_audio_encoder", None)
+        if isinstance(previous, list):
+            previous = previous[0] if previous else None
+        source_projector = getattr(previous, "audio_projector", None)
+        target_adapter = getattr(replacement, "m4_adapter", None)
+        if not isinstance(source_projector, torch.nn.Linear) or not isinstance(
+            target_adapter, torch.nn.Linear
+        ):
+            raise ValueError(
+                "beats_v4 existing_audio_projector 要求旧编码器含线性 audio_projector，"
+                "且新编码器含线性 m4_adapter"
+            )
+        if source_projector.weight.shape != target_adapter.weight.shape or (
+            source_projector.bias is None
+        ) != (target_adapter.bias is None):
+            raise ValueError(
+                "旧 audio_projector 与新 m4_adapter 形状不兼容："
+                f"source={tuple(source_projector.weight.shape)}, "
+                f"target={tuple(target_adapter.weight.shape)}"
+            )
+        with torch.no_grad():
+            target_adapter.weight.copy_(
+                source_projector.weight.to(
+                    device=target_adapter.weight.device,
+                    dtype=target_adapter.weight.dtype,
+                )
+            )
+            if target_adapter.bias is not None:
+                target_adapter.bias.copy_(
+                    source_projector.bias.to(
+                        device=target_adapter.bias.device,
+                        dtype=target_adapter.bias.dtype,
+                    )
+                )
+        target_adapter.requires_grad_(False)
+        model.config.scene_audio_v4_adapter_source = adapter_source
+    replacement.eval()
+    setattr(model_body, "scene_audio_encoder", replacement)
+    if getattr(model_body, "streaming_av_module", None) is None:
+        streaming_av_module = build_streaming_av_module(model.config).to(
+            device=device,
+            dtype=next(model.parameters()).dtype,
+        )
+        streaming_av_module.eval()
+        setattr(model_body, "streaming_av_module", streaming_av_module)
+    model._as_m4_scene_audio_encoder_signature = signature
+    # The backend replacement itself is an explicit, SHA-locked setup action.
+    # Freeze the new module tree and start the mutation audit only after that
+    # setup, so the expected replacement is not misreported as inference-time
+    # weight drift.
+    replacement.requires_grad_(False)
+    model._as_m4_frozen_runtime_sha_before = frozen_runtime_module_sha256(model)
+    return True
 
 
 def _resolve_repo_path(path_value: str) -> Path:
@@ -359,6 +690,7 @@ def _load_scene_audio_tensor(
     debug_condition: str = "original",
     debug_source_path: str | None = None,
     debug_shift_seconds: float = 0.0,
+    audio_cache: OrderedDict | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]] | tuple[None, None, None]:
     audio_path = debug_source_path or qa.get("scene_audio_path")
     if not audio_path:
@@ -366,23 +698,55 @@ def _load_scene_audio_tensor(
     from intersuit.streaming.audio_stream import load_scene_audio, split_audio_windows, stack_audio_windows
 
     path = _resolve_repo_path(str(audio_path))
-    waveform, sample_rate = load_scene_audio(path, sample_rate=int(qa.get("scene_audio_sample_rate") or 16000), mono=True)
-    original_num_samples = int(waveform.shape[-1])
-    waveform = _apply_debug_waveform_condition(
-        waveform,
-        sample_rate,
-        condition=debug_condition,
-        shift_seconds=debug_shift_seconds,
+    requested_sample_rate = int(qa.get("scene_audio_sample_rate") or 16000)
+    window_sec = float(qa.get("scene_audio_window_sec") or 1.0)
+    hop_sec = float(qa.get("scene_audio_hop_sec") or 0.5)
+    expected_duration = qa.get("scene_audio_expected_duration_sec")
+    expected_duration = float(expected_duration) if expected_duration is not None else None
+    if expected_duration is not None and expected_duration <= 0:
+        raise ValueError("scene_audio_expected_duration_sec 必须为正数")
+    cache_key = (str(path), requested_sample_rate, window_sec, hop_sec, expected_duration)
+    cache_allowed = audio_cache is not None and debug_condition == "original" and not debug_source_path
+    cached = audio_cache.get(cache_key) if cache_allowed else None
+    if cached is None:
+        waveform, sample_rate = load_scene_audio(path, sample_rate=requested_sample_rate, mono=True)
+        decoded_num_samples = int(waveform.shape[-1])
+        if expected_duration is not None:
+            expected_samples = int(round(expected_duration * sample_rate))
+            if waveform.shape[-1] < expected_samples:
+                waveform = torch.nn.functional.pad(waveform, (0, expected_samples - waveform.shape[-1]))
+            waveform = waveform[..., :expected_samples]
+        original_num_samples = int(waveform.shape[-1])
+        waveform = _apply_debug_waveform_condition(
+            waveform,
+            sample_rate,
+            condition=debug_condition,
+            shift_seconds=debug_shift_seconds,
+        )
+        if int(waveform.shape[-1]) != original_num_samples:
+            raise ValueError("Debug audio perturbation changed waveform length")
+        windows = split_audio_windows(
+            waveform,
+            sample_rate,
+            window_sec=window_sec,
+            hop_sec=hop_sec,
+        )
+        samples, timestamps = stack_audio_windows(windows)
+        if cache_allowed:
+            audio_cache[cache_key] = (samples, timestamps, original_num_samples, decoded_num_samples)
+            audio_cache.move_to_end(cache_key)
+            while len(audio_cache) > 2:
+                audio_cache.popitem(last=False)
+    else:
+        samples, timestamps, original_num_samples, decoded_num_samples = cached
+        sample_rate = requested_sample_rate
+        audio_cache.move_to_end(cache_key)
+    full_window_count = int(samples.shape[0])
+    samples, timestamps, selection_trace = _apply_external_scene_audio_selection(
+        qa,
+        samples,
+        timestamps,
     )
-    if int(waveform.shape[-1]) != original_num_samples:
-        raise ValueError("Debug audio perturbation changed waveform length")
-    windows = split_audio_windows(
-        waveform,
-        sample_rate,
-        window_sec=float(qa.get("scene_audio_window_sec") or 1.0),
-        hop_sec=float(qa.get("scene_audio_hop_sec") or 0.5),
-    )
-    samples, timestamps = stack_audio_windows(windows)
     if samples.numel() == 0:
         raise ValueError(f"Scene audio decoded to zero samples: {path}")
     if not torch.isfinite(samples).all() or not torch.isfinite(timestamps).all():
@@ -394,11 +758,101 @@ def _load_scene_audio_tensor(
         "source_path": str(path),
         "shift_seconds": float(debug_shift_seconds),
         "waveform_num_samples": original_num_samples,
+        "decoded_waveform_num_samples": decoded_num_samples,
+        "expected_duration_sec": expected_duration,
         "window_count": int(samples.shape[0]),
+        "full_window_count": full_window_count,
+        "selected_source_indices": (
+            selection_trace["selected_source_indices"] if selection_trace is not None else None
+        ),
+        "selection_stage": (
+            selection_trace["selection_stage"] if selection_trace is not None else None
+        ),
+        "selection_trace": selection_trace,
         "window_num_samples": int(samples.shape[-1]),
         "input_window_norm": float(samples.float().norm().item()),
     }
     return samples, timestamps, metadata
+
+
+def _apply_external_scene_audio_selection(
+    qa: dict[str, Any],
+    samples: torch.Tensor,
+    timestamps: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any] | None]:
+    """Apply one external policy before BEATs and return an auditable trace.
+
+    Absence of an external policy deliberately preserves the checkpoint's
+    internal selector. The historical ``scene_audio_selected_indices`` field is
+    normalized through the same contract instead of keeping a second path.
+    """
+
+    from intersuit.model.streaming_av.selection_contract import (
+        DEFAULT_SELECTION_POLICY_REGISTRY,
+        SelectionRequest,
+    )
+
+    policy_name = qa.get("scene_audio_selection_policy")
+    explicit_indices = qa.get("scene_audio_selected_indices")
+    if explicit_indices is not None:
+        if not isinstance(explicit_indices, list) or not explicit_indices:
+            raise ValueError("scene_audio_selected_indices 必须是非空列表")
+        normalized_indices = [int(value) for value in explicit_indices]
+        if normalized_indices != sorted(set(normalized_indices)):
+            raise ValueError("scene_audio_selected_indices 必须唯一且按时间递增")
+        if normalized_indices[0] < 0 or normalized_indices[-1] >= int(samples.shape[0]):
+            raise ValueError(
+                "scene_audio_selected_indices 越界："
+                f"{normalized_indices[0]}..{normalized_indices[-1]} / {int(samples.shape[0])}"
+            )
+        explicit_indices = normalized_indices
+    if policy_name is None and explicit_indices is not None:
+        policy_name = "external_indices"
+    if policy_name is None:
+        return samples, timestamps, None
+
+    policy_name = str(policy_name).strip().lower()
+    top_k = qa.get("scene_audio_selection_top_k")
+    if policy_name not in {"fixed_all", "external_indices"} and top_k is None:
+        raise ValueError(f"{policy_name} 必须显式提供 scene_audio_selection_top_k")
+    target_intervals = qa.get("scene_audio_target_intervals")
+    if target_intervals is None and qa.get("event_start_sec") is not None and qa.get("event_end_sec") is not None:
+        target_intervals = [[float(qa["event_start_sec"]), float(qa["event_end_sec"])]]
+    raw_scores = qa.get("scene_audio_selection_scores") or {}
+    if not isinstance(raw_scores, dict):
+        raise ValueError("scene_audio_selection_scores 必须是 score_name -> list 的对象")
+    request = SelectionRequest(
+        sample_id=str(qa.get("id") or qa.get("sample_id") or "unknown"),
+        source_indices=torch.arange(samples.shape[0], dtype=torch.long),
+        timestamps=timestamps,
+        valid_mask=torch.ones(samples.shape[0], dtype=torch.bool),
+        top_k=int(top_k) if top_k is not None else None,
+        raw_windows=samples,
+        scores={name: torch.as_tensor(values, dtype=torch.float32) for name, values in raw_scores.items()},
+        target_intervals=(
+            torch.as_tensor(target_intervals, dtype=torch.float32) if target_intervals is not None else None
+        ),
+        explicit_selected_source_indices=(
+            tuple(int(value) for value in explicit_indices) if explicit_indices is not None else None
+        ),
+        seed=(
+            int(qa["scene_audio_selection_seed"])
+            if qa.get("scene_audio_selection_seed") is not None
+            else None
+        ),
+        diagnostic=bool(qa.get("scene_audio_selection_diagnostic", False)),
+        training=False,
+        production=not bool(qa.get("scene_audio_selection_diagnostic", False)),
+    )
+    result = DEFAULT_SELECTION_POLICY_REGISTRY.select(policy_name, request)
+    if policy_name == "fixed_all" and result.selected_window_count != int(samples.shape[0]):
+        raise RuntimeError("fixed_all 未保留全部有效窗口")
+    positions = result.selected_positions.to(device=samples.device)
+    return (
+        samples.index_select(0, positions),
+        timestamps.index_select(0, positions.to(device=timestamps.device)),
+        result.to_trace(),
+    )
 
 
 def _first_token_logits_debug(scores: torch.Tensor, tokenizer: Any) -> dict[str, Any]:
@@ -446,6 +900,10 @@ def model_prediction(
     if model_path not in model_cache:
         model_cache[model_path] = load_model_once(model_path, device, model_name_override=model_name_override)
     tokenizer, model, image_processor, _context_len = model_cache[model_path]
+    runtime_cache = model_cache.setdefault(
+        "__runtime_cache__",
+        {"audio": OrderedDict(), "video": OrderedDict()},
+    )
 
     raw_question = str(qa.get("raw_question") or qa["question"]).replace(DEFAULT_IMAGE_TOKEN, "").strip()
     final_query, formatted_choices = format_choice_query(raw_question, qa.get("choices"))
@@ -500,7 +958,19 @@ def model_prediction(
     using_video_feature = qa.get("video_features") is not None
     if qa.get("video_path"):
         max_frames = int(qa["video_max_frames"]) if qa.get("video_max_frames") is not None else None
-        images = [_load_video_tensor(str(qa["video_path"]), image_processor, model, device, max_frames=max_frames)]
+        video_key = (str(qa["video_path"]), int(max_frames or getattr(model.config, "as_m4_harness_max_frames", 32)))
+        video_cache = runtime_cache["video"]
+        video_tensor = video_cache.get(video_key)
+        if video_tensor is None:
+            video_tensor = _load_video_tensor(
+                str(qa["video_path"]), image_processor, model, device, max_frames=max_frames
+            )
+            video_cache[video_key] = video_tensor
+            while len(video_cache) > 2:
+                video_cache.popitem(last=False)
+        else:
+            video_cache.move_to_end(video_key)
+        images = [video_tensor]
         modalities = ["video"]
         using_video_feature = False
     else:
@@ -513,11 +983,30 @@ def model_prediction(
 
     scene_audios = None
     scene_audio_timestamps = None
+    scene_audio_selection_stage = None
     audio_input_debug = None
     if exp.get("env", {}).get("AS_M4_ENABLE_SCENE_AUDIO") == "1" and qa.get("scene_audio") is not None:
-        scene_audios = torch.as_tensor(qa["scene_audio"], dtype=model_dtype, device=device).unsqueeze(0)
-        if qa.get("scene_audio_timestamps") is not None:
-            scene_audio_timestamps = torch.as_tensor(qa["scene_audio_timestamps"], dtype=torch.float32, device=device).unsqueeze(0)
+        inline_audio = torch.as_tensor(qa["scene_audio"], dtype=model_dtype, device=device)
+        if qa.get("scene_audio_timestamps") is None:
+            if qa.get("scene_audio_selection_policy") is not None or qa.get("scene_audio_selected_indices") is not None:
+                raise ValueError("外部选窗的 inline scene_audio 必须提供 scene_audio_timestamps")
+            inline_timestamps = None
+            selection_trace = None
+        else:
+            inline_timestamps = torch.as_tensor(
+                qa["scene_audio_timestamps"], dtype=torch.float32, device=device
+            )
+            inline_audio, inline_timestamps, selection_trace = _apply_external_scene_audio_selection(
+                qa,
+                inline_audio,
+                inline_timestamps,
+            )
+        scene_audios = inline_audio.unsqueeze(0)
+        if inline_timestamps is not None:
+            scene_audio_timestamps = inline_timestamps.unsqueeze(0)
+        if selection_trace is not None:
+            scene_audio_selection_stage = selection_trace["selection_stage"]
+            audio_input_debug = {"selection_trace": selection_trace, **selection_trace}
     elif exp.get("env", {}).get("AS_M4_ENABLE_SCENE_AUDIO") == "1" and qa.get("scene_audio_path"):
         debug_env = exp.get("env", {})
         loaded_audio, loaded_timestamps, audio_input_debug = _load_scene_audio_tensor(
@@ -525,10 +1014,13 @@ def model_prediction(
             debug_condition=str(debug_env.get("AS_M4_DEBUG_AUDIO_CONDITION") or "original"),
             debug_source_path=debug_env.get("AS_M4_DEBUG_AUDIO_SOURCE_PATH"),
             debug_shift_seconds=float(debug_env.get("AS_M4_DEBUG_AUDIO_SHIFT_SECONDS") or 0.0),
+            audio_cache=runtime_cache["audio"],
         )
         if loaded_audio is not None:
             scene_audios = loaded_audio.to(device=device, dtype=model_dtype).unsqueeze(0)
             scene_audio_timestamps = loaded_timestamps.to(device=device, dtype=torch.float32).unsqueeze(0)
+            if audio_input_debug and audio_input_debug.get("selection_stage"):
+                scene_audio_selection_stage = audio_input_debug["selection_stage"]
     elif using_video_feature and getattr(model.config, "enable_scene_audio", False):
         # Precomputed video_feature inputs are only packed by the streaming AV
         # path. For muted/behavior rollback experiments, feed a tiny zero audio
@@ -542,6 +1034,22 @@ def model_prediction(
     previous_enable_scene_audio = getattr(model.config, "enable_scene_audio", None)
     previous_residual_scale = getattr(model.config, "debug_audio_residual_scale", 1.0)
     previous_delta_ratio_cap = getattr(model.config, "audio_delta_ratio_cap", 0.0)
+    previous_gate_v1 = getattr(model.config, "enable_audio_confidence_gate_v1", False)
+    previous_event_aligner_v1 = getattr(model.config, "enable_audio_event_aligner_v1", False)
+    previous_fusion_mode = getattr(model.config, "as_m4_fusion_mode", "aligned_gated")
+    previous_fusion_projector_mode = getattr(
+        model.config,
+        "as_m4_fusion_projector_mode",
+        "legacy",
+    )
+    previous_simple_audio_gate = getattr(model.config, "as_m4_simple_audio_gate", 1.0)
+    previous_inference_simple_audio_gate = getattr(
+        model.config,
+        "as_m4_inference_simple_audio_gate",
+        None,
+    )
+    previous_fusion_position = getattr(model.config, "as_m4_fusion_position", "visual_token_residual")
+    previous_audio_token_gate = getattr(model.config, "as_m4_audio_token_gate", 1.0)
     if force_audio_gate is not None:
         model.config.force_audio_gate = float(force_audio_gate)
     if enable_scene_audio is not None:
@@ -552,6 +1060,70 @@ def model_prediction(
     delta_ratio_cap = exp.get("env", {}).get("AS_M4_AUDIO_DELTA_RATIO_CAP")
     active_delta_ratio_cap = float(delta_ratio_cap) if delta_ratio_cap is not None else 0.0
     model.config.audio_delta_ratio_cap = active_delta_ratio_cap
+    gate_v1 = exp.get("env", {}).get("AS_M4_ENABLE_AUDIO_CONFIDENCE_GATE_V1")
+    active_gate_v1 = str(gate_v1 or "0") in {"1", "true", "True"}
+    model.config.enable_audio_confidence_gate_v1 = active_gate_v1
+    event_aligner_v1 = exp.get("env", {}).get("AS_M4_ENABLE_AUDIO_EVENT_ALIGNER_V1")
+    active_event_aligner_v1 = str(event_aligner_v1 or "0") in {"1", "true", "True"}
+    model.config.enable_audio_event_aligner_v1 = active_event_aligner_v1
+    active_fusion_mode = str(
+        exp.get("env", {}).get("AS_M4_FUSION_MODE") or previous_fusion_mode
+    )
+    active_fusion_projector_mode = str(
+        exp.get("env", {}).get("AS_M4_FUSION_PROJECTOR_MODE")
+        or previous_fusion_projector_mode
+    )
+    if active_fusion_projector_mode not in {"legacy", "identity", "bypass", "lightweight"}:
+        raise ValueError(
+            "AS_M4_FUSION_PROJECTOR_MODE must be legacy, identity, bypass, or lightweight"
+        )
+    active_simple_audio_gate = float(
+        exp.get("env", {}).get("AS_M4_SIMPLE_AUDIO_GATE")
+        or previous_simple_audio_gate
+    )
+    inference_simple_audio_gate = exp.get("env", {}).get(
+        "AS_M4_INFERENCE_SIMPLE_AUDIO_GATE"
+    )
+    active_inference_simple_audio_gate = (
+        float(inference_simple_audio_gate)
+        if inference_simple_audio_gate is not None
+        else previous_inference_simple_audio_gate
+    )
+    fusion_position = exp.get("env", {}).get("AS_M4_FUSION_POSITION")
+    active_fusion_position = previous_fusion_position
+    if fusion_position is not None:
+        if fusion_position not in {"visual_token_residual", "llm_input_audio_tokens"}:
+            raise ValueError("AS_M4_FUSION_POSITION 无效")
+        model.config.as_m4_fusion_position = fusion_position
+        active_fusion_position = fusion_position
+    audio_token_gate = exp.get("env", {}).get("AS_M4_AUDIO_TOKEN_GATE")
+    active_audio_token_gate = previous_audio_token_gate
+    if audio_token_gate is not None:
+        model.config.as_m4_audio_token_gate = float(audio_token_gate)
+        active_audio_token_gate = float(audio_token_gate)
+    model.config.as_m4_fusion_mode = active_fusion_mode
+    model.config.as_m4_fusion_projector_mode = active_fusion_projector_mode
+    model.config.as_m4_simple_audio_gate = active_simple_audio_gate
+    model.config.as_m4_inference_simple_audio_gate = active_inference_simple_audio_gate
+    streaming_av_module = getattr(model.get_model(), "streaming_av_module", None)
+    if isinstance(streaming_av_module, list):
+        streaming_av_module = streaming_av_module[0]
+    previous_module_gate_v1 = None
+    if streaming_av_module is not None and hasattr(streaming_av_module, "confidence_gate"):
+        previous_module_gate_v1 = streaming_av_module.confidence_gate.enable_v1
+        streaming_av_module.confidence_gate.enable_v1 = active_gate_v1
+    if exp.get("env", {}).get("AS_M4_SCENE_AUDIO_ENCODER_TYPE"):
+        maybe_replace_scene_audio_encoder(
+            model,
+            exp.get("env", {}),
+        )
+    streaming_av_module = getattr(model.get_model(), "streaming_av_module", None)
+    if isinstance(streaming_av_module, list):
+        streaming_av_module = streaming_av_module[0]
+    previous_module_fusion_projector_mode = None
+    if streaming_av_module is not None and hasattr(streaming_av_module, "fusion"):
+        previous_module_fusion_projector_mode = streaming_av_module.fusion.fusion_mode
+        streaming_av_module.fusion.fusion_mode = active_fusion_projector_mode
     frame_timestamps_arg = None
     if using_video_feature and qa.get("frame_timestamps") is not None:
         frame_timestamps_arg = torch.as_tensor(qa.get("frame_timestamps") or [], dtype=torch.float32, device=device).unsqueeze(0)
@@ -599,6 +1171,7 @@ def model_prediction(
                     modalities=modalities,
                     scene_audios=scene_audios,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps_arg,
                     use_cache=True,
                     new_query=new_query_ids,
@@ -620,6 +1193,7 @@ def model_prediction(
                     modalities=modalities,
                     scene_audios=scene_audios,
                     scene_audio_timestamps=scene_audio_timestamps,
+                    scene_audio_selection_stage=scene_audio_selection_stage,
                     frame_timestamps=frame_timestamps_arg,
                     do_sample=False,
                     temperature=0,
@@ -643,6 +1217,18 @@ def model_prediction(
                 model.config.enable_scene_audio = previous_enable_scene_audio
             model.config.debug_audio_residual_scale = previous_residual_scale
             model.config.audio_delta_ratio_cap = previous_delta_ratio_cap
+            model.config.enable_audio_confidence_gate_v1 = previous_gate_v1
+            model.config.enable_audio_event_aligner_v1 = previous_event_aligner_v1
+            model.config.as_m4_fusion_mode = previous_fusion_mode
+            model.config.as_m4_fusion_projector_mode = previous_fusion_projector_mode
+            model.config.as_m4_simple_audio_gate = previous_simple_audio_gate
+            model.config.as_m4_inference_simple_audio_gate = previous_inference_simple_audio_gate
+            model.config.as_m4_fusion_position = previous_fusion_position
+            model.config.as_m4_audio_token_gate = previous_audio_token_gate
+            if previous_module_gate_v1 is not None:
+                streaming_av_module.confidence_gate.enable_v1 = previous_module_gate_v1
+            if previous_module_fusion_projector_mode is not None:
+                streaming_av_module.fusion.fusion_mode = previous_module_fusion_projector_mode
     diagnostics = None
     if dump_diagnostics:
         diagnostics = jsonable_diagnostics(getattr(model, "_last_streaming_av_diagnostics", None))
@@ -660,6 +1246,14 @@ def model_prediction(
     token_debug["audio_input"] = audio_input_debug
     token_debug["audio_residual_scale"] = active_residual_scale
     token_debug["audio_delta_ratio_cap"] = active_delta_ratio_cap
+    token_debug["audio_confidence_gate_v1"] = active_gate_v1
+    token_debug["audio_event_aligner_v1"] = active_event_aligner_v1
+    token_debug["as_m4_fusion_mode"] = active_fusion_mode
+    token_debug["as_m4_fusion_projector_mode"] = active_fusion_projector_mode
+    token_debug["as_m4_simple_audio_gate"] = active_simple_audio_gate
+    token_debug["as_m4_inference_simple_audio_gate"] = active_inference_simple_audio_gate
+    token_debug["as_m4_fusion_position"] = active_fusion_position
+    token_debug["as_m4_audio_token_gate"] = active_audio_token_gate
     token_debug["first_token_logits"] = first_token_logits
     return prediction, diagnostics, {"prompt": prompt_debug, "tokens": token_debug}
 
@@ -671,11 +1265,13 @@ def run_predictions(
     feature_root: Path,
     device: str,
     max_new_tokens: int,
+    skip: int = 0,
     experiments: set[str] | None = None,
     model_name_override: str | None = None,
     dry_run: bool = False,
     dump_diagnostics: bool = False,
     debug_dir: Path | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     plan = read_jsonl(plan_path)
     feature_root = feature_root.resolve()
@@ -691,36 +1287,59 @@ def run_predictions(
         num_selected += 1
         output_jsonl = Path(str(exp["output_jsonl"]))
         outputs.append(str(output_jsonl))
+        manifest = Path(str(exp["manifest"]))
+        verify_manifest_lock(exp, manifest)
         if dry_run:
             continue
-        manifest = Path(str(exp["manifest"]))
         all_samples = iter_qa_samples(manifest, limit=None)
-        samples = all_samples[:limit] if limit is not None else all_samples
+        if skip < 0:
+            raise ValueError("skip must be non-negative")
+        samples = all_samples[skip:]
+        if limit is not None:
+            samples = samples[:limit]
         output_jsonl.parent.mkdir(parents=True, exist_ok=True)
-        env = os.environ.copy()
-        env.update({str(k): str(v) for k, v in (exp.get("env") or {}).items()})
-        rows = []
-        for sample_index, qa in enumerate(samples):
+        existing_rows = []
+        if resume and output_jsonl.is_file():
+            existing_rows = read_jsonl(output_jsonl)
+            if len(existing_rows) > len(samples):
+                raise ValueError(f"{exp_id} 已有输出超过本次样本范围")
+            expected_prefix = [sample["sample_id"] for sample in samples[: len(existing_rows)]]
+            actual_prefix = [row.get("sample_id") for row in existing_rows]
+            if actual_prefix != expected_prefix or any(row.get("experiment_id") != exp_id for row in existing_rows):
+                raise ValueError(f"{exp_id} resume 输出前缀与冻结 manifest 不一致")
+            samples = samples[len(existing_rows) :]
+        env = {str(k): str(v) for k, v in (exp.get("env") or {}).items()}
+        output_mode = "a" if resume and existing_rows else "w"
+        output_handle = output_jsonl.open(output_mode, encoding="utf-8")
+        for sample_index, qa in enumerate(samples, start=skip + len(existing_rows)):
             qa = apply_audio_condition(qa, exp, all_samples, sample_index)
-            if backend == "oracle":
-                prediction = oracle_prediction(str(qa["answer"]), str(exp["id"]), qa.get("id"))
-                diagnostics = None
-                generation_debug = None
-            elif backend == "model":
-                os.environ.update(env)
-                prediction, diagnostics, generation_debug = model_prediction(
-                    qa,
-                    exp,
-                    model_cache,
-                    feature_root,
-                    device,
-                    max_new_tokens,
-                    model_name_override=model_name_override,
-                    dump_diagnostics=dump_diagnostics,
-                )
-            else:
-                raise ValueError(f"Unknown backend: {backend}")
-            correct = prediction_correct(prediction, qa)
+            started_at, observed_cuda_device = begin_runtime_observation(device)
+            try:
+                if backend == "oracle":
+                    prediction = oracle_prediction(str(qa["answer"]), str(exp["id"]), qa.get("id"))
+                    diagnostics = None
+                    generation_debug = None
+                elif backend == "model":
+                    with temporary_environment(env):
+                        prediction, diagnostics, generation_debug = model_prediction(
+                            qa,
+                            exp,
+                            model_cache,
+                            feature_root,
+                            device,
+                            max_new_tokens,
+                            model_name_override=model_name_override,
+                            dump_diagnostics=dump_diagnostics,
+                        )
+                else:
+                    raise ValueError(f"Unknown backend: {backend}")
+            finally:
+                runtime_observation = finish_runtime_observation(started_at, observed_cuda_device)
+            correct = prediction_correct(
+                prediction,
+                qa,
+                scorer=str(exp.get("scorer") or "exact_match"),
+            )
             row = {
                 "id": qa["id"],
                 "sample_id": qa["sample_id"],
@@ -732,6 +1351,18 @@ def run_predictions(
                 "audio_condition": exp.get("audio_condition"),
                 "alignment": exp.get("alignment"),
                 "gate_ablation": exp.get("gate_ablation"),
+                "task_type": qa.get("task_type"),
+                "event_label": qa.get("event_label"),
+                "physical_media_id": qa.get("physical_media_id"),
+                "mismatch_source_id": qa.get("mismatch_source_id"),
+                "mismatch_source_physical_media_id": qa.get("mismatch_source_physical_media_id"),
+                "mismatch_source_event_label": qa.get("mismatch_source_event_label"),
+                "sentence_id": qa.get("sentence_id"),
+                "event_start_sec": qa.get("event_start_sec"),
+                "event_end_sec": qa.get("event_end_sec"),
+                "is_sparse": qa.get("is_sparse"),
+                "selector_strategy": qa.get("selector_strategy"),
+                **runtime_observation,
             }
             if dump_diagnostics:
                 row["as_m4_diagnostics"] = diagnostics
@@ -747,14 +1378,29 @@ def run_predictions(
                 if generation_debug is not None:
                     prompt_debug_records.append({"case": exp_id, "sample_id": qa["sample_id"], **generation_debug["prompt"]})
                     token_debug_records.append({"case": exp_id, "sample_id": qa["sample_id"], **generation_debug["tokens"]})
-            rows.append(row)
-        with output_jsonl.open("w", encoding="utf-8") as f:
-            for row in rows:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            output_handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+            output_handle.flush()
+        output_handle.close()
+    frozen_state_audits = []
+    for key, cached in model_cache.items():
+        if key == "__runtime_cache__":
+            continue
+        _tokenizer, model, _processor, _context = cached
+        before = getattr(model, "_as_m4_frozen_runtime_sha_before", None)
+        after = frozen_runtime_module_sha256(model)
+        frozen_state_audits.append(
+            {"model_path": key, "before": before, "after": after, "unchanged": before == after}
+        )
+    if any(item["unchanged"] is not True for item in frozen_state_audits):
+        raise RuntimeError("冻结运行时模块 SHA 在推理前后发生变化")
     if debug_dir is not None and dump_diagnostics and not dry_run:
         debug_dir.mkdir(parents=True, exist_ok=True)
         (debug_dir / "prompt_debug.json").write_text(json.dumps(prompt_debug_records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (debug_dir / "token_debug.json").write_text(json.dumps(token_debug_records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        (debug_dir / "frozen_state_audit.json").write_text(
+            json.dumps(frozen_state_audits, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return {
         "status": "pass",
         "backend": backend,
@@ -762,6 +1408,8 @@ def run_predictions(
         "outputs": outputs,
         "num_plan_experiments": len(plan),
         "num_selected_experiments": num_selected,
+        "resume": resume,
+        "frozen_state_audits": frozen_state_audits,
     }
 
 
@@ -770,6 +1418,7 @@ def main() -> None:
     parser.add_argument("--plan", required=True)
     parser.add_argument("--backend", choices=["oracle", "model"], default="oracle")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--skip", type=int, default=0, help="Skip this many QA records at the start of the locked manifest.")
     parser.add_argument("--feature_root", default="intersuit/inputs/features/as_m4_smoke")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--max_new_tokens", type=int, default=64)
@@ -778,6 +1427,7 @@ def main() -> None:
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--dump_diagnostics", action="store_true", help="Write AS-M4 fusion diagnostics into prediction rows.")
     parser.add_argument("--debug_dir", default="", help="Optional directory for full prompt_debug.json and token_debug.json.")
+    parser.add_argument("--resume", action="store_true", help="逐样本续写，并严格验证已有输出是冻结 manifest 前缀。")
     args = parser.parse_args()
     experiments = {item.strip() for item in args.experiments.split(",") if item.strip()} or None
     model_name_override = args.model_name_override.strip() or None
@@ -786,6 +1436,7 @@ def main() -> None:
         Path(args.plan),
         backend=args.backend,
         limit=args.limit,
+        skip=args.skip,
         feature_root=Path(args.feature_root),
         device=args.device,
         max_new_tokens=args.max_new_tokens,
@@ -794,6 +1445,7 @@ def main() -> None:
         dry_run=args.dry_run,
         dump_diagnostics=args.dump_diagnostics,
         debug_dir=Path(args.debug_dir) if args.debug_dir else None,
+        resume=args.resume,
     )
     print(json.dumps(result, ensure_ascii=False))
 

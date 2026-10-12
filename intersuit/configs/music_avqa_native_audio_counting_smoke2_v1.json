@@ -1,0 +1,60 @@
+{
+  "contract_id": "music_avqa_native_audio_counting_smoke2_v1",
+  "status": "STOPPED_BY_MAINLINE_DECISION",
+  "route_active": false,
+  "stopped_on": "2026-09-10",
+  "stop_reason": "主实验收敛到 UnAV-100 机制验证与 OmniMMI/M4 原任务验证",
+  "task": {
+    "source_dataset": "MUSIC-AVQA-v2.0",
+    "source_split": "dev",
+    "native_modality": "Audio",
+    "native_subtype": "Counting",
+    "question": "How many musical instruments were heard throughout the video?",
+    "answer_semantics": "native MUSIC-AVQA textual count answer",
+    "groups": 2,
+    "conditions": ["correct", "mismatch", "video_only", "silence"]
+  },
+  "assets": {
+    "manifest": "intersuit/harness/artifacts/music_avqa_native_audio_counting_smoke2_v1/manifest.jsonl",
+    "manifest_sha256": "680de30ca2e3b7fedc051858364c7ccbe32d4e5d6f81c84d61bdd66e847eb973",
+    "native_annotations": "intersuit/datasets/NEW_AV_TRAIN/quarantine/metadata/train_balance.json",
+    "native_annotations_sha256": "34218d7aa2f60ff4aa1ece5f968c1e2a7c8e4c5e9db18ac6273ab7b5a3e9ef00"
+  },
+  "pairing": {
+    "same_rendered_question": true,
+    "different_physical_media": true,
+    "different_native_answer": true,
+    "same_dataset_and_split": true,
+    "fixed_seed": 20260903
+  },
+  "evaluation": {
+    "primary": "native_answer_normalized_match",
+    "selection": "correct_accuracy_strictly_above_mismatch",
+    "safety": "silence_prediction_exactly_equals_video_only",
+    "interpretation": "MUSIC-AVQA audio counting diagnostic only; current encoder is trained for event semantics, not cardinality aggregation"
+  },
+  "generation": {
+    "do_sample": false,
+    "num_beams": 1,
+    "max_new_tokens": 32,
+    "answer_scoring": "normalized native count answer match"
+  },
+  "authorization": {
+    "cpu_build_and_audit": false,
+    "gpu_generation_smoke": false,
+    "gpu_150step": false,
+    "formal_test": false
+  },
+  "historical_completed": {
+    "cpu_build_and_audit": true,
+    "manifest_frozen": true
+  },
+  "stop_conditions": [
+    "mixed_dataset_or_split",
+    "native_annotation_mismatch",
+    "pilot_physical_media_overlap",
+    "mismatch_native_answer_equal_to_target",
+    "silence_not_equal_video_only",
+    "correct_accuracy_not_strictly_above_mismatch"
+  ]
+}

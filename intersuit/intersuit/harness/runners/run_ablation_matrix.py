@@ -108,6 +108,7 @@ class MatrixConfig:
     dataset_name: str
     split: str
     manifest: str
+    manifest_sha256: str | None
     scorer: str
     baseline_model: str
     as_m4_model: str
@@ -147,6 +148,7 @@ def parse_config(data: dict[str, Any]) -> MatrixConfig:
         dataset_name=str(dataset["name"]),
         split=str(dataset["split"]),
         manifest=str(dataset["manifest"]),
+        manifest_sha256=str(dataset["manifest_sha256"]) if dataset.get("manifest_sha256") else None,
         scorer=str(dataset["scorer"]),
         baseline_model=str(models["baseline_m4"]),
         as_m4_model=str(models["as_m4"]),
@@ -198,7 +200,8 @@ def validate_matrix(config: MatrixConfig, strict_paths: bool = False) -> list[st
     return errors
 
 
-def build_plan(config: MatrixConfig) -> list[dict[str, Any]]:
+def build_plan(config: MatrixConfig, output_root: Path | None = None) -> list[dict[str, Any]]:
+    resolved_output_root = output_root or Path(config.output_root)
     model_paths = {
         "baseline_m4": config.baseline_model,
         "as_m4": config.as_m4_model,
@@ -207,13 +210,15 @@ def build_plan(config: MatrixConfig) -> list[dict[str, Any]]:
     for exp in config.experiments:
         exp_id = str(exp["id"])
         model_key = str(exp["model_key"])
-        output_jsonl = str(Path(config.output_root) / f"{exp_id.lower()}_predictions.jsonl")
+        output_jsonl = str(resolved_output_root / f"{exp_id.lower()}_predictions.jsonl")
         env = {
             "AS_M4_ROLLBACK_MODE": str(exp.get("rollback_mode") or "none"),
             "AS_M4_ENABLE_SCENE_AUDIO": "0" if exp.get("rollback_mode") in {"behavior", "weights12k", "weights32k"} else "1",
             "AS_M4_FUSION_INIT": str(exp.get("fusion_init") or "zero"),
             "AS_M4_GATE_LOGIT_BIAS": str(exp.get("gate_logit_bias") if exp.get("gate_logit_bias") is not None else -5.0),
         }
+        for key, value in (exp.get("env") or {}).items():
+            env.setdefault(str(key), str(value))
         if exp.get("force_audio_gate") is not None:
             env["AS_M4_FORCE_AUDIO_GATE"] = str(exp["force_audio_gate"])
         records.append(
@@ -223,6 +228,7 @@ def build_plan(config: MatrixConfig) -> list[dict[str, Any]]:
                 "dataset": config.dataset_name,
                 "split": config.split,
                 "manifest": config.manifest,
+                "manifest_sha256": config.manifest_sha256,
                 "scorer": config.scorer,
                 "model_key": model_key,
                 "model_path": model_paths.get(model_key, model_key),
@@ -255,14 +261,19 @@ def write_outputs(plan: list[dict[str, Any]], output_dir: Path, validation_error
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate and materialize an AS-M4 E0-E7 attribution matrix.")
     parser.add_argument("--config", required=True)
-    parser.add_argument("--output_dir", default="intersuit/harness/artifacts/as_m4_e0_e7")
+    parser.add_argument(
+        "--output_dir",
+        default=None,
+        help="计划输出目录；未指定时使用配置中的 output_root。",
+    )
     parser.add_argument("--strict_paths", action="store_true", help="Require manifest and model paths to exist.")
     args = parser.parse_args()
 
     config = parse_config(load_config(Path(args.config)))
     errors = validate_matrix(config, strict_paths=args.strict_paths)
-    plan = build_plan(config)
-    write_outputs(plan, Path(args.output_dir), errors)
+    output_dir = Path(args.output_dir) if args.output_dir else Path(config.output_root)
+    plan = build_plan(config, output_root=output_dir)
+    write_outputs(plan, output_dir, errors)
     print(json.dumps({"status": "pass" if not errors else "fail", "errors": errors, "num_experiments": len(plan)}, ensure_ascii=False))
     if errors:
         raise SystemExit(1)

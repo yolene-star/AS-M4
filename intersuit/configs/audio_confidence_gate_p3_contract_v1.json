@@ -1,0 +1,119 @@
+{
+  "contract_id": "audio_confidence_gate_p3_v1",
+  "status": "PASS_P3_PREFLIGHT_TRAINING_CLOSED",
+  "dataset": {
+    "version": "AS-M4-CGF-Valor32K-v1-pilot150",
+    "official_split": "train",
+    "condition_manifest_sha256": "007d5b1d936323d28adee252ce6f407d458d24b3042b1caf1bb8a0086f301e26",
+    "first_stage_record_count": 5400,
+    "second_stage_record_count": 900,
+    "second_stage_allowed": false,
+    "formal_test_allowed": false
+  },
+  "trainable_scope": {
+    "mm_tunable_parts": "audio_confidence_gate",
+    "parameter_prefix": "streaming_av_module.first_stage_confidence_gate.",
+    "expected_parameter_tensor_count_hidden3584_projection128": 24,
+    "expected_parameter_count_hidden3584_projection128": 1910671,
+    "allowed_components": [
+      "question_router",
+      "audio_projection",
+      "video_projection",
+      "question_projection",
+      "quality_mlp",
+      "relevance_mlp"
+    ],
+    "frozen_components": [
+      "beats",
+      "scene_audio_encoder_and_projector",
+      "m4_qwen2",
+      "vision_tower",
+      "mm_projector",
+      "legacy_audio_confidence_gate",
+      "streaming_av_fusion",
+      "temporal_aligner",
+      "event_detector",
+      "sync_gate"
+    ],
+    "optimizer_exact_allowlist_required": true,
+    "frozen_parameter_sha_before_after_required": true
+  },
+  "supervision": {
+    "router_loss": "BCE(visual=0,audio=1,audio-visual=1)",
+    "quality_loss": "pairwise_rank(clean>noisy20>noisy10>noisy0>silence)",
+    "relevance_loss": "pairwise_rank(correct>mismatch) for audio and audio-visual only",
+    "sync_loss_weight": 0.0,
+    "shifted_records_in_first_stage": 0
+  },
+  "runtime": {
+    "conda_env": "M4",
+    "physical_gpu": 2,
+    "cuda_visible_devices": "2",
+    "deepspeed": "none",
+    "micro_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "precision": "bf16",
+    "save_gate_only_checkpoint": true
+  },
+  "canary_sequence": [
+    {
+      "steps": 2,
+      "required": [
+        "all_losses_and_gradients_finite",
+        "optimizer_matches_exact_allowlist",
+        "only_gate_parameters_change",
+        "sync_loss_absent",
+        "gate_outputs_finite_and_bounded"
+      ]
+    },
+    {
+      "steps": 20,
+      "required": [
+        "all_2_step_requirements",
+        "no_gate_all_zero_or_all_one",
+        "correct_mismatch_ranking_accuracy_at_least_0.55",
+        "router_balanced_accuracy_at_least_0.60"
+      ]
+    },
+    {
+      "steps": 150,
+      "required": [
+        "all_20_step_requirements",
+        "correct_mismatch_ranking_accuracy_at_least_0.60",
+        "router_balanced_accuracy_at_least_0.70",
+        "clean_noisy_monotonic_accuracy_at_least_0.60",
+        "visual_question_mean_gate_below_audio_question_mean_gate"
+      ]
+    }
+  ],
+  "stop_conditions": [
+    "any_nonfinite_loss_gradient_or_gate",
+    "any_frozen_parameter_change",
+    "optimizer_parameter_outside_allowlist",
+    "shifted_record_enters_first_stage",
+    "sync_loss_becomes_nonzero",
+    "gate_collapses_to_constant_all_zero_or_all_one",
+    "correct_mismatch_ranking_not_above_registered_threshold",
+    "router_uses_audio_path_or_condition_name_as_label_leakage"
+  ],
+  "authorization": {
+    "virtual_loader_cpu_tests": true,
+    "feature_precompute": false,
+    "two_step_training": false,
+    "twenty_step_training": false,
+    "one_hundred_fifty_step_training": false,
+    "p4_7b": false
+  },
+  "feature_pipeline": {
+    "schema": "as_m4_audio_confidence_frozen_features_v2",
+    "manifest_schema": "as_m4_audio_confidence_feature_manifest_v1",
+    "independent_quality_and_relevance_masks": true,
+    "full_windows_only": true,
+    "encoder_source_state_sha256_required": true,
+    "code_ready": true,
+    "formal_feature_assets_generated": false,
+    "independent_asset_audit_passed": false,
+    "training_entry_code_ready": true,
+    "training_entry_connected": false
+  }
+}

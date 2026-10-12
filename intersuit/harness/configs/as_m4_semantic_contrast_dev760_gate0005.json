@@ -1,0 +1,35 @@
+{
+  "dataset": {
+    "name": "AS_M4_STAGE2",
+    "split": "dev760_semantic_contrast_gate0005",
+    "manifest": "/home/yjm/M4-main/intersuit/datasets/AS_M4_STAGE2/dev760_frozen_qa_manifest.json",
+    "manifest_sha256": "6d8a29e53532593eb5b66f007e0cc774631f52afa070b82a3e3e1718fd4a2ea7",
+    "scorer": "label_terms"
+  },
+  "models": {
+    "baseline_m4": "/home/yjm/M4-main/intersuit/checkpoints/M4-LongVA-7B-Qwen2-train-12k-lowmem-nofreeze",
+    "as_m4": "/home/yjm/M4-main/intersuit/checkpoints/AS-M4-BEATs-semantic-contrast-canary150-v1/checkpoint-150"
+  },
+  "output_root": "/home/yjm/M4-main/intersuit/harness/artifacts/as_m4_semantic_contrast_dev760_gate0005/predictions",
+  "experiment_ids": ["SEM_DEV760_G0005_CORRECT", "SEM_DEV760_G0005_MISMATCHED"],
+  "experiments": [
+    {
+      "id": "SEM_DEV760_G0005_CORRECT",
+      "model_key": "as_m4",
+      "audio_condition": "correct",
+      "rollback_mode": "none",
+      "alignment": "off",
+      "gate_ablation": "none",
+      "env": {"AS_M4_INFERENCE_SIMPLE_AUDIO_GATE": "0.005"}
+    },
+    {
+      "id": "SEM_DEV760_G0005_MISMATCHED",
+      "model_key": "as_m4",
+      "audio_condition": "mismatched",
+      "rollback_mode": "none",
+      "alignment": "off",
+      "gate_ablation": "none",
+      "env": {"AS_M4_INFERENCE_SIMPLE_AUDIO_GATE": "0.005"}
+    }
+  ]
+}

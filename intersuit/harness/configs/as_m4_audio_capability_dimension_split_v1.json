@@ -1,0 +1,86 @@
+{
+  "contract_id": "as_m4_audio_capability_dimension_split_v1",
+  "created_at": "2026-09-19T00:00:00+08:00",
+  "status": "MAINLINE_FROZEN_DIMENSION_SPLIT_V1",
+  "plan_path": "docs/AS_M4_AUDIO_CAPABILITY_DIMENSION_SPLIT_PLAN_ZH.md",
+  "global_rules": {
+    "one_test_set_per_dimension": true,
+    "cross_dataset_sample_pooling": false,
+    "cross_dataset_metric_denominator": false,
+    "cross_dataset_composite_score": false,
+    "shared_frozen_checkpoint_required": true,
+    "parameter_updates_during_evaluation": false
+  },
+  "dimensions": [
+    {
+      "dimension_id": "temporal_event_localization",
+      "test_set": {"dataset": "UnAV-100", "split": "validation"},
+      "metrics": ["event_coverage_at_k", "window_hit_at_k", "positive_window_recall_at_k", "mean_best_tiou"]
+    },
+    {
+      "dimension_id": "budgeted_window_selection",
+      "test_set": {"dataset": "UnAV-100", "split": "validation"},
+      "metrics": ["first_hit_rank", "oracle_headroom", "headroom_recovery", "selector_latency_ms"]
+    },
+    {
+      "dimension_id": "modality_dependency",
+      "test_set": {"dataset": "LLP/AVVP", "split": "validation"},
+      "metrics": ["audio_only_macro_recall", "visual_only_macro_recall", "audio_visual_macro_recall", "modality_balanced_accuracy"]
+    },
+    {
+      "dimension_id": "audio_selectivity_robustness",
+      "test_set": {"dataset": "LLP/AVVP", "split": "validation"},
+      "metrics": ["correct_mismatch_margin", "correct_silence_margin", "visual_only_flip_rate", "silence_video_only_consistency"]
+    },
+    {
+      "dimension_id": "video_understanding_regression",
+      "test_set": {"dataset": "OmniMMI", "split": "pt_pa_full"},
+      "metrics": ["pt_accuracy_delta", "pa_accuracy_delta", "pa_precision_delta", "pa_iou_delta", "empty_output_rate_delta"]
+    }
+  ],
+  "dataset_gates": {
+    "UnAV-100": {
+      "status": "CPU_FIVE_STRATEGIES_PASS_LEARNED_MISSING",
+      "required_assets": [
+        "intersuit/harness/AS_M4_UNAV100_MECHANISM_EVIDENCE_INVENTORY_ZH.md",
+        "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_a_k4/summary.json",
+        "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_a_k8/summary.json",
+        "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_b_k4/summary.json",
+        "intersuit/harness/artifacts/dynamic_selector_v2_v1/run_b_k8/summary.json"
+      ],
+      "missing": ["learned_selector_frozen_evaluation", "frozen_m4_downstream_selector_transfer"]
+    },
+    "LLP/AVVP": {
+      "status": "PIPELINE_PASS_SELECTIVITY_NOT_PROVEN_FULL_CLOSED",
+      "manifest": "intersuit/harness/artifacts/audio_visual_event_manifests/unified_audio_visual_manifest.jsonl",
+      "manifest_split": "val",
+      "required_modalities": ["audio_only", "visual_only", "audio_visual", "background"],
+      "missing": ["larger_role_stratified_smoke", "full_validation_media", "selectivity_pass"]
+    },
+    "OmniMMI": {
+      "status": "PT_LIMIT2_EXACT_ROLLBACK_PASS_FULL_CLOSED",
+      "required_assets": [
+        "intersuit/harness/M4_PTPA_BEST_AUDIO_BRANCH_V1_ZH.md",
+        "intersuit/harness/configs/as_m4_original_video_only_dev760.json"
+      ],
+      "manual_modality_labels_required": false,
+      "comparison": ["original_m4", "as_m4_behavior_off_video_only"],
+      "missing": ["as_m4_full_pt_pa_predictions"]
+    }
+  },
+  "authorization": {
+    "cpu_contract_audit": true,
+    "gpu_smoke": false,
+    "gpu_smoke_scope": ["LLP:teacher_forced:role_stratified2:physical_gpu2"],
+    "completed_gpu_smoke": {
+      "scope": [
+        "OmniMMI:PT:limit2:original_m4",
+        "OmniMMI:PT:limit2:as_m4_behavior_off"
+      ],
+      "status": "PASS_OMNIMMI_PT_LIMIT2_EXACT_BEHAVIOR_OFF_ROLLBACK",
+      "evidence": "intersuit/harness/artifacts/omnimmi_video_regression_v1/pt_limit2_20260919/pair_audit.json"
+    },
+    "gpu_150step": false,
+    "formal_training": false
+  }
+}

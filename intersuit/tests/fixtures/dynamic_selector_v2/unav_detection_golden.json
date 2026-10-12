@@ -1,0 +1,18 @@
+{
+  "database": {
+    "video-a": {
+      "subset": "validation",
+      "duration": 20.0,
+      "annotations": [
+        {"segment": [1.0, 4.0], "label": "bell", "label_id": 0}
+      ]
+    },
+    "video-b": {
+      "subset": "validation",
+      "duration": 30.0,
+      "annotations": [
+        {"segment": [10.0, 14.0], "label": "door", "label_id": 1}
+      ]
+    }
+  }
+}
