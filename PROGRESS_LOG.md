@@ -5109,3 +5109,23 @@
 - 结果/验证：P3 frozen-100 已覆盖 fixed_all、5-seed Random、Current Micro Top-8、Oracle Top-8、Oracle-mismatch 和 behavior-off，并完成 10,000 次物理视频 cluster bootstrap。Oracle METEOR 相对 fixed_all `-0.003773`、相对 Random `-0.003329`、相对 Current `-0.004592`、相对 behavior-off `-0.005159`；主门禁全部失败，正式决策为 `stop_selector_route`，selector training/deterministic stage/confirm 均关闭。
 - 当前整体进度：导师建议的“Oracle 下游传递验证”实际上已经完成且失败；新完成的 UnAV Temporal 定位优势不能推翻该冻结 M4 下游否定结果，因为 Temporal 定位收益尚未传递到 M4，且 selector 路线已有预注册停止结论。
 - 下一步：停止继续扩大 selector/learned selector/Temporal 下游接入；转向音频语义目标、答案表示和 fusion 位置诊断，保留 UnAV Temporal 结果作为机制分析，不将其宣称为 M4 收益。
+- 2026-09-21 — 核对既有音频语义目标实验
+
+- 完成操作：检查 R0/R1/R2 音频语义重构、Temporal/projector、Semantic Contrast 和 adapter-only objective 的计划、metrics、review 与 checkpoint 记录；未启动新 GPU、训练或推理。
+- 结果/验证：音频语义目标此前已做过多轮，但没有形成可晋级的统一成功方案：R1 raw/现有 projector 的 clip-level 事件结构通过；R2 目标空间比较失败（assistant-answer token、canonical label、question+answer、label-description 均未满足资格门禁），因此 R3 projector-only、R4 fusion、R5 downstream 在该重构线未授权。Semantic Contrast checkpoint-150 已训练但 dev760 correct 低于 video-only/mismatch，正式门禁 FAIL。Adapter-only objective-v2 20-step 在 30 组 teacher-forced NLL 通过，但 holdout10 泛化弱、generation-level 未证明，150-step/formal 继续关闭。UnAV temporal semantic projector 也有 clip/window 分类通过结果，但不能等价证明 M4 音频语义目标有效。
+- 当前整体进度：真正未解决的不是“有没有训练过音频语义目标”，而是合法目标空间与冻结 M4 下游因果收益尚未通过；selector 路线已因 Oracle 下游失败停止。
+- 下一步：若继续音频语义路线，应从 R2 target-space 失败出发另立新合同，优先重新设计音频事件/答案表示，再做小规模冻结下游验证；不得直接恢复旧 Semantic Contrast checkpoint 或扩大训练。
+
+- 2026-10-12 — 更新 Codex CLI
+
+- 完成操作：使用官方推荐的 npm 全局更新命令 `npm install -g @openai/codex@latest` 更新 Codex CLI。
+- 结果/验证：更新成功；`codex --version` 输出 `codex-cli 0.162.1`，npm 全局包为 `@openai/codex@0.162.1`。命令路径仍为 `/home/yjm/bin/codex`。
+- 当前整体进度：Codex CLI 已更新到当前 npm latest；运行时提示无法创建 PATH aliases（只读文件系统），但不影响现有命令执行。
+- 下一步：无需额外操作；如需消除 alias 警告，可在可写的用户配置目录中重新运行 CLI 初始化。
+
+- 2026-10-12 — 整理关键代码并准备推送 GitHub
+
+- 完成操作：核对当前分支与远程分支差异、提交文件清单、`.gitignore` 规则和非忽略未跟踪文件；确认本地领先远程的 11 个提交仅包含 AS-M4 评测脚本、配置、测试和设计文档。
+- 结果/验证：未发现媒体、权重、数据集、特征、缓存、训练日志或其他中间产物进入待推送差异；`git diff --check origin/feat/audio-event-aligner-v1..HEAD` 通过，工作区仅保留本次进度日志修改。
+- 当前整体进度：关键代码已整理完毕，待提交进度日志并推送到 `git@github.com:Yolene-star/AS-M4.git` 的 `feat/audio-event-aligner-v1` 分支。
+- 下一步：提交进度日志，复核提交内容后推送远程，并确认远程分支与本地提交一致。
